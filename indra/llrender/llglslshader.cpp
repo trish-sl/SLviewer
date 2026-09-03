@@ -2083,6 +2083,7 @@ LLUUID LLGLSLShader::hash()
     hash_obj.update(gGLManager.mGLVendor);
     hash_obj.update(gGLManager.mGLRenderer);
     hash_obj.update(gGLManager.mGLVersionString);
+    hash_obj.update(gGLManager.mDriverVersionVendorString);
     return hash_obj.digest();
 }
 
