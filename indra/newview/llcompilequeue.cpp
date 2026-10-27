@@ -382,6 +382,11 @@ bool LLFloaterCompileQueue::processScript(LLHandle<LLFloaterCompileQueue> hfloat
                 "Skipping: " + item->getName() + " (no registered VM)");
             return true;
         }
+        // LSL running on Luau reports "luau", recompile it as lsl-luau (like llscripteditorws)
+        if (compile_target == "luau" && item->getInventorySubType() != SST_LUA)
+        {
+            compile_target = "lsl-luau";
+        }
     }
 
     if (!item->getPermissions().allowModifyBy(gAgent.getID(), gAgent.getGroupID()) ||
