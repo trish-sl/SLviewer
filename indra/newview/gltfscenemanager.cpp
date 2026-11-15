@@ -659,7 +659,7 @@ void GLTFSceneManager::render(Asset& asset, U8 variant)
 
         if (batches.empty())
         {
-            return;
+            continue;
         }
 
         LLGLDisable cull_face(ds == 1 ? GL_CULL_FACE : 0);
