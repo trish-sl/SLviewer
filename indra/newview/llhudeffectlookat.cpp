@@ -605,7 +605,7 @@ void LLHUDEffectLookAt::update()
             LLMotion* head_motion = ((LLVOAvatar*)(LLViewerObject*)mSourceObject)->findMotion(ANIM_AGENT_HEAD_ROT);
             if (disable_look_at())
             {
-                if (head_motion)
+                if (head_motion && !head_motion->isStopped())
                 {
                     ((LLVOAvatar*)(LLViewerObject*)mSourceObject)->stopMotion(ANIM_AGENT_HEAD_ROT);
                 }
