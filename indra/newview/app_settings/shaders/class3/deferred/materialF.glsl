@@ -157,14 +157,15 @@ vec3 calcPointLightOrSpotLight(vec3 light_col, vec3 npos, vec3 diffuse, vec4 spe
             vec3 h = normalize(lv + npos);
             float nh = dot(n, h);
             float nv = dot(n, npos);
-            float vh = dot(npos, h);
+            float vh = max(dot(npos, h), 1e-6);
             float sa = nh;
             float fres = pow(1 - dot(h, npos), 5)*0.4 + 0.5;
 
             float gtdenom = 2 * nh;
             float gt = max(0, min(gtdenom * nv / vh, gtdenom * da / vh));
 
-            if (nh > 0.0)
+            // da <= 0 means lit == 0 (no specular), but the divide below would still make 0/0 = NaN
+            if (nh > 0.0 && da > 0.0)
             {
                 float scol = fres*texture(lightFunc, vec2(nh, spec.a)).r*gt / (nh*da);
                 vec3 speccol = lit*scol*light_col.rgb*spec.rgb;
@@ -424,6 +425,9 @@ void main()
     float final_scale = 1;
     if (classic_mode > 0)
         final_scale = 1.1;
+    // max() does not remove a NaN on all drivers (AMD keeps it), and a NaN here ends up in the
+    // luminance map that drives auto exposure
+    color = mix(color, vec3(0.0), isnan(color));
     frag_color = max(vec4(color * final_scale, al), vec4(0));
 
 #else // mode is not DIFFUSE_ALPHA_MODE_BLEND, encode to gbuffer
