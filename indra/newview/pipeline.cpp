@@ -7096,7 +7096,9 @@ void LLPipeline::generateLuminance(LLRenderTarget* src, LLRenderTarget* dst)
         channel = gLuminanceProgram.enableTexture(LLShaderMgr::DEFERRED_DIFFUSE);
         if (channel > -1)
         {
-            src->bindTexture(0, channel, LLTexUnit::TFO_POINT);
+            // bilinear: the luminance map takes one texel per several screen pixels, and point
+            // sampling let a small moving highlight make the exposure flicker
+            src->bindTexture(0, channel, LLTexUnit::TFO_BILINEAR);
         }
 
         channel = gLuminanceProgram.enableTexture(LLShaderMgr::DEFERRED_EMISSIVE);
