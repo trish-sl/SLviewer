@@ -73,6 +73,19 @@ float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, 
 float pcfSpotShadow(sampler2DShadow shadowMap, vec4 stc, float bias_scale, vec2 pos_screen)
 {
 #if defined(SPOT_SHADOW)
+    // Outside the projector's frustum there is nothing to look up: behind it the divide would
+    // mirror the map, and beside it the taps would only read clamped edge texels. Both projector
+    // slots are evaluated for every pixel in shadow range, so most pixels leave here.
+    if (stc.w <= 0.0)
+    {
+        return 1.0;
+    }
+    vec2 uv = stc.xy / stc.w;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))
+    {
+        return 1.0;
+    }
+
     stc.xyz /= stc.w;
     stc.z += spot_shadow_bias * bias_scale;
     stc.x = floor(proj_shadow_res.x * stc.x + fract(pos_screen.y*0.666666666)) / proj_shadow_res.x; // snap
