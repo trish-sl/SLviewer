@@ -63,6 +63,9 @@ void main()
     c += texture(emissiveRect, tc).rgb;
 
     float L = lum(c);
-    frag_color = vec4(max(L, 0.0));
+    // max() does not remove a NaN on all drivers, and the mip chain would spread a single NaN or
+    // inf pixel over the whole map, so scrub both here
+    L = isnan(L) ? 0.0 : clamp(L, 0.0, 65000.0);
+    frag_color = vec4(L);
 }
 

@@ -7223,8 +7223,13 @@ void LLPipeline::generateExposure(LLRenderTarget* src, LLRenderTarget* dst, bool
 
         shader->uniform1f(dt, gFrameIntervalSeconds);
         shader->uniform2f(noiseVec, ll_frand() * 2.0f - 1.0f, ll_frand() * 2.0f - 1.0f);
-        shader->uniform4f(dynamic_exposure_params, dynamic_exposure_coefficient, exp_min, exp_max, dynamic_exposure_speed_error);
-        shader->uniform4f(dynamic_exposure_params2, sky->getHDROffset(should_auto_adjust()), exp_min, exp_max, dynamic_exposure_speed_target);
+        // the shader divides by the coefficient and computes speed = -log(error) / target:
+        // keep those finite and non-zero
+        F32 coefficient = llmax((F32)dynamic_exposure_coefficient, 0.0001f);
+        F32 speed_error = llclamp((F32)dynamic_exposure_speed_error, 0.001f, 0.999f);
+        F32 speed_target = llmax((F32)dynamic_exposure_speed_target, 0.01f);
+        shader->uniform4f(dynamic_exposure_params, coefficient, exp_min, exp_max, speed_error);
+        shader->uniform4f(dynamic_exposure_params2, sky->getHDROffset(should_auto_adjust()), exp_min, exp_max, speed_target);
 
         mScreenTriangleVB->setBuffer();
         mScreenTriangleVB->drawArrays(LLRender::TRIANGLES, 0, 3);

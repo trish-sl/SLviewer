@@ -49,6 +49,9 @@ void main()
     vec2 tc = vec2(0.5,0.5);
 
     float L = textureLod(emissiveRect, tc, 8).r;
+    // clamp() of a NaN is undefined, and through the exposure history a NaN would stick for good
+    bool bad_L = isnan(L);
+    L = bad_L ? 0.0 : L;
     float max_L = dynamic_exposure_params.x;
     L = clamp(L, 0.0, max_L);
     L /= max_L;
@@ -56,6 +59,16 @@ void main()
     float s = mix(dynamic_exposure_params.z, dynamic_exposure_params.y, L);
 #ifdef USE_LAST_EXPOSURE
     float prev = texture(exposureMap, vec2(0.5,0.5)).r;
+
+    // a history that went bad restarts from this frame, and a bad reading keeps the last exposure
+    if (isnan(prev) || isinf(prev))
+    {
+        prev = s;
+    }
+    if (bad_L)
+    {
+        s = prev;
+    }
 
     float speed = -log(dynamic_exposure_params.w) / dynamic_exposure_params2.w;
     s = mix(prev, s, 1 - exp(-speed * dt));
