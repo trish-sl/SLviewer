@@ -214,7 +214,6 @@ void main()
     vec3 amblit;
     vec3 additive;
     vec3 atten;
-    calcAtmosphericVarsLinear(pos.xyz, wavef, vary_light_dir, sunlit, amblit, additive, atten);
 
     calculateFresnelFactors(df3, df2, normalize(view.xyz), wave1, wave2, wave3, wavef);
 
@@ -228,6 +227,10 @@ void main()
     wave_ibl = transform_normal(vN, vT, vB, normalize(wave_ibl));
 
     vec3 norm = transform_normal(vN, vT, vB, normalize(wavef));
+
+    // the ambient term compares the normal with the view space light direction, so it needs the
+    // view space normal (wavef is still tangent space here)
+    calcAtmosphericVarsLinear(pos.xyz, norm, vary_light_dir, sunlit, amblit, additive, atten);
 
     vdu = clamp(vdu, 0, 1);
     //wavef.z *= max(vdu*vdu*vdu, 0.1);
