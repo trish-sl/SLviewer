@@ -187,7 +187,6 @@ void main()
     vec3 vB = cross(vN, vT);
 
     vec3 pos = vary_position.xyz;
-    float linear_depth = 1 / -pos.z;
 
     float dist = length(pos.xyz);
 
@@ -343,8 +342,6 @@ void main()
     fade = min(1, fade);
     color = mix(fb.rgb, color, fade);
 
-    float spec = min(max(max(punctual.r, punctual.g), punctual.b), 0);
-
-    frag_color = min(vec4(1),max(vec4(color.rgb, spec * water_mask), vec4(0)));
+    frag_color = min(vec4(1),max(vec4(color.rgb, 0.0), vec4(0)));
 }
 
