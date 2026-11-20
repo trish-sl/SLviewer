@@ -865,7 +865,9 @@ void sampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inout 
     }
 
 #if defined(SSR)
-    if (cube_snapshot != 1)
+    // The transparent path scales the result by glossiness, so skip the march when that is 0
+    // (alphaF always passes 0). The opaque path already skips it below the SSR glossiness cutoff.
+    if (cube_snapshot != 1 && (!transparent || glossiness > 0.0))
     {
         vec4 ssr = vec4(0);
 
