@@ -221,7 +221,11 @@ void main()
     vec3 up = transform_normal(vN, vT, vB, vec3(0,0,1));
     float vdu = -dot(viewVec, up)*2;
 
-    vec3 wave_ibl = wavef * normScale;
+    // normScale holds one scale per wave layer (as the legacy water's reflection distortion used it):
+    // scale each layer's slope. Multiplying the summed normal per component only tilted it between
+    // axes, and a uniform scale did nothing at all. The default scale of 2 gives the previous normal.
+    vec2 wave_slope = wave1.xy * normScale.x + wave2.xy * (0.4 * normScale.y) + wave3.xy * (0.6 * normScale.z);
+    vec3 wave_ibl = vec3(wave_slope * 0.25, wavef.z);
     wave_ibl.z *= 2.0;
     wave_ibl = transform_normal(vN, vT, vB, normalize(wave_ibl));
 
