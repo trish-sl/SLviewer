@@ -132,7 +132,6 @@ LLGLSLShader        gImpostorProgram;
 // Effects Shaders
 LLGLSLShader            gGlowProgram;
 LLGLSLShader            gGlowExtractProgram;
-LLGLSLShader            gPostScreenSpaceReflectionProgram;
 
 // Deferred rendering shaders
 LLGLSLShader            gDeferredImpostorProgram;
@@ -2982,17 +2981,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         gDeferredGenBrdfLutProgram.mShaderFiles.push_back(make_pair("deferred/genbrdflutF.glsl", GL_FRAGMENT_SHADER));
         gDeferredGenBrdfLutProgram.mShaderLevel = mShaderLevel[SHADER_DEFERRED];
         success = gDeferredGenBrdfLutProgram.createShader();
-    }
-
-    if (success) {
-        gPostScreenSpaceReflectionProgram.mName = "Screen Space Reflection Post";
-        gPostScreenSpaceReflectionProgram.mShaderFiles.clear();
-        gPostScreenSpaceReflectionProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflPostV.glsl", GL_VERTEX_SHADER));
-        gPostScreenSpaceReflectionProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflPostF.glsl", GL_FRAGMENT_SHADER));
-        gPostScreenSpaceReflectionProgram.mFeatures.hasScreenSpaceReflections = true;
-        gPostScreenSpaceReflectionProgram.mFeatures.isDeferred                = true;
-        gPostScreenSpaceReflectionProgram.mShaderLevel = 3;
-        success = gPostScreenSpaceReflectionProgram.createShader();
     }
 
     if (success) {

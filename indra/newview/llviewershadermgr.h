@@ -210,9 +210,6 @@ extern LLGLSLShader         gPathfindingNoNormalsProgram;
 extern LLGLSLShader         gAvatarProgram;
 extern LLGLSLShader         gImpostorProgram;
 
-// Post Process Shaders
-extern LLGLSLShader         gPostScreenSpaceReflectionProgram;
-
 // Deferred rendering shaders
 extern LLGLSLShader         gDeferredImpostorProgram;
 extern LLGLSLShader         gDeferredDiffuseProgram;
