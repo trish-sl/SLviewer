@@ -214,15 +214,16 @@ float sampleSpotShadow(vec3 pos, vec3 norm, int index, vec2 pos_screen)
             float w = 1.0;
             w -= max(spos.z-far_split.z, 0.0)/transition_domain.z;
 
+            // pcfSpotShadow picks its jitter per screen row, in pixels
             if (index == 0)
             {
                 lpos = shadow_matrix[4]*spos;
-                shadow += pcfSpotShadow(shadowMap4, lpos, 0.8, spos.xy)*w;
+                shadow += pcfSpotShadow(shadowMap4, lpos, 0.8, gl_FragCoord.xy)*w;
             }
             else
             {
                 lpos = shadow_matrix[5]*spos;
-                shadow += pcfSpotShadow(shadowMap5, lpos, 0.8, spos.xy)*w;
+                shadow += pcfSpotShadow(shadowMap5, lpos, 0.8, gl_FragCoord.xy)*w;
             }
             weight += w;
             shadow += max((pos.z+shadow_clip.z)/(shadow_clip.z-shadow_clip.w)*2.0-1.0, 0.0);
