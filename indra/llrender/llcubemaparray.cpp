@@ -179,6 +179,13 @@ void LLCubeMapArray::allocate(U32 resolution, U32 components, U32 count, bool us
         ++mip;
     }
 
+    if (use_mips && mip > 2)
+    {
+        // the probe managers write mips down to 2x2 and never the 1x1 one,
+        // so don't let sampling reach it (uninitialized memory)
+        glTexParameteri(GL_TEXTURE_CUBE_MAP_ARRAY, GL_TEXTURE_MAX_LEVEL, mip - 2);
+    }
+
     alloc_tex_image(resolution, resolution, format, count * 6);
 
     mImage->setAddressMode(LLTexUnit::TAM_CLAMP);

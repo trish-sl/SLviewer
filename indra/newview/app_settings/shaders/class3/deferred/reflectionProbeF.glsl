@@ -720,7 +720,12 @@ void tapHeroProbe(inout vec3 glossenv, vec3 pos, vec3 norm, float glossiness)
     clipDist = clamp(clipDist * falloffMult, 0, 1);
     w = clamp(w * falloffMult * clipDist, 0, 1);
     w = mix(0, w, clamp(glossiness - 0.75, 0, 1) * 4); // We only generate a quarter of the mips for the hero probes.  Linearly interpolate between normal probes and hero probes based upon glossiness.
-    glossenv = mix(glossenv, textureLod(heroProbes, vec4(env_mat * refnormpersp, 0), (1.0-glossiness)*heroMipCount).xyz, w);
+    // heroMipCount is the length of the mip chain, and mip i is filtered for roughness i / (heroMipCount - 1)
+    // (LLHeroProbeManager::generateRadiance). Only the first quarter of the mips is generated, so stay inside
+    // those; the rest (down to 1x1) is never written for the hero probe. Even at w == 0 a NaN read there
+    // would poison the mix.
+    float lod = min((1.0 - glossiness) * float(max(heroMipCount - 1, 0)), float(max(heroMipCount / 4 - 1, 0)));
+    glossenv = mix(glossenv, textureLod(heroProbes, vec4(env_mat * refnormpersp, 0), lod).xyz, w);
 }
 
 #else
