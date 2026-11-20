@@ -49,9 +49,7 @@ out vec4 frag_color;
 
 in vec3 vary_fragcoord;
 
-#ifdef HAS_SUN_SHADOW
-  uniform vec2 screen_res;
-#endif
+uniform vec2 screen_res;
 
 in vec3 vary_position;
 
@@ -165,7 +163,8 @@ void main()
         sunlit *= 1.35;
     vec3 sunlit_linear = sunlit;
 
-    vec2 frag = vary_fragcoord.xy/vary_fragcoord.z*0.5+0.5;
+    // vary_fragcoord.z is not clip space w: dividing by it put this about 100% off at 1m
+    vec2 frag = gl_FragCoord.xy / screen_res;
 
 #ifdef HAS_SUN_SHADOW
     scol = sampleDirectionalShadow(pos.xyz, norm.xyz, frag);
@@ -186,7 +185,7 @@ void main()
     float gloss      = 1.0 - perceptualRoughness;
     vec3  irradiance = amblit;
     vec3  radiance  = vec3(0);
-    sampleReflectionProbes(irradiance, radiance, vary_position.xy*0.5+0.5, pos.xyz, norm.xyz, gloss, true, amblit);
+    sampleReflectionProbes(irradiance, radiance, frag, pos.xyz, norm.xyz, gloss, true, amblit);
 
     vec3 diffuseColor = vec3(0.0);
     vec3 specularColor = vec3(0.0);

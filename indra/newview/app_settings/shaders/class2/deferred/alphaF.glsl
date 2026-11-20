@@ -172,7 +172,8 @@ void main()
 {
     mirrorClip(vary_position);
 
-    vec2 frag = vary_fragcoord.xy/vary_fragcoord.z*0.5+0.5;
+    // vary_fragcoord.z is not clip space w: dividing by it put this about a third off at 1m
+    vec2 frag = gl_FragCoord.xy / screen_res;
 
     vec4 pos = vec4(vary_position, 1.0);
 #ifndef IS_AVATAR_SKIN
