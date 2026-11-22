@@ -523,8 +523,17 @@ void main()
     if (needs_atmos && scol > 0.0)
     // </FS:Trish>
     {
-        vec3 fs_albedo = is_pbr ? baseColor.rgb * (1.0 - spec.b) : srgb_to_linear(baseColor.rgb) * (1.0 - baseColor.a);
-        fs_caustics = fsWaterCaustics(pos.xyz, gb.normal, light_dir, waterPlane) * scol * sunlit_linear * fs_albedo;
+        // <FS:Trish> The albedo only where the pattern is not 0, which is everywhere above the
+        // water: the legacy albedo's sRGB decode was taken on every lit pixel to be multiplied by 0
+        //vec3 fs_albedo = is_pbr ? baseColor.rgb * (1.0 - spec.b) : srgb_to_linear(baseColor.rgb) * (1.0 - baseColor.a);
+        //fs_caustics = fsWaterCaustics(pos.xyz, gb.normal, light_dir, waterPlane) * scol * sunlit_linear * fs_albedo;
+        float fs_caustic = fsWaterCaustics(pos.xyz, gb.normal, light_dir, waterPlane);
+        if (fs_caustic != 0.0)
+        {
+            vec3 fs_albedo = is_pbr ? baseColor.rgb * (1.0 - spec.b) : srgb_to_linear(baseColor.rgb) * (1.0 - baseColor.a);
+            fs_caustics = fs_caustic * scol * sunlit_linear * fs_albedo;
+        }
+        // </FS:Trish>
     }
 #endif
 
