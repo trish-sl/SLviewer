@@ -80,6 +80,7 @@ bool LLGLSLShader::sProfileEnabled = false;
 bool LLGLSLShader::sCanProfile = true;
 std::set<LLGLSLShader*> LLGLSLShader::sInstances;
 LLGLSLShader::defines_map_t LLGLSLShader::sGlobalDefines;
+bool LLGLSLShader::sFSHeightFog = false; // <FS:Trish/>
 U64 LLGLSLShader::sTotalTimeElapsed = 0;
 U32 LLGLSLShader::sTotalTrianglesDrawn = 0;
 U64 LLGLSLShader::sTotalSamplesDrawn = 0;
@@ -462,6 +463,8 @@ bool LLGLSLShader::createShader()
         mDefines["OLD_SELECT"] = "1";
     }
 #endif
+
+    mFSSpecularAA = mDefines.count("FS_SPECULAR_AA") != 0; // <FS:Trish/>
 
     mShaderHash = hash();
 

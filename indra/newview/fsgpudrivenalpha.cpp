@@ -301,6 +301,7 @@ namespace
         shader.mDefines = stock.mDefines;   // the stock permutations (HAS_SKIN, FS_WBOIT, FS_HAIR, ...), then ours
         shader.addPermutation(slot_material(slot) ? "FS_GDD_MATERIAL" : "FS_GDD_LEGACY", "1");
         const bool success = shader.createShader();
+        shader.mUniformsDirty = true; // the environment uniforms at its first bind
         shader.mFeatures.calculatesLighting = stock.mFeatures.calculatesLighting;
         shader.mFeatures.hasLighting = stock.mFeatures.hasLighting;
         return success;
@@ -442,11 +443,18 @@ void fsGDDAlphaPrograms(std::vector<LLGLSLShader*>& programs)
     {
         if (shader.isComplete())
         {
-            // the environment uniforms (LLEnvironment marks the programs of the shader list dirty when they
-            // change); ours aren't in that list, so they take the current values at their next bind
-            shader.mUniformsDirty = true;
             programs.push_back(&shader);
         }
+    }
+}
+
+void fsGDDAlphaMarkUniformsDirty()
+{
+    // the environment uniforms: LLEnvironment marks the programs of the shader list dirty when it updates
+    // them, and ours (not in that list) with them, so they take the current values at their next bind
+    for (LLGLSLShader& shader : sPrograms)
+    {
+        shader.mUniformsDirty = true;
     }
 }
 

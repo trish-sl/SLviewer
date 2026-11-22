@@ -49,8 +49,10 @@ void fsGDDAlphaUnloadShaders();
 void fsGDDAlphaReleaseGL();
 
 // The programs built, for LLDrawPoolAlpha::renderPostDeferred to prepare as it prepares the stock ones
-// (prepare_alpha_shader). Marks their environment uniforms dirty.
+// (prepare_alpha_shader).
 void fsGDDAlphaPrograms(std::vector<LLGLSLShader*>& programs);
+// Marks their environment uniforms dirty, with the stock programs' (LLEnvironment::update).
+void fsGDDAlphaMarkUniformsDirty();
 
 // The bind of a program, as LLDrawPoolAlpha::renderAlpha binds its stock programs (fs_bind_program there:
 // bindDeferredShaderFast, the pass's uniforms once)

@@ -1592,6 +1592,7 @@ std::string LLViewerShaderMgr::loadBasicShaders()
 
     LLGLSLShader::sGlobalDefines = attribs;
     sRiggedLocalOrigin = attribs.count("RIGGED_LOCAL_ORIGIN") != 0; // <FS:Trish/>
+    LLGLSLShader::sFSHeightFog = attribs.count("FS_HEIGHT_FOG") != 0; // <FS:Trish/>
 
     // We no longer have to bind the shaders to global glhandles, they are automatically added to a map now.
     for (U32 i = 0; i < shaders.size(); i++)
@@ -5201,7 +5202,8 @@ void LLViewerShaderMgr::updateShaderUniforms(LLGLSLShader * shader)
     // <FS:Trish> Specular AA strength and threshold. LLEnvironment marks every listed program and
     // its rigged variant dirty each frame, so a slider change reaches the next bind without a
     // shader rebuild.
-    if (shader->mDefines.count("FS_SPECULAR_AA"))
+    //if (shader->mDefines.count("FS_SPECULAR_AA"))
+    if (shader->mFSSpecularAA) // set from mDefines by createShader
     {
         static LLCachedControl<F32> strength(gSavedSettings, "FSRenderSpecularAAStrength", 0.25f);
         static LLCachedControl<F32> threshold(gSavedSettings, "FSRenderSpecularAAThreshold", 0.18f);

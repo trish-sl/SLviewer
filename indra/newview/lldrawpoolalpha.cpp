@@ -106,7 +106,10 @@ S32 LLDrawPoolAlpha::getNumPostDeferredPasses()
 }
 
 // set some common parameters on the given shader to prepare for alpha rendering
-static void prepare_alpha_shader(LLGLSLShader* shader, bool deferredEnvironment, F32 water_sign)
+// <FS:Trish> Optionally without the rigged variant (fs_prepare_on_bind)
+//static void prepare_alpha_shader(LLGLSLShader* shader, bool deferredEnvironment, F32 water_sign)
+static void prepare_alpha_shader(LLGLSLShader* shader, bool deferredEnvironment, F32 water_sign, bool rigged_too = true)
+// </FS:Trish>
 {
     static LLCachedControl<F32> displayGamma(gSavedSettings, "RenderDeferredDisplayGamma");
     F32 gamma = displayGamma;
@@ -148,11 +151,46 @@ static void prepare_alpha_shader(LLGLSLShader* shader, bool deferredEnvironment,
     }
 
     //also prepare rigged variant
-    if (shader->mRiggedVariant && shader->mRiggedVariant != shader)
+    // <FS:Trish> Not when preparing at the first bind (fs_prepare_on_bind): the variant waits for its own
+    //if (shader->mRiggedVariant && shader->mRiggedVariant != shader)
+    if (rigged_too && shader->mRiggedVariant && shader->mRiggedVariant != shader)
+    // </FS:Trish>
     {
         prepare_alpha_shader(shader->mRiggedVariant, deferredEnvironment, water_sign);
     }
 }
+
+// <FS:Trish> Lazy preparation. A pass used to prepare every program it might bind, about 86 of them
+// (each a program switch, a handful of uniforms, and for most a full bind at its first use after),
+// though it binds only a few. Now renderPostDeferred marks them with the pass number, and each is
+// prepared exactly as before (prepare_alpha_shader, same water sign) at its first bind in the pass,
+// right before that bind, so it draws with the same uniforms and takes the same full first bind.
+// Programs the pass doesn't bind keep the uniforms they have. Of these programs, only the PBR alpha
+// one is read with them elsewhere (the material preview, llgltfmaterialpreviewmgr.cpp), so it is still
+// prepared up front.
+static U32 sFSPrepPass = 0;         // the pass in progress, 0 outside one
+static U32 sFSPrepPassCounter = 0;
+static F32 sFSPrepWaterSign = 1.f;
+
+static void fs_mark_for_prepare(LLGLSLShader* shader)
+{
+    shader->mFSAlphaPrepPass = sFSPrepPass;
+    if (shader->mRiggedVariant && shader->mRiggedVariant != shader)
+    {
+        shader->mRiggedVariant->mFSAlphaPrepPass = sFSPrepPass;
+    }
+}
+
+// deferredEnvironment as the stock preparation of this program had it: false for the glow programs only
+static void fs_prepare_on_bind(LLGLSLShader& shader, bool deferredEnvironment)
+{
+    if (sFSPrepPass != 0 && shader.mFSAlphaPrepPass == sFSPrepPass)
+    {
+        shader.mFSAlphaPrepPass = 0;
+        prepare_alpha_shader(&shader, deferredEnvironment, sFSPrepWaterSign, false);
+    }
+}
+// </FS:Trish>
 
 extern bool gCubeSnapshot;
 
@@ -225,37 +263,74 @@ void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
     // prepare shaders
     llassert(LLPipeline::sRenderDeferred);
 
+    // <FS:Trish> Lazy preparation: marked here, prepared at their first bind in the pass (fs_prepare_on_bind)
+    struct FSPrepPassScope
+    {
+        U32 mOuterPass = sFSPrepPass;
+        F32 mOuterSign = sFSPrepWaterSign;
+        FSPrepPassScope(F32 water_sign)
+        {
+            sFSPrepPass = ++sFSPrepPassCounter;
+            if (sFSPrepPass == 0)
+            {
+                sFSPrepPass = ++sFSPrepPassCounter;
+            }
+            sFSPrepWaterSign = water_sign;
+        }
+        ~FSPrepPassScope()
+        {
+            sFSPrepPass = mOuterPass;
+            sFSPrepWaterSign = mOuterSign;
+        }
+    } fs_prep_scope(water_sign);
+    // </FS:Trish>
+
     emissive_shader = &gDeferredEmissiveProgram;
-    prepare_alpha_shader(emissive_shader, false, water_sign);
+    //prepare_alpha_shader(emissive_shader, false, water_sign);
+    fs_mark_for_prepare(emissive_shader); // <FS:Trish/>
 
     pbr_emissive_shader = &gPBRGlowProgram;
-    prepare_alpha_shader(pbr_emissive_shader, false, water_sign);
+    //prepare_alpha_shader(pbr_emissive_shader, false, water_sign);
+    fs_mark_for_prepare(pbr_emissive_shader); // <FS:Trish/>
 
 
     fullbright_shader   =
         (LLPipeline::sImpostorRender) ? &gDeferredFullbrightAlphaMaskProgram :
         (LLPipeline::sRenderingHUDs) ? &gHUDFullbrightAlphaMaskAlphaProgram :
         &gDeferredFullbrightAlphaMaskAlphaProgram;
-    prepare_alpha_shader(fullbright_shader, true, water_sign);
+    //prepare_alpha_shader(fullbright_shader, true, water_sign);
+    fs_mark_for_prepare(fullbright_shader); // <FS:Trish/>
 
     simple_shader   =
         (LLPipeline::sImpostorRender) ? &gDeferredAlphaImpostorProgram :
         (LLPipeline::sRenderingHUDs) ? &gHUDAlphaProgram :
         &gDeferredAlphaProgram;
 
-    prepare_alpha_shader(simple_shader, true, water_sign); //prime simple shader (loads shadow relevant uniforms)
+    //prepare_alpha_shader(simple_shader, true, water_sign); //prime simple shader (loads shadow relevant uniforms)
+    fs_mark_for_prepare(simple_shader); // <FS:Trish/>
 
     LLGLSLShader* materialShader = gDeferredMaterialProgram;
     for (int i = 0; i < LLMaterial::SHADER_COUNT*2; ++i)
     {
-        prepare_alpha_shader(&materialShader[i], true, water_sign);
+        //prepare_alpha_shader(&materialShader[i], true, water_sign);
+        fs_mark_for_prepare(&materialShader[i]); // <FS:Trish/>
     }
 
     pbr_shader =
         (LLPipeline::sRenderingHUDs) ? &gHUDPBRAlphaProgram :
         &gDeferredPBRAlphaProgram;
 
-    prepare_alpha_shader(pbr_shader, true, water_sign);
+    // <FS:Trish> Up front for the program the material preview draws with as the pass left it
+    //prepare_alpha_shader(pbr_shader, true, water_sign);
+    if (pbr_shader == &gDeferredPBRAlphaProgram)
+    {
+        prepare_alpha_shader(pbr_shader, true, water_sign);
+    }
+    else
+    {
+        fs_mark_for_prepare(pbr_shader);
+    }
+    // </FS:Trish>
 
     // <FS:Trish> FSPerfGPUDrivenAlpha: its copies of the programs above, prepared the same way
     {
@@ -264,7 +339,8 @@ void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
         fsGDDAlphaPrograms(fs_gdd_programs);
         for (LLGLSLShader* shader : fs_gdd_programs)
         {
-            prepare_alpha_shader(shader, true, water_sign);
+            //prepare_alpha_shader(shader, true, water_sign);
+            fs_mark_for_prepare(shader);
         }
     }
     // </FS:Trish>
@@ -881,6 +957,7 @@ void LLDrawPoolAlpha::drawEmissive(LLDrawInfo* draw)
 
 void LLDrawPoolAlpha::renderEmissives(std::vector<LLDrawInfo*>& emissives)
 {
+    fs_prepare_on_bind(*emissive_shader, false); // <FS:Trish/>
     emissive_shader->bind();
     emissive_shader->uniform1f(LLShaderMgr::EMISSIVE_BRIGHTNESS, 1.f);
     // <FS:Trish> Soft particles: the glow fades with the particle
@@ -900,6 +977,7 @@ void LLDrawPoolAlpha::renderEmissives(std::vector<LLDrawInfo*>& emissives)
 
 void LLDrawPoolAlpha::renderPbrEmissives(std::vector<LLDrawInfo*>& emissives)
 {
+    fs_prepare_on_bind(*pbr_emissive_shader, false); // <FS:Trish/>
     pbr_emissive_shader->bind();
 
     std::optional<LLGLDisable> double_sided_cull; // <FS:Trish/>
@@ -932,6 +1010,7 @@ void LLDrawPoolAlpha::renderRiggedEmissives(std::vector<LLDrawInfo*>& emissives)
 {
     LLGLDepthTest depth(GL_TRUE, GL_FALSE); //disable depth writes since "emissive" is additive so sorting doesn't matter
     LLGLSLShader* shader = emissive_shader->mRiggedVariant;
+    fs_prepare_on_bind(*shader, false); // <FS:Trish/>
     shader->bind();
     shader->uniform1f(LLShaderMgr::EMISSIVE_BRIGHTNESS, 1.f);
 
@@ -955,6 +1034,7 @@ void LLDrawPoolAlpha::renderRiggedEmissives(std::vector<LLDrawInfo*>& emissives)
 void LLDrawPoolAlpha::renderRiggedPbrEmissives(std::vector<LLDrawInfo*>& emissives)
 {
     LLGLDepthTest depth(GL_TRUE, GL_FALSE); //disable depth writes since "emissive" is additive so sorting doesn't matter
+    fs_prepare_on_bind(*pbr_emissive_shader->mRiggedVariant, false); // <FS:Trish/>
     pbr_emissive_shader->bind(true);
 
     const LLVOAvatar* lastAvatar = nullptr;
@@ -1030,6 +1110,7 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
     bool fs_glow_rebind = false;
     auto fs_bind_program = [&](LLGLSLShader& shader)
     {
+        fs_prepare_on_bind(shader, true); // the pass's preparation, at the program's first bind in it
         //if (fs_glow_return == &shader)
         if (fs_glow_return == &shader && !fs_glow_rebind)
         {   // as the stock rebind after the glow pass: its textures are still on their units

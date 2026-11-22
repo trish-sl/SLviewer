@@ -473,7 +473,7 @@ namespace
 
 void FSFogInterior::uploadUniforms(LLGLSLShader& shader)
 {
-    if (!LLGLSLShader::sGlobalDefines.count("FS_HEIGHT_FOG"))
+    if (!LLGLSLShader::sFSHeightFog)
     {
         return;
     }

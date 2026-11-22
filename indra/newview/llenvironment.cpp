@@ -68,6 +68,7 @@
 // [/RLVa:KB]
 #include "fscommon.h"
 #include "llviewernetwork.h"
+#include "fsgpudrivenalpha.h" // <FS:Trish/> fsGDDAlphaMarkUniformsDirty
 
 //=========================================================================
 namespace
@@ -1799,6 +1800,7 @@ void LLEnvironment::update(const LLViewerCamera * cam)
             variant.mUniformsDirty = true;
         }
     }
+    fsGDDAlphaMarkUniformsDirty(); // <FS:Trish/> FSPerfGPUDrivenAlpha: its copies of the alpha programs
 }
 
 void LLEnvironment::updateCloudScroll()

@@ -405,6 +405,14 @@ public:
     // hacky flag used for optimization in LLDrawPoolAlpha
     bool mCanBindFast = false;
 
+    // <FS:Trish> LLDrawPoolAlpha prepares its programs at their first bind in a pass: the pass number
+    // this program waits for that in (0: none). Defines checked on hot paths, set from mDefines by
+    // createShader. sFSHeightFog: sGlobalDefines has FS_HEIGHT_FOG (set where they are).
+    U32 mFSAlphaPrepPass = 0;
+    bool mFSSpecularAA = false;
+    static bool sFSHeightFog;
+    // </FS:Trish>
+
 #if LL_PROFILER_ENABLE_RENDER_DOC
     void setLabel(const char* label);
 #endif
