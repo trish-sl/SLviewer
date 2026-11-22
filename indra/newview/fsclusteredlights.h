@@ -148,8 +148,8 @@ private:
     F32 mLogNear = 0.f;
 
     std::vector<Span> mSpans;
-    std::vector<U32> mCounts;
-    std::vector<U32> mFill;
+    std::vector<U32> mCounts;           // per cluster: its light count, then its fill while binning
+    std::vector<F32> mSliceBounds;      // depth slice boundaries of the last binning
     std::vector<U32> mLists;            // header (offset, count per cluster, then per tile list),
                                         // then the light indices (in the tile lists, the glow's
                                         // weight in the high 16 bits)

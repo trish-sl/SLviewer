@@ -28,6 +28,7 @@
 #include "llviewerprecompiledheaders.h"
 
 #include "fsclusteredlights.h"
+#include "fsblocktimer.h"
 #include "fswindfield.h"
 
 #include "llagent.h"
@@ -55,6 +56,10 @@ extern bool gSnapshotNoPost;
 FSClusteredLights gFSClusteredLights;
 LLGLSLShader gFSClusteredLightProgram;
 LLGLSLShader gFSPointLightScatterProgram;
+
+// Every view's binning and upload, probe faces included
+static LLTrace::BlockTimerStatHandle FTM_FS_CLUSTERED_BIN("FS Clustered Lights Bin");
+static LLTrace::BlockTimerStatHandle FTM_FS_CLUSTERED_UPLOAD("FS Clustered Lights Upload");
 
 namespace
 {
@@ -369,6 +374,7 @@ bool FSClusteredLights::add(const F32* center_agent, F32 size, const LLColor3& l
 void FSClusteredLights::binLights(bool tile_lists)
 {
     LL_PROFILE_ZONE_SCOPED_CATEGORY_PIPELINE;
+    FS_RECORD_BLOCK_TIME(FTM_FS_CLUSTERED_BIN);
 
     const U32 light_count = (U32)(mLights.size() / 2);
     if (tile_lists)
@@ -399,23 +405,35 @@ void FSClusteredLights::binLights(bool tile_lists)
         const F32 s = floorf((logf(depth) - mLogNear) * mSliceScale);
         return (U32)llclamp(s, 0.f, (F32)(mSlices - 1));
     };
+    // The slice boundaries: slice k runs from mSliceBounds[k] to mSliceBounds[k + 1], the first from 0
+    // and the last to F32_MAX
+    mSliceBounds.resize(mSlices + 1);
+    for (U32 k = 0; k <= mSlices; ++k)
+    {
+        mSliceBounds[k] = k == 0 ? 0.f : k >= mSlices ? F32_MAX : expf(mLogNear + (F32)k / mSliceScale);
+    }
     auto slice_near = [&](U32 slice) -> F32
     {
-        return slice == 0 ? 0.f : expf(mLogNear + (F32)slice / mSliceScale);
+        return mSliceBounds[slice];
     };
     auto slice_far = [&](U32 slice) -> F32
     {
-        return slice + 1 >= mSlices ? F32_MAX : expf(mLogNear + (F32)(slice + 1) / mSliceScale);
+        return mSliceBounds[slice + 1];
     };
 
     // The screen tiles a view space box covers, conservatively. False when it is off screen.
     auto box_tiles = [&](F32 x0, F32 x1, F32 y0, F32 y1, F32 d0, F32 d1, Span& span) -> bool
     {
+        // mProjection * (x, y, -d, 1) at the eight corners from the terms of each axis, added as glm adds
+        // them: (m[0] x + m[1] y) + (m[2] z + m[3]), so each corner comes out exactly as the full product
+        const glm::vec4 term_x[2] = { mProjection[0] * x0, mProjection[0] * x1 };
+        const glm::vec4 term_y[2] = { mProjection[1] * y0, mProjection[1] * y1 };
+        const glm::vec4 term_z[2] = { mProjection[2] * -d0 + mProjection[3], mProjection[2] * -d1 + mProjection[3] };
         F32 min_x = F32_MAX, min_y = F32_MAX, max_x = -F32_MAX, max_y = -F32_MAX;
         bool whole = false;
         for (U32 corner = 0; corner < 8; ++corner)
         {
-            const glm::vec4 p = mProjection * glm::vec4((corner & 1) ? x1 : x0, (corner & 2) ? y1 : y0, -((corner & 4) ? d1 : d0), 1.f);
+            const glm::vec4 p = (term_x[corner & 1] + term_y[(corner >> 1) & 1]) + term_z[(corner >> 2) & 1];
             if (p.w < 1e-4f)
             {
                 whole = true; // reaches the camera plane: any pixel may look into it
@@ -536,6 +554,7 @@ void FSClusteredLights::binLights(bool tile_lists)
         }
     }
 
+    // The counts become the fill counts, zeroed as they are laid out
     mLists.resize((size_t)entries * 2 + (size_t)total);
     U32 offset = entries * 2;
     for (U32 i = 0; i < entries; ++i)
@@ -544,8 +563,8 @@ void FSClusteredLights::binLights(bool tile_lists)
         mLists[i * 2] = offset;
         mLists[i * 2 + 1] = count;
         offset += count;
+        mCounts[i] = 0;
     }
-    mFill.assign(entries, 0);
     for (const Span& span : mSpans)
     {
         for (U32 y = span.mY0; y <= span.mY1; ++y)
@@ -553,7 +572,7 @@ void FSClusteredLights::binLights(bool tile_lists)
             U32 idx = (span.mSlice * mTilesY + y) * mTilesX + span.mX0;
             for (U32 x = span.mX0; x <= span.mX1; ++x, ++idx)
             {
-                U32& fill = mFill[idx];
+                U32& fill = mCounts[idx];
                 if (fill < mLists[idx * 2 + 1])
                 {
                     mLists[mLists[idx * 2] + fill++] = span.mSlice == mSlices ? (span.mLight | ((U32)mGlowWeights[span.mLight] << 16)) : span.mLight;
@@ -571,6 +590,7 @@ void FSClusteredLights::binLights(bool tile_lists)
 
 void FSClusteredLights::upload()
 {
+    FS_RECORD_BLOCK_TIME(FTM_FS_CLUSTERED_UPLOAD);
     glBindBuffer(GL_TEXTURE_BUFFER, mLightBuffer);
     glBufferData(GL_TEXTURE_BUFFER, (GLsizeiptr)(mLights.size() * sizeof(LLVector4)), mLights.data(), GL_STREAM_DRAW);
     glBindBuffer(GL_TEXTURE_BUFFER, mListBuffer);
@@ -869,8 +889,8 @@ void FSClusteredLights::release()
     mSpans.shrink_to_fit();
     mCounts.clear();
     mCounts.shrink_to_fit();
-    mFill.clear();
-    mFill.shrink_to_fit();
+    mSliceBounds.clear();
+    mSliceBounds.shrink_to_fit();
     mLists.clear();
     mLists.shrink_to_fit();
     mGlowWeights.clear();

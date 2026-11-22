@@ -409,6 +409,7 @@ static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_SUN("FS Light Sun Shadow and S
 static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_SOFTEN("FS Light Shadow Blur");
 static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_ATMOS("FS Light Atmospherics SSR Indirect");
 static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_LOCAL("FS Light Local Lights");
+static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_LOCAL_LOOP("FS Light Local Loop"); // the loop over the nearby lights, in it
 static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_PROJECTORS("FS Light Projectors");
 static LLTrace::BlockTimerStatHandle FTM_FS_LIGHT_FULLSCREEN("FS Light Fullscreen Lights");
 static LLTrace::BlockTimerStatHandle FTM_FS_SHADOW_UNION_CULL("FS Shadow Union Cull");
@@ -13222,6 +13223,9 @@ void LLPipeline::renderDeferredLighting()
                 // It is calculated from mLights
                 // mNearbyLights also provides fade value to gracefully fade-out out of range lights
                 S32 count = 0;
+                { // <FS:Trish> The loop's own time: the clustered binning and upload after it are timed apart
+                FS_RECORD_BLOCK_TIME(FTM_FS_LIGHT_LOCAL_LOOP);
+                // </FS:Trish>
                 for (light_set_t::iterator iter = mNearbyLights.begin(); iter != mNearbyLights.end(); ++iter)
                 {
                     count++;
@@ -13341,6 +13345,7 @@ void LLPipeline::renderDeferredLighting()
                         light_colors.push_back(LLVector4(col.mV[0], col.mV[1], col.mV[2], volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)));
                     }
                 }
+                } // <FS:Trish/> the loop's time
 
                 // Bookmark comment to allow searching for mSpecialRenderMode == 3 (avatar edit mode),
                 // prev site of appended deferred character light, removed by SL-13522 09/20
