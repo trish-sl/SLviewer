@@ -152,6 +152,25 @@ uniform float ssrMipScale;      // the buffer's highest mip; 0 when the cone tra
 
 bool isFarDepth(float d);
 vec3 ssrUncompress(vec3 c);
+// <FS:Trish> The glossiness below which the probe sampling ignores the screen-space reflection
+// (screenSpaceReflUtil.glsl), so the buffer is not read for it
+#if defined(SSR)
+float ssrMinGlossiness();
+#endif
+
+// True where sampleReflectionProbesFS / sampleReflectionProbesLegacyFS will blend in the
+// reflection read from the buffer: with screen-space reflections built in, outside probe captures,
+// and above their glossiness gate (fsDoProbeSample, fsSampleReflectionProbesLegacy). Elsewhere the
+// read (up to four depth, four normal and four reflection texels for the sharp term) was thrown away.
+bool fsSSRBufferWanted(float glossiness)
+{
+#if defined(SSR)
+    return cube_snapshot != 1 && glossiness > ssrMinGlossiness();
+#else
+    return false;
+#endif
+}
+// </FS:Trish>
 
 // The full-resolution pixel SSR texel t was traced from (screenSpaceReflTraceF.glsl)
 ivec2 fsSSRTracedPixel(ivec2 t, vec2 ratio)
@@ -559,7 +578,10 @@ void main()
         float gloss      = 1.0 - perceptualRoughness;
 
 #ifdef FS_SSR_BUFFER
-        if (fs_ssr_given)
+        // <FS:Trish> Only where the probe sampling below blends it in
+        //if (fs_ssr_given)
+        if (fs_ssr_given && fsSSRBufferWanted(gloss))
+        // </FS:Trish>
         {
             fs_ssr = fsSSRBufferSample(tc, pos.xyz, gb.normal, perceptualRoughness * ssrMipScale);
         }
@@ -683,7 +705,10 @@ void main()
         vec3 legacyenv = vec3(0);
 
 #ifdef FS_SSR_BUFFER
-        if (fs_ssr_given)
+        // <FS:Trish> Only where the probe sampling below blends it in
+        //if (fs_ssr_given)
+        if (fs_ssr_given && fsSSRBufferWanted(spec.a))
+        // </FS:Trish>
         {
             float r = 1.0 - spec.a;
             fs_ssr = fsSSRBufferSample(tc, pos.xyz, gb.normal, clamp(log2(1.0 + r * r * ssrMipScale * 4.0), 0.0, ssrMipScale));
