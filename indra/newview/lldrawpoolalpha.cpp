@@ -156,6 +156,34 @@ static void prepare_alpha_shader(LLGLSLShader* shader, bool deferredEnvironment,
 
 extern bool gCubeSnapshot;
 
+// <FS:Trish> Whether renderAlpha would draw any group of this pass: the same rejection test it applies
+// (outside HUDs) to the alpha and rigged alpha groups, before anything else about the group
+static bool fs_alpha_groups_on_side(bool above_water)
+{
+    const F32 water_height = LLEnvironment::instance().getWaterHeight();
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        LLCullResult::sg_iterator begin = pass == 0 ? gPipeline.beginAlphaGroups() : gPipeline.beginRiggedAlphaGroups();
+        LLCullResult::sg_iterator end = pass == 0 ? gPipeline.endAlphaGroups() : gPipeline.endRiggedAlphaGroups();
+        for (LLCullResult::sg_iterator i = begin; i != end; ++i)
+        {
+            LLSpatialGroup* group = *i;
+            if (!group->getSpatialPartition()->mRenderByGroup || group->isDead())
+            {
+                continue;
+            }
+            LLSpatialBridge* bridge = group->getSpatialPartition()->asBridge();
+            const LLVector4a* ext = bridge ? bridge->getSpatialExtents() : group->getExtents();
+            if (above_water ? !(ext[1].getF32ptr()[2] < water_height) : !(ext[0].getF32ptr()[2] > water_height))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+// </FS:Trish>
+
 void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
 {
     LL_PROFILE_ZONE_SCOPED_CATEGORY_DRAWPOOL;
@@ -164,6 +192,23 @@ void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
     { // don't render alpha objects on the other side of the water plane if water is opaque
         return;
     }
+
+    // <FS:Trish> The pre-water pool draws only what reaches below the water plane (above it, under
+    // water), usually nothing. With no such group its passes draw nothing: the GLTF scene, the
+    // highlights and the depth of field pass belong to the post-water pool, and the WBOIT composite
+    // of an empty accumulation discards every pixel. Skip them and the program preparation, leaving
+    // the state they would have left.
+    if (getType() == LLDrawPool::POOL_ALPHA_PRE_WATER && !LLPipeline::sRenderingHUDs &&
+        !fs_alpha_groups_on_side(LLPipeline::sUnderWaterRender))
+    {
+        LLGLSLShader::unbind();
+        gPipeline.enableLightsDynamic();
+        gGL.setSceneBlendType(LLRender::BT_ALPHA);
+        LLVertexBuffer::unbind();
+        gGL.setColorMask(true, false);
+        return;
+    }
+    // </FS:Trish>
 
     F32 water_sign = 1.f;
 
