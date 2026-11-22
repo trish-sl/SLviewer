@@ -5,7 +5,7 @@
  can_minimize="true"
  can_resize="false"
  can_close="true"
- height="578"
+ height="544"
  layout="topleft"
  name="Snapshot"
  single_instance="true"
@@ -14,7 +14,7 @@
  save_visibility="false"
  title="Snapshot"
  width="624"
- min_height="543">
+ min_height="509">
     <floater.string
      name="unknown">
         unknown
@@ -124,7 +124,7 @@
 	   top_delta="0"
        width="31" />
 	<panel
-     height="268"
+     height="234"
      layout="topleft"
 	 follows="top|left"
      left="0"
@@ -179,46 +179,46 @@
              name="AvatarsAlpha"
              value="avatars_alpha" />
         </combo_box>
-        <!-- <FS:Trish> Avatars only snapshot: include options -->
+        <!-- <FS:Trish> Avatars only snapshot: include options, two per row to keep the panel short -->
         <check_box
-         label="Include animesh"
+         label="Animesh"
          tool_tip="Avatars only: include animesh that is not worn. Worn animesh is always included, like any other attachment."
          control_name="FSSnapshotAvatarsOnlyAnimesh"
          layout="topleft"
          left="45"
          height="16"
          top_pad="1"
-         width="165"
+         width="80"
          name="avatars_only_animesh_check" />
         <check_box
-         label="Include seat objects"
+         label="Seat objects"
          tool_tip="Avatars only: include the objects the avatars are sitting on, the whole linkset."
          control_name="FSSnapshotAvatarsOnlySitObjects"
          layout="topleft"
-         left="45"
+         left="125"
          height="16"
-         top_pad="1"
-         width="165"
+         top_delta="0"
+         width="85"
          name="avatars_only_sit_check" />
         <check_box
-         label="Include attachment particles"
+         label="Particles"
          tool_tip="Avatars only: include the particles emitted by scripts in worn attachments. Particles from objects in world and viewer effects stay out."
          control_name="FSSnapshotAvatarsOnlyParticles"
          layout="topleft"
          left="45"
          height="16"
          top_pad="1"
-         width="165"
+         width="80"
          name="avatars_only_particles_check" />
         <check_box
-         label="Include selected objects"
+         label="Selection"
          tool_tip="Avatars only: include the objects currently selected, the whole linkset."
          control_name="FSSnapshotAvatarsOnlySelectedObjects"
          layout="topleft"
-         left="45"
+         left="125"
          height="16"
-         top_pad="1"
-         width="165"
+         top_delta="0"
+         width="85"
          name="avatars_only_selected_check" />
         <!-- </FS:Trish> -->
         <check_box
