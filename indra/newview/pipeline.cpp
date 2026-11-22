@@ -19505,6 +19505,16 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
             // </FS:Trish>
         }
 
+        // <FS:Trish> The last held map ends the sun shadows where the range ended when it was drawn (shadow_clip.w is
+        // held with it). When the range has since grown (FSRenderShadowFitDepth widening to something farther now in
+        // view, or the visible bounds moving out), holding it would end the shadows short of what is in view for up to
+        // twice the interval, at a hard line while the fit leaves no fade at the end. Draw it now instead.
+        if (skip_cascade[3] && mFarCascadeClip[3] < mSunClipPlanes.mV[3] * 0.99f)
+        {
+            skip_cascade[3] = false;
+        }
+        // </FS:Trish>
+
         LLVector4 clip = mSunClipPlanes;
         if (skip_cascade[2])
         {
