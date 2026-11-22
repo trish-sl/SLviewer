@@ -51,6 +51,21 @@ LLStreamingAudio_MediaPlugins::~LLStreamingAudio_MediaPlugins()
 
 void LLStreamingAudio_MediaPlugins::start(const std::string& url)
 {
+    if (url.empty())
+    {
+        // An empty URL only stops the stream. Return before the lazy init below,
+        // which would launch a plugin process just to delete it again.
+        LL_INFOS() << "setting stream to NULL" << LL_ENDL;
+        mURL.clear();
+        if (mMediaPlugin)
+        {
+            mMediaPlugin->stop();
+            delete mMediaPlugin;
+            mMediaPlugin = nullptr;
+        }
+        return;
+    }
+
     if (!mMediaPlugin) // lazy-init the underlying media plugin
     {
         mMediaPlugin = initializeMedia("audio/mpeg"); // assumes that whatever media implementation supports mp3 also supports vorbis.
@@ -77,14 +92,6 @@ void LLStreamingAudio_MediaPlugins::start(const std::string& url)
         mMediaPlugin->loadURI(snt_url);
         mMediaPlugin->start();
         LL_INFOS() << "Playing stream..." << LL_ENDL;
-    }
-    else
-    {
-        LL_INFOS() << "setting stream to NULL"<< LL_ENDL;
-        mURL.clear();
-        mMediaPlugin->stop();
-        delete mMediaPlugin;
-        mMediaPlugin = nullptr;
     }
 }
 
