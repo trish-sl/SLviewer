@@ -803,16 +803,6 @@ float microfacetDistribution(PBRInfo pbrInputs)
     return roughnessSq / (M_PI * f * f);
 }
 
-// <FS:Trish> FSRenderMultiscatter: the compensation for the surface pbrPunctual saw last. Every light
-// of a pixel shades the same surface, so the LUT is read once a pixel instead of once a light; the
-// inputs are compared, so a different surface gets its own factor (the same result as before).
-#ifdef FS_MULTISCATTER
-vec3 fs_ms_factor = vec3(1.0);
-vec4 fs_ms_key = vec4(-1.0);    // specularColor, perceptualRoughness
-float fs_ms_nv = -1.0;          // NdotV
-#endif
-// </FS:Trish>
-
 void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
                     float perceptualRoughness,
                     float metallic,
@@ -883,15 +873,10 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
 #ifdef FS_MULTISCATTER
     if (cube_snapshot == 0)
     {
-        //spec *= pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
-        vec4 fs_key = vec4(specularColor, perceptualRoughness);
-        if (any(notEqual(fs_key, fs_ms_key)) || NdotV != fs_ms_nv)
-        {
-            fs_ms_factor = pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
-            fs_ms_key = fs_key;
-            fs_ms_nv = NdotV;
-        }
-        spec *= fs_ms_factor;
+        // Computed per call. An earlier version cached the factor in global variables written from
+        // inside the light loops; an AMD driver hung with this option on, and mutable globals in
+        // loops are the one unusual construct it added, so the shader stays stateless
+        spec *= pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
     }
 #endif
     // </FS:Trish>
