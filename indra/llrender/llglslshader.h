@@ -348,6 +348,15 @@ public:
     };
     std::vector<FSMatrixValue> mFSMatValue;
     bool fsMatrixUnchanged(GLint location, U32 count, GLboolean transpose, const GLfloat* v, U8 size);
+    // Last values of each small uniform array (count 2 and more) set by the uniform*v calls, by location
+    struct FSArrayValue
+    {
+        U32 mCount = 0;     // elements held, 0: not known
+        U8 mType = 0;       // the call's type tag
+        std::vector<U32> mWords;
+    };
+    std::vector<FSArrayValue> mFSArrayValue;
+    bool fsArrayUnchanged(GLint location, U32 count, U8 type, U8 words, const void* v);
     // </FS:Trish>
     std::vector<GLint> mTexture;
     S32 mTotalUniformSize;

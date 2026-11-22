@@ -1019,6 +1019,7 @@ bool LLGLSLShader::mapUniforms()
     mTexture.clear();
     mValue.clear();
     mFSMatValue.clear(); // <FS:Trish/>
+    mFSArrayValue.clear(); // <FS:Trish/>
     //initialize arrays
     mUniform.resize(LLShaderMgr::instance()->mReservedUniforms.size(), -1);
     mTexture.resize(LLShaderMgr::instance()->mReservedUniforms.size(), -1);
@@ -1639,7 +1640,11 @@ void LLGLSLShader::uniform1iv(U32 index, U32 count, const GLint* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec((F32)v[0], 0.f, 0.f, 0.f);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 1, 1, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 glUniform1iv(mUniform[index], count, v);
                 mValue[mUniform[index]] = vec;
@@ -1666,7 +1671,11 @@ void LLGLSLShader::uniform4iv(U32 index, U32 count, const GLint* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec((F32)v[0], (F32)v[1], (F32)v[2], (F32)v[3]);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 2, 4, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 glUniform4iv(mUniform[index], count, v); // <FS:Beq/>  Apparent copy/paste error.
                 mValue[mUniform[index]] = vec;
@@ -1694,7 +1703,11 @@ void LLGLSLShader::uniform1fv(U32 index, U32 count, const GLfloat* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec(v[0], 0.f, 0.f, 0.f);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 3, 1, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 glUniform1fv(mUniform[index], count, v);
                 mValue[mUniform[index]] = vec;
@@ -1721,7 +1734,11 @@ void LLGLSLShader::uniform2fv(U32 index, U32 count, const GLfloat* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec(v[0], v[1], 0.f, 0.f);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 4, 2, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 glUniform2fv(mUniform[index], count, v);
                 mValue[mUniform[index]] = vec;
@@ -1748,7 +1765,11 @@ void LLGLSLShader::uniform3fv(U32 index, U32 count, const GLfloat* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec(v[0], v[1], v[2], 0.f);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 5, 3, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 glUniform3fv(mUniform[index], count, v);
                 mValue[mUniform[index]] = vec;
@@ -1775,7 +1796,11 @@ void LLGLSLShader::uniform4fv(U32 index, U32 count, const GLfloat* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec(v[0], v[1], v[2], v[3]);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 6, 4, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
                 glUniform4fv(mUniform[index], count, v);
@@ -1803,7 +1828,11 @@ void LLGLSLShader::uniform4uiv(U32 index, U32 count, const GLuint* v)
         {
             const auto& iter = mValue.find(mUniform[index]);
             LLVector4 vec((F32)v[0], (F32)v[1], (F32)v[2], (F32)v[3]);
-            if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+            //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+            const bool fs_same_array = fsArrayUnchanged(mUniform[index], count, 7, 4, v);
+            if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+            // </FS:Trish>
             {
                 LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
                 glUniform4uiv(mUniform[index], count, v);
@@ -1993,7 +2022,11 @@ void LLGLSLShader::uniform1iv(const LLStaticHashedString& uniform, U32 count, co
     {
         LLVector4 vec((F32)v[0], 0.f, 0.f, 0.f);
         const auto& iter = mValue.find(location);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 1, 1, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
             glUniform1iv(location, count, v);
@@ -2011,7 +2044,11 @@ void LLGLSLShader::uniform4iv(const LLStaticHashedString& uniform, U32 count, co
     {
         LLVector4 vec((F32)v[0], (F32)v[1], (F32)v[2], (F32)v[3]);
         const auto& iter = mValue.find(location);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 2, 4, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
             glUniform4iv(location, count, v);
@@ -2116,7 +2153,11 @@ void LLGLSLShader::uniform1fv(const LLStaticHashedString& uniform, U32 count, co
     {
         const auto& iter = mValue.find(location);
         LLVector4 vec(v[0], 0.f, 0.f, 0.f);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 3, 1, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             glUniform1fv(location, count, v);
             mValue[location] = vec;
@@ -2133,7 +2174,11 @@ void LLGLSLShader::uniform2fv(const LLStaticHashedString& uniform, U32 count, co
     {
         const auto& iter = mValue.find(location);
         LLVector4 vec(v[0], v[1], 0.f, 0.f);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 4, 2, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             glUniform2fv(location, count, v);
             mValue[location] = vec;
@@ -2150,7 +2195,11 @@ void LLGLSLShader::uniform3fv(const LLStaticHashedString& uniform, U32 count, co
     {
         const auto& iter = mValue.find(location);
         LLVector4 vec(v[0], v[1], v[2], 0.f);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 5, 3, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             glUniform3fv(location, count, v);
             mValue[location] = vec;
@@ -2167,7 +2216,11 @@ void LLGLSLShader::uniform4fv(const LLStaticHashedString& uniform, U32 count, co
     {
         LLVector4 vec(v);
         const auto& iter = mValue.find(location);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 6, 4, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
             glUniform4fv(location, count, v);
@@ -2185,7 +2238,11 @@ void LLGLSLShader::uniform4uiv(const LLStaticHashedString& uniform, U32 count, c
     {
         LLVector4 vec((F32)v[0], (F32)v[1], (F32)v[2], (F32)v[3]);
         const auto& iter = mValue.find(location);
-        if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        // <FS:Trish> A small array the program already holds isn't uploaded again (fsArrayUnchanged)
+        //if (iter == mValue.end() || shouldChange(iter->second, vec) || count != 1)
+        const bool fs_same_array = fsArrayUnchanged(location, count, 7, 4, v);
+        if (iter == mValue.end() || shouldChange(iter->second, vec) || (count != 1 && !fs_same_array))
+        // </FS:Trish>
         {
             LL_PROFILE_ZONE_SCOPED_CATEGORY_SHADER;
             glUniform4uiv(location, count, v);
@@ -2212,6 +2269,42 @@ void LLGLSLShader::uniformMatrix4fv(const LLStaticHashedString& uniform, U32 cou
         stop_glerror();
     }
 }
+
+// <FS:Trish> For the uniform*v calls of count 2 and more, which used to upload every time: true when the
+// program already holds these count elements (words 32 bit words each, of the call's type tag) at
+// location, otherwise remembers them. The caller also checks the first element against mValue, the last
+// value any call put at location, so a single value set there since is caught. Arrays are only ever set
+// whole from their first location (uniforms are looked up by name). Larger arrays aren't cached.
+bool LLGLSLShader::fsArrayUnchanged(GLint location, U32 count, U8 type, U8 words, const void* v)
+{
+    constexpr GLint MAX_CACHED_LOCATION = 4096;
+    constexpr U32 MAX_CACHED_WORDS = 256;
+    if (count < 2 || location < 0 || location >= MAX_CACHED_LOCATION || !v)
+    {
+        return false;
+    }
+    if ((size_t)location >= mFSArrayValue.size())
+    {
+        mFSArrayValue.resize((size_t)location + 1);
+    }
+    FSArrayValue& held = mFSArrayValue[location];
+    const U32 total = count * words;
+    if (total > MAX_CACHED_WORDS)
+    {
+        held.mCount = 0;
+        return false;
+    }
+    if (held.mCount == count && held.mType == type && memcmp(held.mWords.data(), v, (size_t)total * sizeof(U32)) == 0)
+    {
+        return true;
+    }
+    const U32* words_in = static_cast<const U32*>(v);
+    held.mWords.assign(words_in, words_in + total);
+    held.mCount = count;
+    held.mType = type;
+    return false;
+}
+// </FS:Trish>
 
 // <FS:Trish> True when the program already holds this single matrix at location (the call can be skipped);
 // otherwise remembers it. Arrays and transposed matrices aren't cached: they make what is known unknown.
