@@ -17084,6 +17084,10 @@ void LLPipeline::releaseFSPostTargets()
         level.release();
     }
     mBloomLevelCount = 0;
+    // <FS:Trish> FSRenderBloomLensDirt
+    mFSLensDirtMask.release();
+    mFSLensDirtMaskStrength = -1.f;
+    // </FS:Trish>
     FSLensFlare::release(); // <FS:Trish/> FSRenderLensFlareHQ
 }
 
@@ -18170,7 +18174,13 @@ void LLPipeline::renderDustMotes()
 // Lens dirt: scales the summed bloom by 1 + mask * strength, with a procedural smudge mask fixed
 // to the screen, so bright lights and the sun light up the grime on the lens. A blend of
 // (dst colour, one) does the multiply in place, without another target.
-static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLVertexBuffer* vb)
+// <FS:Trish> The mask depends only on the bloom's size and the strength, so it is drawn once into
+// mask (each half resolution pixel hashing 27 noise cells) and copied in on the frames after,
+// one texel read per pixel, until the size or the strength changes. mask_strength: the strength
+// mask holds, -1 for none.
+//static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLVertexBuffer* vb)
+static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLRenderTarget& mask, F32& mask_strength, LLVertexBuffer* vb)
+// </FS:Trish>
 {
     static LLCachedControl<bool> enabled(gSavedSettings, "FSRenderBloomLensDirt", false);
     static LLCachedControl<F32> strength(gSavedSettings, "FSRenderBloomLensDirtStrength", 1.f);
@@ -18179,18 +18189,68 @@ static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLVertexBuffer* vb)
     const F32 dirt = llclamp((F32)strength, 0.f, 10.f);
     if (!enabled || dirt <= 0.f || !gFSLensDirtProgram.isComplete())
     {
+        // <FS:Trish> The cached mask
+        mask.release();
+        mask_strength = -1.f;
+        // </FS:Trish>
         return;
     }
 
     LL_PROFILE_GPU_ZONE("lens dirt");
+
+    // <FS:Trish> Draw the mask times the strength when the bloom's size or the strength changed. Its
+    // alpha is 0, as the shader writes it, so the blend below keeps the bloom's alpha as before.
+    const U32 width = bloom.getWidth();
+    const U32 height = bloom.getHeight();
+    bool cached = gCopyProgram.isComplete();
+    if (cached && (!mask.isComplete() || mask.getWidth() != width || mask.getHeight() != height || mask_strength != dirt))
+    {
+        mask_strength = -1.f;
+        if (fs_ensure_target(mask, width, height, GL_RGBA16F))
+        {
+            LLGLDisable no_blend(GL_BLEND);
+            mask.bindTarget();
+            gFSLensDirtProgram.bind();
+            gFSLensDirtProgram.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (F32)width, (F32)height);
+            gFSLensDirtProgram.uniform1f(s_strength, dirt);
+            fs_draw_screen_triangle(vb);
+            gFSLensDirtProgram.unbind();
+            mask.flush();
+            mask_strength = dirt;
+        }
+        else
+        {
+            cached = false;
+        }
+    }
+    // </FS:Trish>
+
     LLGLEnable blend(GL_BLEND);
     gGL.blendFunc(LLRender::BF_DEST_COLOR, LLRender::BF_ONE);
     bloom.bindTarget();
-    gFSLensDirtProgram.bind();
-    gFSLensDirtProgram.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (F32)bloom.getWidth(), (F32)bloom.getHeight());
-    gFSLensDirtProgram.uniform1f(s_strength, dirt);
-    fs_draw_screen_triangle(vb);
-    gFSLensDirtProgram.unbind();
+    // <FS:Trish> The cached mask, texel for texel; the procedural pass if it could not be kept
+    //gFSLensDirtProgram.bind();
+    //gFSLensDirtProgram.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (F32)bloom.getWidth(), (F32)bloom.getHeight());
+    //gFSLensDirtProgram.uniform1f(s_strength, dirt);
+    //fs_draw_screen_triangle(vb);
+    //gFSLensDirtProgram.unbind();
+    if (cached)
+    {
+        gCopyProgram.bind();
+        gCopyProgram.bindTexture(LLShaderMgr::DIFFUSE_MAP, &mask, false, LLTexUnit::TFO_POINT);
+        fs_draw_screen_triangle(vb);
+        gCopyProgram.unbindTexture(LLShaderMgr::DIFFUSE_MAP);
+        gCopyProgram.unbind();
+    }
+    else
+    {
+        gFSLensDirtProgram.bind();
+        gFSLensDirtProgram.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (F32)width, (F32)height);
+        gFSLensDirtProgram.uniform1f(s_strength, dirt);
+        fs_draw_screen_triangle(vb);
+        gFSLensDirtProgram.unbind();
+    }
+    // </FS:Trish>
     bloom.flush();
     gGL.setSceneBlendType(LLRender::BT_ALPHA);
 }
@@ -18214,6 +18274,10 @@ void LLPipeline::renderBloom()
         }
         mBloomStreak[0].release();
         mBloomStreak[1].release();
+        // <FS:Trish> FSRenderBloomLensDirt
+        mFSLensDirtMask.release();
+        mFSLensDirtMaskStrength = -1.f;
+        // </FS:Trish>
         return;
     }
     // the tonemap pass only reads bloom when it runs the post programs
@@ -18376,7 +18440,7 @@ void LLPipeline::renderBloom()
         gGL.setSceneBlendType(LLRender::BT_ALPHA);
     }
 
-    fs_apply_lens_dirt(mBloomLevels[0], mScreenTriangleVB);
+    fs_apply_lens_dirt(mBloomLevels[0], mFSLensDirtMask, mFSLensDirtMaskStrength, mScreenTriangleVB); // <FS:Trish/> the cached mask
 
     mBloomLevelCount = count;
 }

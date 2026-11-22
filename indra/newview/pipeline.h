@@ -954,6 +954,8 @@ public:
     LLRenderTarget          mBloomLevels[FS_BLOOM_MAX_LEVELS];
     U32                     mBloomLevelCount = 0;       // levels drawn this frame, 0 when bloom is off
     LLRenderTarget          mBloomStreak[2];            // anamorphic streaks, ping-pong at the second bloom level's size
+    LLRenderTarget          mFSLensDirtMask;            // <FS:Trish/> FSRenderBloomLensDirt: the mask times its strength, at the first bloom level's size
+    F32                     mFSLensDirtMaskStrength = -1.f; // <FS:Trish/> the strength mFSLensDirtMask was drawn with, -1 none
     bool                    mFSNoPost = false;          // tonemap runs the no-post programs this frame (set in renderFinalize)
     LLPointer<LLImageGL>    mColorGradeLUT;
     std::string             mColorGradeLUTName;
