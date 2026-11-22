@@ -344,9 +344,18 @@ void main()
         if (flare_hq != 0)
         {
             // Added as light, then eased toward white, so a strong flare over a bright sky does not
-            // clip into a flat disc
+            // clip into a flat disc. Where no flare reaches this pixel (no sun in view and no bright
+            // light picked, the usual frame) decoding and encoding again gives back the clamped
+            // colour, to float rounding, so the six pow are skipped there.
             vec3 f = fsLensFlareHQ(tc);
-            c = fsToDisplay(clamp(fsToLinear(clamp(c, 0.0, 1.0)) + f / (1.0 + f), 0.0, 1.0));
+            if (any(greaterThan(f, vec3(0.0))))
+            {
+                c = fsToDisplay(clamp(fsToLinear(clamp(c, 0.0, 1.0)) + f / (1.0 + f), 0.0, 1.0));
+            }
+            else
+            {
+                c = clamp(c, 0.0, 1.0);
+            }
         }
         else
         {
