@@ -12018,10 +12018,18 @@ void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_
     {
         static LLCachedControl<F32> fade_length(gSavedSettings, "FSRenderShadowFadeLength", 0.2f);
         static const LLStaticHashedString sShadowFadeLength("fs_shadow_fade_length");
-        shader.uniform1f(sShadowFadeLength, llclamp((F32)fade_length, 0.02f, 0.5f));
+        //shader.uniform1f(sShadowFadeLength, llclamp((F32)fade_length, 0.02f, 0.5f));
+        // FSRenderShadowFitDepth: a shorter fade while the fit cuts the range, starting past what is in view
+        F32 length = llclamp((F32)fade_length, 0.02f, 0.5f);
+        if (!gCubeSnapshot)
+        {
+            length = FSShadowDepthFit::fadeLength(length);
+        }
+        shader.uniform1f(sShadowFadeLength, length);
     }
-    // FSRenderShadowFitDepth: no fade at the end of a shadow range cut short to what is in view
-    // (shadowUtil.glsl). 0 unless the fit cut it, as before.
+    // FSRenderShadowFitDepth: without the smooth fade, no fade at the end of a shadow range cut short
+    // to what is in view (shadowUtil.glsl). 0 unless the fit cut it, as before. The smooth fade always
+    // fades, over the shorter length above.
     {
         static const LLStaticHashedString sShadowNoFade("fs_shadow_no_fade");
         shader.uniform1i(sShadowNoFade, (!gCubeSnapshot && FSShadowDepthFit::rangeCut()) ? 1 : 0);

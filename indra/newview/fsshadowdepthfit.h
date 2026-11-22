@@ -67,9 +67,16 @@ namespace FSShadowDepthFit
     bool getRange(const LLCamera& camera, F32 cpu_near, F32 cpu_far, F32& near_out, F32& far_out);
 
     // True while this frame's sun shadow range ends before the range it would have without the
-    // fit: nothing in view lies past the end, so the shaders skip the fade at the end of the
-    // shadow range, which would otherwise fade the shadows on the farthest walls of a room.
+    // fit: nothing in view lies past the end, so the shaders without the smooth fade skip the
+    // fade at the end of the shadow range, which would otherwise fade the shadows on the farthest
+    // walls of a room. The smooth fade gets a shorter one instead (fadeLength).
     bool rangeCut();
+
+    // The share of the sun shadow range the smooth far fade (FSRenderShadowSmoothFade) takes this
+    // frame, from the one set (fade_length). While the fit cuts the range, a shorter fade that starts
+    // past everything the last read back saw, so the far walls of a room keep their shadows but
+    // what came into view since the read back gets a soft end, not a hard line.
+    F32 fadeLength(F32 fade_length);
 
     // Frees the targets, the read back buffer and the programs
     void release();

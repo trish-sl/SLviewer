@@ -79,6 +79,7 @@ namespace
     constexpr F32 MAX_NEAR = 4.f;           // as the splits without the fit
     constexpr F32 MOVE_METRES = 1.f;        // camera moved further than this (plus 5 % of the far end)
     constexpr F32 TURN_COS = 0.990f;        // or turned more than about 8 degrees: use the full range
+    constexpr F32 CUT_FADE = 0.1f;          // share of a cut range the far fade takes (fadeLength)
 
     LLGLSLShader sFirstProgram;     // depth buffer -> nearest and farthest distance per block
     LLGLSLShader sReduceProgram;    // the same from the level before
@@ -125,6 +126,7 @@ namespace
     F32 sSmoothFar = 0.f;
     F64 sLastTime = 0.0;
     bool sRangeCut = false;
+    F32 sCutRatio = 1.f;            // the range in use over the range without the fit
 
     // GL thread, in stream order right after the copy into the pack buffer
     void gl_fence(U64)
@@ -496,6 +498,7 @@ void FSShadowDepthFit::reduce(LLRenderTarget& depth_target, LLVertexBuffer* scre
 bool FSShadowDepthFit::getRange(const LLCamera& camera, F32 cpu_near, F32 cpu_far, F32& near_out, F32& far_out)
 {
     sRangeCut = false;
+    sCutRatio = 1.f;
     if (!enabled() || gSnapshot || !(cpu_far > cpu_near))
     {
         sSmoothValid = false;
@@ -552,12 +555,28 @@ bool FSShadowDepthFit::getRange(const LLCamera& camera, F32 cpu_near, F32 cpu_fa
         return false;
     }
     sRangeCut = far_out < cpu_far * 0.98f;
+    sCutRatio = llclamp(far_out / cpu_far, 0.f, 1.f);
     return true;
 }
 
 bool FSShadowDepthFit::rangeCut()
 {
     return sRangeCut;
+}
+
+F32 FSShadowDepthFit::fadeLength(F32 fade_length)
+{
+    if (!sRangeCut)
+    {
+        return fade_length;
+    }
+    // The range ends at the farthest depth read back times FAR_MARGIN plus FAR_PAD, so a fade over its
+    // last CUT_FADE starts past everything the read back saw, and only what came into view since
+    // (a read back a few frames old, a turn too small to count as one) falls in it: a soft end
+    // instead of a line across the ground. Towards the uncut range (a cut ratio of 0.8 to 0.98) the
+    // fade widens to the one set, so it doesn't jump when the cut comes and goes.
+    const F32 t = llclamp((sCutRatio - 0.8f) / 0.18f, 0.f, 1.f);
+    return llmin(fade_length, CUT_FADE + (fade_length - CUT_FADE) * t);
 }
 
 void FSShadowDepthFit::release()

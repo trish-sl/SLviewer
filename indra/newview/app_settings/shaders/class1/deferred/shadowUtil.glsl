@@ -791,12 +791,14 @@ float sampleDirectionalShadow(vec3 pos, vec3 norm, vec2 pos_screen)
 #endif
         // </FS:Trish>
 #if defined(FS_SHADOW_EDGE_FADE)
-        // <FS:Trish> FSRenderShadowFitDepth
-        //shadow = fsShadowEdgeFade(shadow, spos.z); // replaces the linear ramp over the far half of cascade 3
-        if (fs_shadow_no_fade == 0)
-        {
-            shadow = fsShadowEdgeFade(shadow, spos.z); // replaces the linear ramp over the far half of cascade 3
-        }
+        // <FS:Trish> FSRenderShadowFitDepth: the fade is kept while the fit cuts the range, shortened to start
+        // past what is in view (fs_shadow_fade_length, FSShadowDepthFit::fadeLength). Skipped, a read back a
+        // few frames old ended the shadows at a hard line across the ground.
+        shadow = fsShadowEdgeFade(shadow, spos.z); // replaces the linear ramp over the far half of cascade 3
+        //if (fs_shadow_no_fade == 0)
+        //{
+        //    shadow = fsShadowEdgeFade(shadow, spos.z); // replaces the linear ramp over the far half of cascade 3
+        //}
         // </FS:Trish>
 #endif
     }
@@ -873,10 +875,7 @@ float fsSampleDirectionalShadowCheap(vec3 pos, vec3 norm)
 #endif
     }
 #if defined(FS_SHADOW_EDGE_FADE)
-    if (fs_shadow_no_fade == 0)
-    {
-        shadow = fsShadowEdgeFade(shadow, spos.z);
-    }
+    shadow = fsShadowEdgeFade(shadow, spos.z); // kept while the fit cuts the range, as there
 #endif
     return clamp(shadow, 0.0, 1.0);
 #else
