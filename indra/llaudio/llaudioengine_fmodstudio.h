@@ -134,12 +134,14 @@ public:
 
     /*virtual*/ bool loadWAV(const std::string& filename);
     /*virtual*/ U32 getLength();
+    ELoadState getLoadState() override; // <FS:Trish/>
     friend class LLAudioChannelFMODSTUDIO;
 protected:
     FMOD::System *getSystem()   const {return mSystemp;}
     FMOD::System *mSystemp;
     FMOD::Sound *getSound()     const{ return mSoundp; }
     FMOD::Sound *mSoundp;
+    std::string mLoadingFilename; // <FS:Trish/> set while FMOD still opens the file in the background
 };
 
 

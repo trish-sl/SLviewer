@@ -921,8 +921,14 @@ bool LLAudioBufferFMODSTUDIO::loadWAV(const std::string& filename)
         Check_FMOD_Error(mSoundp->release(), "FMOD::Sound::release");
         mSoundp = NULL;
     }
+    mLoadingFilename.clear(); // <FS:Trish/>
 
-    FMOD_MODE base_mode = FMOD_LOOP_NORMAL;
+    // <FS:Trish> Reading and decoding the whole file here hitched every time a sound played for the
+    // first time. FMOD_NONBLOCKING does that on FMOD's own loader thread; getLoadState() reports when
+    // it is done, and LLAudioData only hands the buffer out then.
+    //FMOD_MODE base_mode = FMOD_LOOP_NORMAL;
+    FMOD_MODE base_mode = FMOD_LOOP_NORMAL | FMOD_NONBLOCKING;
+    // </FS:Trish>
     FMOD_CREATESOUNDEXINFO exinfo;
     memset(&exinfo, 0, sizeof(exinfo));
     exinfo.cbsize = sizeof(exinfo);
@@ -944,9 +950,44 @@ bool LLAudioBufferFMODSTUDIO::loadWAV(const std::string& filename)
         return false;
     }
 
+    mLoadingFilename = filename; // <FS:Trish/>
     // Everything went well, return true
     return true;
 }
+
+// <FS:Trish>
+LLAudioBuffer::ELoadState LLAudioBufferFMODSTUDIO::getLoadState()
+{
+    if (!mSoundp)
+    {
+        return LOAD_FAILED;
+    }
+    if (mLoadingFilename.empty())
+    {
+        return LOAD_READY;
+    }
+
+    FMOD_OPENSTATE state = FMOD_OPENSTATE_ERROR;
+    FMOD_RESULT result = mSoundp->getOpenState(&state, nullptr, nullptr, nullptr);
+    if (result == FMOD_OK && state != FMOD_OPENSTATE_ERROR)
+    {
+        if (state != FMOD_OPENSTATE_READY)
+        {
+            return LOAD_PENDING;
+        }
+        mLoadingFilename.clear();
+        return LOAD_READY;
+    }
+
+    // Same as a failed open in loadWAV(): the file is probably corrupt, remove it.
+    LL_WARNS() << "Could not load data '" << mLoadingFilename << "': " << FMOD_ErrorString(result) << LL_ENDL;
+    Check_FMOD_Error(mSoundp->release(), "FMOD::Sound::release");
+    mSoundp = NULL;
+    LLFile::remove(mLoadingFilename);
+    mLoadingFilename.clear();
+    return LOAD_FAILED;
+}
+// </FS:Trish>
 
 
 U32 LLAudioBufferFMODSTUDIO::getLength()
