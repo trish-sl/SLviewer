@@ -80,13 +80,21 @@ float fsGTAOHorizon(vec2 tc, vec3 pos, vec3 v, float low_cos, float falloff_mul,
     // weight times that is still NaN, so a dropped sample is unprojected at a finite depth.
     vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
     float dist = max(length(delta), 1e-5);
-    float sample_cos = dot(delta, v) / dist;
+    float raw_cos = dot(delta, v) / dist;
 
     float weight = valid ? clamp(dist * falloff_mul + falloff_add, 0.0, 1.0) : 0.0;
-    sample_cos = mix(low_cos, sample_cos, weight);
+    float sample_cos = mix(low_cos, raw_cos, weight);
 
-    return sample_cos > horizon_cos ? sample_cos
-                                    : max(mix(horizon_cos, sample_cos, FS_GTAO_THICKNESS), low_cos);
+    if (sample_cos > horizon_cos)
+    {
+        return sample_cos;
+    }
+    // Only a sample the depth buffer shows below the horizon is seen past the occluder and pulls
+    // the horizon down. One standing above it that only the falloff took out (an avatar a metre
+    // in front of the wall this pixel is on) says nothing about the occluder's thickness, and
+    // pulling on it wore away the wall's occlusion in a bright band around the avatar.
+    return (valid && raw_cos > horizon_cos) ? horizon_cos
+                                            : max(mix(horizon_cos, sample_cos, FS_GTAO_THICKNESS), low_cos);
 }
 
 // View-space position of a neighbour, false for sky (which unprojects to infinity)

@@ -106,12 +106,18 @@ float fsCreaseHorizon(vec2 tc, vec3 pos, vec3 v, float radius, float low_cos, fl
     // a sky depth unprojects to infinity (a division by zero under reverse-Z): use a finite one
     vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
     float dist = max(length(delta), 1e-5);
-    float sample_cos = dot(delta, v) / dist;
+    float raw_cos = dot(delta, v) / dist;
     float weight = valid ? clamp(2.0 - 2.0 * dist / radius, 0.0, 1.0) : 0.0;
-    sample_cos = mix(low_cos, sample_cos, weight);
+    float sample_cos = mix(low_cos, raw_cos, weight);
+    if (sample_cos > horizon_cos)
+    {
+        return sample_cos;
+    }
     // a sample below the running horizon pulls it down a little (GTAO's thickness heuristic):
-    // the depth buffer has no back faces, so a thin rail would otherwise count as a wall
-    return sample_cos > horizon_cos ? sample_cos : max(mix(horizon_cos, sample_cos, 0.1), low_cos);
+    // the depth buffer has no back faces, so a thin rail would otherwise count as a wall. Only
+    // one that lies below it in the depth buffer too: a surface standing in front but out of
+    // range (an avatar before the wall) would wear the crease away around its outline.
+    return (valid && raw_cos > horizon_cos) ? horizon_cos : max(mix(horizon_cos, sample_cos, 0.1), low_cos);
 }
 
 // Visibility (1 open, 0 closed) of the crease around view space position pos at screen position
