@@ -410,6 +410,8 @@ public:
     // createShader. sFSHeightFog: sGlobalDefines has FS_HEIGHT_FOG (set where they are).
     U32 mFSAlphaPrepPass = 0;
     bool mFSSpecularAA = false;
+    bool mFSSkinLighting = false;
+    U32 mFSSkinSerial = 0;      // the set of skin lighting values it holds (fs_bind_skin_lighting), 0: none
     static bool sFSHeightFog;
     // </FS:Trish>
 

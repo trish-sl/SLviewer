@@ -464,7 +464,11 @@ bool LLGLSLShader::createShader()
     }
 #endif
 
-    mFSSpecularAA = mDefines.count("FS_SPECULAR_AA") != 0; // <FS:Trish/>
+    // <FS:Trish>
+    mFSSpecularAA = mDefines.count("FS_SPECULAR_AA") != 0;
+    mFSSkinLighting = mDefines.count("FS_SKIN_LIGHTING") != 0;
+    mFSSkinSerial = 0; // a new program has none of the old uniforms
+    // </FS:Trish>
 
     mShaderHash = hash();
 

@@ -11765,7 +11765,7 @@ static void fs_bind_skin_lighting(LLGLSLShader& shader)
     static LLCachedControl<bool> warm_shadows(gSavedSettings, "FSRenderSkinWarmShadows", false);
     static LLCachedControl<bool> trans_local(gSavedSettings, "FSRenderSkinTranslucencyLocal", false);
     static LLCachedControl<bool> sheen(gSavedSettings, "FSRenderSkinSheen", false);
-    if (!skin_sss || !(dual_spec || warm_shadows || trans_local || sheen) || !shader.mDefines.count("FS_SKIN_LIGHTING"))
+    if (!skin_sss || !(dual_spec || warm_shadows || trans_local || sheen) || !shader.mFSSkinLighting) // set from mDefines by createShader
     {
         return;
     }
@@ -11788,17 +11788,41 @@ static void fs_bind_skin_lighting(LLGLSLShader& shader)
     static LLStaticHashedString s_translucency("sss_translucency");
     static LLStaticHashedString s_sheen("fs_skin_sheen");
     static LLStaticHashedString s_hair_filter("fs_skin_hair_filter");
-    shader.uniform1f(s_tone_match, llclamp((F32)tone_match, 0.f, 1.f));
-    shader.uniform1f(s_tone_range, llclamp((F32)tone_range, 0.f, 1.f));
-    shader.uniform1f(s_spec_mix, llclamp((F32)spec_mix, 0.f, 1.f));
-    shader.uniform1f(s_warm, llclamp((F32)warm, 0.f, 1.f));
-    // Local light translucency shares the scattering's profile and translucency strength
-    shader.uniform1f(s_radius, llclamp((F32)radius, 0.f, 4.f));
-    shader.uniform1f(s_tint, llclamp((F32)tint, 0.f, 1.f));
-    shader.uniform1f(s_translucency, llclamp((F32)translucency, 0.f, 4.f));
-    shader.uniform1f(s_sheen, llclamp((F32)sheen_strength, 0.f, 1.f));
-    // Painted hair (a Bakes on Mesh hair base, brows) is not lit as skin (fsSkinHair)
-    shader.uniform1f(s_hair_filter, llclamp((F32)hair_filter, 0.f, 1.f));
+    const F32 values[9] = {
+        llclamp((F32)tone_match, 0.f, 1.f),
+        llclamp((F32)tone_range, 0.f, 1.f),
+        llclamp((F32)spec_mix, 0.f, 1.f),
+        llclamp((F32)warm, 0.f, 1.f),
+        // Local light translucency shares the scattering's profile and translucency strength
+        llclamp((F32)radius, 0.f, 4.f),
+        llclamp((F32)tint, 0.f, 1.f),
+        llclamp((F32)translucency, 0.f, 4.f),
+        llclamp((F32)sheen_strength, 0.f, 1.f),
+        // Painted hair (a Bakes on Mesh hair base, brows) is not lit as skin (fsSkinHair)
+        llclamp((F32)hair_filter, 0.f, 1.f) };
+    // Numbered sets of values: a program that took the current set (mFSSkinSerial) holds them all, and
+    // only this function sets them on these programs. A relinked program starts at 0.
+    static F32 s_values[9] = {};
+    static U32 s_serial = 0;
+    if (s_serial == 0 || memcmp(values, s_values, sizeof(values)) != 0)
+    {
+        memcpy(s_values, values, sizeof(values));
+        s_serial = s_serial == U32_MAX ? 1 : s_serial + 1;
+    }
+    if (shader.mFSSkinSerial == s_serial)
+    {
+        return;
+    }
+    shader.mFSSkinSerial = s_serial;
+    shader.uniform1f(s_tone_match, values[0]);
+    shader.uniform1f(s_tone_range, values[1]);
+    shader.uniform1f(s_spec_mix, values[2]);
+    shader.uniform1f(s_warm, values[3]);
+    shader.uniform1f(s_radius, values[4]);
+    shader.uniform1f(s_tint, values[5]);
+    shader.uniform1f(s_translucency, values[6]);
+    shader.uniform1f(s_sheen, values[7]);
+    shader.uniform1f(s_hair_filter, values[8]);
 }
 // </FS:Trish>
 
@@ -11936,7 +11960,20 @@ void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_
     // (shadowUtil.glsl), which used to invert a 3 x 3 matrix per pixel to find them
     {
         static LLStaticHashedString s_spot_eye("fs_spot_shadow_eye");
-        const LLVector3 eye[2] = { fs_shadow_matrix_eye(mSunShadowMatrix[4]), fs_shadow_matrix_eye(mSunShadowMatrix[5]) };
+        //const LLVector3 eye[2] = { fs_shadow_matrix_eye(mSunShadowMatrix[4]), fs_shadow_matrix_eye(mSunShadowMatrix[5]) };
+        // Two inverses per bind otherwise: kept until the matrices change
+        static glm::mat4 s_matrices[2];
+        static LLVector3 eye[2];
+        static bool s_valid = false;
+        if (!s_valid || memcmp(glm::value_ptr(s_matrices[0]), glm::value_ptr(mSunShadowMatrix[4]), sizeof(glm::mat4)) != 0 ||
+            memcmp(glm::value_ptr(s_matrices[1]), glm::value_ptr(mSunShadowMatrix[5]), sizeof(glm::mat4)) != 0)
+        {
+            s_matrices[0] = mSunShadowMatrix[4];
+            s_matrices[1] = mSunShadowMatrix[5];
+            eye[0] = fs_shadow_matrix_eye(mSunShadowMatrix[4]);
+            eye[1] = fs_shadow_matrix_eye(mSunShadowMatrix[5]);
+            s_valid = true;
+        }
         shader.uniform3fv(s_spot_eye, 2, eye[0].mV);
     }
     // </FS:Trish>
@@ -13199,8 +13236,22 @@ void LLPipeline::renderDeferredLighting()
                 LL_PROFILE_ZONE_NAMED_CATEGORY_PIPELINE("renderDeferredLighting - local lights");
                 FS_RECORD_BLOCK_TIME(FTM_FS_LIGHT_LOCAL); // <FS:Trish/>
                 LL_PROFILE_GPU_ZONE("local lights");
-                bindDeferredShader(gDeferredLightProgram);
-                gDeferredLightProgram.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0); // <FS:Trish/> once, not per light
+                // <FS:Trish> Bound at the first light that takes this path (fs_bind_light_program): with the
+                // clustered or batched lights on, often none does
+                //bindDeferredShader(gDeferredLightProgram);
+                //gDeferredLightProgram.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0); // <FS:Trish/> once, not per light
+                bool fs_light_program_bound = false;
+                auto fs_bind_light_program = [&]()
+                {
+                    if (!fs_light_program_bound)
+                    {
+                        fs_light_program_bound = true;
+                        bindDeferredShader(gDeferredLightProgram);
+                        gDeferredLightProgram.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0); // once, not per light
+                        mCubeVB->setBuffer();
+                    }
+                };
+                // </FS:Trish>
                 const bool fs_batch_lights = gFSPointLightBatch.begin(); // <FS:Trish/> FSPerfBatchedLocalLights
                 // <FS:Trish> FSRenderClusteredLights: the main view's point lights are handed over and
                 // shaded together after the loop; probe captures keep the stock passes. The point
@@ -13216,7 +13267,7 @@ void LLPipeline::renderDeferredLighting()
                     mCubeVB = ll_create_cube_vb(LLVertexBuffer::MAP_VERTEX);
                 }
 
-                mCubeVB->setBuffer();
+                //mCubeVB->setBuffer(); // <FS:Trish/> with the program (fs_bind_light_program)
 
                 LLGLDepthTest depth(GL_TRUE, GL_FALSE);
                 // mNearbyLights already includes distance calculation and excludes muted avatars.
@@ -13310,6 +13361,7 @@ void LLPipeline::renderDeferredLighting()
                         }
                         // </FS:Trish>
 
+                        fs_bind_light_program(); // <FS:Trish/>
                         gDeferredLightProgram.uniform3fv(LLShaderMgr::LIGHT_CENTER, 1, c);
                         gDeferredLightProgram.uniform1f(LLShaderMgr::LIGHT_SIZE, s);
                         gDeferredLightProgram.uniform3fv(LLShaderMgr::DIFFUSE_COLOR, 1, col.mV);
@@ -13350,7 +13402,13 @@ void LLPipeline::renderDeferredLighting()
                 // Bookmark comment to allow searching for mSpecialRenderMode == 3 (avatar edit mode),
                 // prev site of appended deferred character light, removed by SL-13522 09/20
 
-                unbindDeferredShader(gDeferredLightProgram);
+                // <FS:Trish> Only if a light bound it
+                //unbindDeferredShader(gDeferredLightProgram);
+                if (fs_light_program_bound)
+                {
+                    unbindDeferredShader(gDeferredLightProgram);
+                }
+                // </FS:Trish>
 
                 // <FS:Trish> Draw the queued point lights: one upload, one instanced draw per 512
                 if (fs_batch_lights)
@@ -13496,6 +13554,8 @@ void LLPipeline::renderDeferredLighting()
                     }
                 }
 
+                if (!fullscreen_spot_lights.empty()) // <FS:Trish/> nothing to set up for no light
+                {
                 bindDeferredShader(gDeferredMultiSpotLightProgram);
                 fsBeginExtraSpotShadows(gDeferredMultiSpotLightProgram); // <FS:Trish/>
 
@@ -13534,6 +13594,7 @@ void LLPipeline::renderDeferredLighting()
                 gDeferredMultiSpotLightProgram.disableTexture(LLShaderMgr::DEFERRED_PROJECTION);
                 fsEndExtraSpotShadows(); // <FS:Trish/>
                 unbindDeferredShader(gDeferredMultiSpotLightProgram);
+                } // <FS:Trish/>
             }
 
             // <FS:Trish> Draw the queued unshadowed spotlights: one upload, a few instanced draws per texture
