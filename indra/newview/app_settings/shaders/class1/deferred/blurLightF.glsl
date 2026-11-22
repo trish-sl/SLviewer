@@ -61,6 +61,51 @@ vec3 getGeoNorm(vec2 pos_screen); // <FS:Trish/> deferredUtil.glsl
 float fsContactShadowTerm(float shadow, vec3 pos, vec3 norm); // fsShadowExtrasF.glsl, applied after the blur
 #endif
 
+// <FS:Trish> The plane of the surface as the depth buffer holds it, from the nearer neighbour on
+// each axis (so a silhouette picks the pixel's own surface); fallback where there is none. The
+// taps below are tested by their depth, so this is the plane that test needs: a legacy surface
+// has no geometric normal in the G-buffer, and its normal-mapped one tilted the plane with
+// every bump of a stone or brick wall.
+bool fsBlurNeighbour(vec2 tc, out vec3 p)
+{
+    float d = getDepth(tc);
+    if (isFarDepth(d))
+    {
+        p = vec3(0.0);
+        return false;
+    }
+    p = getPositionWithDepth(tc, d).xyz;
+    return true;
+}
+
+vec3 fsBlurDepthNormal(vec2 tc, vec3 pos, vec3 fallback)
+{
+    vec2 px = 1.0 / screen_res;
+    vec3 pr, pl, pu, pd;
+    bool r = fsBlurNeighbour(tc + vec2(px.x, 0.0), pr);
+    bool l = fsBlurNeighbour(tc - vec2(px.x, 0.0), pl);
+    bool u = fsBlurNeighbour(tc + vec2(0.0, px.y), pu);
+    bool d = fsBlurNeighbour(tc - vec2(0.0, px.y), pd);
+    if (!(r || l) || !(u || d))
+    {
+        return fallback;
+    }
+    vec3 dr = pr - pos;
+    vec3 dl = pos - pl;
+    vec3 du = pu - pos;
+    vec3 dd = pos - pd;
+    vec3 dx = (r && (!l || abs(dr.z) <= abs(dl.z))) ? dr : dl;
+    vec3 dy = (u && (!d || abs(du.z) <= abs(dd.z))) ? du : dd;
+    vec3 n = cross(dx, dy);
+    float len = length(n);
+    if (len < 1e-10)
+    {
+        return fallback;
+    }
+    return n / len; // only the plane matters here, not which way it faces
+}
+// </FS:Trish>
+
 void main()
 {
     vec2 tc = vary_fragcoord.xy;
@@ -95,7 +140,10 @@ void main()
     // shading normal the plane tilted with every bump, so on a bumpy wall or floor most taps a few
     // centimetres away fell outside the tolerance and were dropped: the AO and shadow noise the
     // blur exists to remove (GTAO's step pattern, the cascade dither) stayed on those surfaces.
-    vec3 plane_n = getGeoNorm(tc);
+    // The plane is now the depth buffer's own (fsBlurDepthNormal): legacy surfaces answer
+    // getGeoNorm with their normal-mapped normal, which left the same noise on them.
+    //vec3 plane_n = getGeoNorm(tc);
+    vec3 plane_n = fsBlurDepthNormal(tc, pos, getGeoNorm(tc));
     // </FS:Trish>
 
     // Each tap only needs its distance from this fragment's plane, dot(n, P) - dot(n, pos), where
