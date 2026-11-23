@@ -42,6 +42,7 @@ LLImageJ2CImpl* fallbackCreateLLImageJ2CImpl();
 LLImageCompressionTester* LLImageJ2C::sTesterp = NULL ;
 std::atomic<U32> LLImageJ2C::sFSOpenJPEGBufferCacheMB{ 64 }; // <FS:Trish/>
 std::atomic<U32> LLImageJ2C::sFSEncodeThreads{ 0 }; // <FS:Trish/>
+std::atomic<bool> LLImageJ2C::sFSExactByteRanges{ true }; // <FS:Trish/> FSTextureExactByteRanges
 const std::string sTesterName("ImageCompressionTester");
 
 //static
@@ -103,6 +104,26 @@ S8  LLImageJ2C::getRawDiscardLevel()
     return mRawDiscardLevel;
 }
 
+// <FS:Trish> Alchemy exact J2C byte ranges: the layout follows the data
+// virtual
+void LLImageJ2C::deleteData()
+{
+    LLImageDataLock lock(this);
+
+    mLayout = {};
+    LLImageFormatted::deleteData();
+}
+
+// virtual
+void LLImageJ2C::onDataChanged()
+{
+    if (!mLayout.isValid())
+    {
+        mLayout = ALJ2CLayout::parse(getData(), getDataSize());
+    }
+}
+// </FS:Trish>
+
 bool LLImageJ2C::updateData()
 {
     bool res = true;
@@ -118,6 +139,7 @@ bool LLImageJ2C::updateData()
     }
     else
     {
+        mLayout = ALJ2CLayout::parse(getData(), getDataSize()); // <FS:Trish/> Alchemy exact J2C byte ranges
         res = mImpl->getMetadata(*this);
     }
 
@@ -391,6 +413,14 @@ S32 LLImageJ2C::calcHeaderSize()
 // calcDataSize() returns how many bytes to read to load discard_level (including header)
 S32 LLImageJ2C::calcDataSize(S32 discard_level)
 {
+    // <FS:Trish> Alchemy exact J2C byte ranges: a codestream whose headers are in hand is sized
+    // from its own length; the estimate below stays for one whose headers are not.
+    if (mLayout.isValid() && sFSExactByteRanges.load(std::memory_order_relaxed))
+    {
+        return mLayout.calcDataSize(discard_level);
+    }
+    // </FS:Trish>
+
     discard_level = llclamp(discard_level, 0, MAX_DISCARD_LEVEL);
     if ( mAreaUsedForDataSizeCalcs != (getHeight() * getWidth())
         || (mDataSizes[0] == 0))
@@ -410,6 +440,13 @@ S32 LLImageJ2C::calcDataSize(S32 discard_level)
 S32 LLImageJ2C::calcDiscardLevelBytes(S32 bytes)
 {
     llassert(bytes >= 0);
+    // <FS:Trish> Alchemy exact J2C byte ranges: the layout's targets carry the quality bar, so no
+    // TextureReverseByteRange discount applies to them.
+    if (mLayout.isValid() && sFSExactByteRanges.load(std::memory_order_relaxed))
+    {
+        return mLayout.calcDiscardLevelBytes(bytes);
+    }
+    // </FS:Trish>
     S32 discard_level = 0;
     if (bytes == 0)
     {

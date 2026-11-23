@@ -27,6 +27,7 @@
 #ifndef LL_LLIMAGEJ2C_H
 #define LL_LLIMAGEJ2C_H
 
+#include "alj2clayout.h" // <FS:Trish/> Alchemy exact J2C byte ranges
 #include "llimage.h"
 #include "llassettype.h"
 #include "llmetricperformancetester.h"
@@ -48,6 +49,7 @@ public:
 
     // Base class overrides
     /*virtual*/ std::string getExtension() { return std::string("j2c"); }
+    /*virtual*/ void deleteData(); // <FS:Trish/> Alchemy exact J2C byte ranges
     /*virtual*/ bool updateData();
     /*virtual*/ bool decode(LLImageRaw *raw_imagep, F32 decode_time);
     /*virtual*/ bool decodeChannels(LLImageRaw *raw_imagep, F32 decode_time, S32 first_channel, S32 max_channel_count);
@@ -79,6 +81,14 @@ public:
 
     static std::string getEngineInfo();
 
+    // <FS:Trish> Alchemy exact J2C byte ranges (FSTextureExactByteRanges).
+    // The codestream's layout, read from the data once it holds the main header and the
+    // first SOT. calcDataSize() and calcDiscardLevelBytes() follow it whenever it is valid
+    // and sFSExactByteRanges is on.
+    const ALJ2CLayout& getLayout() const { return mLayout; }
+    static std::atomic<bool> sFSExactByteRanges;
+    // </FS:Trish>
+
     // <FS:Trish> FSPerfOpenJPEGBufferCacheMB: how much of its large buffers the OpenJPEG decoder keeps per
     // thread for the next decode, in MB (0 off). Read once, at the first decode.
     static std::atomic<U32> sFSOpenJPEGBufferCacheMB;
@@ -93,6 +103,12 @@ protected:
     friend class LLImageCompressionTester;
     void decodeFailed();
     void updateRawDiscardLevel();
+
+    // <FS:Trish> Alchemy exact J2C byte ranges
+    /*virtual*/ void onDataChanged();
+
+    ALJ2CLayout mLayout;
+    // </FS:Trish>
 
     S32 mMaxBytes; // Maximum number of bytes of data to use...
 

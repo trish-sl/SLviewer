@@ -460,6 +460,11 @@ public:
 protected:
     bool copyData(U8 *data, S32 size); // calls updateData()
 
+    // <FS:Trish> Alchemy exact J2C byte ranges: called with the data lock held once setData or
+    // appendData has changed the data.
+    virtual void onDataChanged() {}
+    // </FS:Trish>
+
 protected:
     S8 mCodec;
     S8 mDecoding;

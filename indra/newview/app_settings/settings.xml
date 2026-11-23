@@ -32198,6 +32198,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>1</integer>
     </map>
+    <key>FSTextureExactByteRanges</key>
+    <map>
+      <key>Comment</key>
+      <string>Once the first bytes of a texture are in, its JPEG 2000 header gives the length of the whole file, and each detail level asks for the share of that file it needs to look right (ported from the Alchemy Viewer) instead of an estimate from the texture's size. Textures sharpen in fewer steps, a texture is decoded at the detail its bytes actually reach and then fetches the rest instead of staying soft, a disk cache entry that holds half or more of what is needed is read whole, and the rest of a file is downloaded up to its exact end. Before the header is in, the estimate is still used. Off: every request is sized by the estimate, as before.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>Boolean</string>
+      <key>Value</key>
+      <integer>1</integer>
+    </map>
     <key>FSTextureFetchRestOfFile</key>
     <map>
       <key>Comment</key>

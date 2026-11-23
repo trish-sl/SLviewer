@@ -13,6 +13,7 @@ include(bugsplat)
 include(Tut)
 
 set(llimage_SOURCE_FILES
+    alj2clayout.cpp # <FS:Trish/> Alchemy exact J2C byte ranges
     llimagebmp.cpp
     llimage.cpp
     llimagedimensionsinfo.cpp
@@ -29,6 +30,7 @@ set(llimage_SOURCE_FILES
 set(llimage_HEADER_FILES
     CMakeLists.txt
 
+    alj2clayout.h # <FS:Trish/> Alchemy exact J2C byte ranges
     llimage.h
     llimagebmp.h
     llimagedimensionsinfo.h

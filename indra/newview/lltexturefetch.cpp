@@ -524,6 +524,27 @@ private:
     // Locks:  Mw (ctor invokes without lock)
     void setDesiredDiscard(S32 discard, S32 size);
 
+    // <FS:Trish> Alchemy exact J2C byte ranges (FSTextureExactByteRanges)
+    // Locks:  Mw
+    // The bytes a request for `discard` needs: from the codestream's layout once it is known,
+    // `estimate` until then. A request for discard 0 keeps `estimate`, which asks for all of it.
+    S32 calcDesiredSize(S32 discard, S32 estimate) const;
+
+    // Locks:  Mw
+    // Takes the layout from the formatted image once it holds the codestream's headers, and
+    // sizes the request by it. True when this call found it.
+    bool updateLayout();
+
+    // Locks:  Mw
+    // The discard level `bytes` of formatted data decode a request for `discard` at: the
+    // finest they reach, never finer than the request.
+    S32 calcLoadedDiscard(S32 discard, S32 bytes) const;
+
+    // Locks:  Mw
+    // The layout is known and FSTextureExactByteRanges is on.
+    bool haveLayout() const;
+    // </FS:Trish>
+
     // <FS:Ansariel> OpenSim compatibility
     // Threads:  T*
     // Locks:  Mw
@@ -610,6 +631,10 @@ private:
     LLPointer<LLImageFormatted> mFormattedImage;
     LLPointer<LLImageRaw>       mRawImage,
                                 mAuxImage;
+    // <FS:Trish> Alchemy exact J2C byte ranges: the codestream's layout, once mFormattedImage
+    // has held its headers. Kept across requests, since endWork() lets go of the image.
+    ALJ2CLayout mLayout;
+    // </FS:Trish>
     FTType mFTType;
     LLUUID mID;
     LLHost mHost;
@@ -645,7 +670,11 @@ private:
                                 mRequestedOffset,
                                 mDesiredSize,
                                 mFileSize,
-                                mCachedSize;
+                                // <FS:Trish> Alchemy exact J2C byte ranges
+                                //mCachedSize;
+                                mCachedSize,
+                                mCacheReadEnd;   // where the last cache read was asked to stop
+                                // </FS:Trish>
     e_request_state mSentRequest;
     handle_t mDecodeHandle;
     // <FS:Trish> Decoded texture cache
@@ -658,6 +687,10 @@ private:
     bool mWritten;
     bool mNeedsAux;
     bool mHaveAllData;
+    // <FS:Trish> Alchemy exact J2C byte ranges: the last network request failed, so the worker
+    // decodes what it holds and finishes rather than asking again.
+    bool mFetchFailed;
+    // </FS:Trish>
     bool mInLocalCache;
     bool mInCache;
     bool                        mCanUseHTTP,
@@ -998,6 +1031,7 @@ LLTextureFetchWorker::LLTextureFetchWorker(LLTextureFetch* fetcher,
       mFileSize(0),
       mSkippedStatesTime(0),
       mCachedSize(0),
+      mCacheReadEnd(0), // <FS:Trish/>
       mLoaded(false),
       mSentRequest(UNSENT),
       mDecodeHandle(0),
@@ -1005,6 +1039,7 @@ LLTextureFetchWorker::LLTextureFetchWorker(LLTextureFetch* fetcher,
       mWritten(false),
       mNeedsAux(false),
       mHaveAllData(false),
+      mFetchFailed(false), // <FS:Trish/>
       mInLocalCache(false),
       mInCache(false),
       mCanUseHTTP(true),
@@ -1141,6 +1176,7 @@ void LLTextureFetchWorker::setupPacketData()
 // Locks:  Mw (ctor invokes without lock)
 void LLTextureFetchWorker::setDesiredDiscard(S32 discard, S32 size)
 {
+    size = calcDesiredSize(discard, size); // <FS:Trish/> Alchemy exact J2C byte ranges
     bool prioritize = false;
     if (mDesiredDiscard != discard)
     {
@@ -1169,6 +1205,51 @@ void LLTextureFetchWorker::setDesiredDiscard(S32 discard, S32 size)
         setState(INIT);
     }
 }
+
+// <FS:Trish> Alchemy exact J2C byte ranges
+// Locks:  Mw
+bool LLTextureFetchWorker::haveLayout() const
+{
+    static LLCachedControl<bool> exact_ranges(gSavedSettings, "FSTextureExactByteRanges", true);
+    return exact_ranges && mLayout.isValid();
+}
+
+// Locks:  Mw
+S32 LLTextureFetchWorker::calcDesiredSize(S32 discard, S32 estimate) const
+{
+    return (haveLayout() && discard > 0) ? mLayout.calcDataSize(discard) : estimate;
+}
+
+// Locks:  Mw
+bool LLTextureFetchWorker::updateLayout()
+{
+    if (mLayout.isValid() || mFormattedImage.isNull() || mFormattedImage->getCodec() != IMG_CODEC_J2C)
+    {
+        return false;
+    }
+
+    {
+        LLImageDataSharedLock lock(mFormattedImage);
+        mLayout = static_cast<const LLImageJ2C*>(mFormattedImage.get())->getLayout();
+    }
+    if (!haveLayout())
+    {
+        return false;
+    }
+    mDesiredSize = llmax(calcDesiredSize(mDesiredDiscard, mDesiredSize), TEXTURE_CACHE_ENTRY_SIZE);
+    return true;
+}
+
+// Locks:  Mw
+S32 LLTextureFetchWorker::calcLoadedDiscard(S32 discard, S32 bytes) const
+{
+    if (mHaveAllData || !haveLayout())
+    {
+        return discard;
+    }
+    return llmax(discard, mLayout.calcDiscardLevelBytes(bytes));
+}
+// </FS:Trish>
 
 // Locks:  Mw
 void LLTextureFetchWorker::setImagePriority(F32 priority)
@@ -1475,6 +1556,10 @@ bool LLTextureFetchWorker::doWork(S32 param)
         mHttpReplySize = 0;
         mHttpReplyOffset = 0;
         mHaveAllData = false;
+        // <FS:Trish> Alchemy exact J2C byte ranges
+        mFetchFailed = false;
+        mCacheReadEnd = 0;
+        // </FS:Trish>
         clearPackets(); // <FS:Ansariel> OpenSim compatibility
         mCacheReadHandle = LLTextureCache::nullHandle();
         mCacheWriteHandle = LLTextureCache::nullHandle();
@@ -1506,6 +1591,15 @@ bool LLTextureFetchWorker::doWork(S32 param)
                 return doWork(param);
                 // return false;
             }
+            // <FS:Trish> Alchemy exact J2C byte ranges
+            if (haveLayout() && 2 * S64(mDesiredSize) >= mLayout.mLength)
+            {
+                // Reading the rest of a local entry now costs less than reading it later
+                // for a finer level.
+                size = llmax(size, mLayout.mLength - offset);
+            }
+            mCacheReadEnd = offset + size;
+            // </FS:Trish>
             mFileSize = 0;
             mLoaded = false;
 
@@ -1569,12 +1663,29 @@ bool LLTextureFetchWorker::doWork(S32 param)
     {
         LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("tfwdw - CACHE_POST"); //<FS:Beq/> fix incorrect category
         mCachedSize = mFormattedImage.notNull() ? mFormattedImage->getDataSize() : 0;
+        // <FS:Trish> Alchemy exact J2C byte ranges
+        if (updateLayout() && mCachedSize < mDesiredSize && !mHaveAllData && mCachedSize >= mCacheReadEnd)
+        {
+            // The headers just read size the request past a read the entry filled, so it
+            // may hold more.
+            setState(LOAD_FROM_TEXTURE_CACHE);
+            return doWork(param);
+        }
+        if (!mHaveAllData && haveLayout() && mCachedSize >= mLayout.mLength)
+        {
+            // The entry holds the whole codestream, even one stored before it was marked complete.
+            mHaveAllData = true;
+        }
+        // </FS:Trish>
         // Successfully loaded
         if ((mCachedSize >= mDesiredSize) || mHaveAllData)
         {
             // we have enough data, decode it
             llassert_always(mFormattedImage->getDataSize() > 0);
-            mLoadedDiscard = mDesiredDiscard;
+            // <FS:Trish> Alchemy exact J2C byte ranges
+            //mLoadedDiscard = mDesiredDiscard;
+            mLoadedDiscard = calcLoadedDiscard(mDesiredDiscard, mCachedSize);
+            // </FS:Trish>
             if (mLoadedDiscard < 0)
             {
                 LL_WARNS(LOG_TXT) << mID << " mLoadedDiscard is " << mLoadedDiscard
@@ -1901,22 +2012,44 @@ bool LLTextureFetchWorker::doWork(S32 param)
         {
             // A lower-resolution target may now fit in bytes already cached.
             // Do not turn a zero/negative remaining range into a full GET.
+            // <FS:Trish> Alchemy exact J2C byte ranges
+            //mLoadedDiscard = mDesiredDiscard;
+            mLoadedDiscard = calcLoadedDiscard(mDesiredDiscard, cur_size);
+            // </FS:Trish>
+            setState(DECODE_IMAGE);
+            releaseHttpSemaphore();
+            return doWork(param);
+        }
+        // <FS:Trish> Alchemy exact J2C byte ranges: the bytes in hand already hold the whole codestream
+        // (a discard 0 request keeps its open ended size), so there is nothing left to fetch.
+        if (haveLayout() && cur_size >= mLayout.mLength)
+        {
+            mHaveAllData = true;
             mLoadedDiscard = mDesiredDiscard;
             setState(DECODE_IMAGE);
             releaseHttpSemaphore();
             return doWork(param);
         }
+        // </FS:Trish>
         mRequestedSize = mDesiredSize;
         // <FS:Trish> FSTextureFetchRestOfFile: a texture going back to the network for more than it
         // already holds, or wanted at near full detail, asks for the rest of the file in one request.
         // The reply then ends short of what was asked, marks the file complete (mHaveAllData) and the
         // whole file goes into the disk cache, so later visits load every detail level from disk
         // instead of the network. The first, low detail request stays small.
+        // With the codestream's layout known (FSTextureExactByteRanges) the rest of the file is asked
+        // for exactly, up to its length, and no request reaches past that length.
         static LLCachedControl<bool> fetch_rest(gSavedSettings, "FSTextureFetchRestOfFile", true);
         if (fetch_rest && (cur_size > 0 || mDesiredDiscard <= 1) &&
             (mFormattedImage.isNull() || mFormattedImage->getCodec() == IMG_CODEC_J2C))
         {
-            mRequestedSize = llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
+            //mRequestedSize = llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
+            mRequestedSize = haveLayout() ? mLayout.mLength
+                                          : llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
+        }
+        else if (haveLayout())
+        {
+            mRequestedSize = llmin(mRequestedSize, mLayout.mLength);
         }
         // </FS:Trish>
         mRequestedDiscard = mDesiredDiscard;
@@ -2113,6 +2246,7 @@ bool LLTextureFetchWorker::doWork(S32 param)
                 if (cur_size > 0)
                 {
                     // Use available data
+                    mFetchFailed = true; // <FS:Trish/> Alchemy exact J2C byte ranges
                     mLoadedDiscard = mFormattedImage->getDiscardLevel();
                     if (mLoadedDiscard < 0)
                     {
@@ -2230,7 +2364,19 @@ bool LLTextureFetchWorker::doWork(S32 param)
             mHttpReplySize = 0;
             mHttpReplyOffset = 0;
 
-            mLoadedDiscard = mRequestedDiscard;
+            // <FS:Trish> Alchemy exact J2C byte ranges
+            updateLayout();
+            if (!mHaveAllData && haveLayout() && total_size >= mLayout.mLength)
+            {
+                // An exact request for the rest of the file ends where it was asked to, so the
+                // reply alone does not mark the file complete: its length does. The cache then
+                // stores it as complete (mFileSize equal to the data size).
+                mHaveAllData = true;
+                mFileSize = total_size;
+            }
+            //mLoadedDiscard = mRequestedDiscard;
+            mLoadedDiscard = calcLoadedDiscard(mRequestedDiscard, total_size);
+            // </FS:Trish>
             if (mLoadedDiscard < 0 || (mLoadedDiscard > MAX_DISCARD_LEVEL && mFormattedImage->getCodec() == IMG_CODEC_J2C))
             {
                 LL_WARNS(LOG_TXT) << mID << " mLoadedDiscard is " << mLoadedDiscard
@@ -2390,6 +2536,7 @@ bool LLTextureFetchWorker::doWork(S32 param)
                     LL_DEBUGS(LOG_TXT) << mID << ": Decode of cached file failed (removed), retrying" << LL_ENDL;
                     llassert_always(mDecodeHandle == 0);
                     mFormattedImage = NULL;
+                    mLayout = {}; // <FS:Trish/> Alchemy exact J2C byte ranges
                     ++mRetryAttempt;
                     setState(INIT);
                     //return false;
@@ -2406,6 +2553,24 @@ bool LLTextureFetchWorker::doWork(S32 param)
                 llassert_always(mRawImage.notNull());
                 LL_DEBUGS(LOG_TXT) << mID << ": Decoded. Discard: " << mDecodedDiscard
                                    << " Raw Image: " << llformat("%dx%d",mRawImage->getWidth(),mRawImage->getHeight()) << LL_ENDL;
+                // <FS:Trish> Alchemy exact J2C byte ranges
+                if (haveLayout() && mFormattedImage.notNull())
+                {
+                    // Once per session: a decode finer than its bytes reach, which decodes what they lack
+                    // as nothing. A codestream with fewer resolutions than the level asked for, or bytes
+                    // short of the level's target.
+                    const S32 bytes = mFormattedImage->getDataSize();
+                    const S32 reach = mLayout.calcDiscardLevelBytes(bytes);
+                    if (!mHaveAllData && mDecodedDiscard < reach)
+                    {
+                        LL_INFOS_ONCE(LOG_TXT) << mID << " decoded " << mRawImage->getWidth() << "x" << mRawImage->getHeight()
+                                               << " at discard " << mDecodedDiscard << " from " << bytes << " of " << mLayout.mLength
+                                               << " bytes, which reach discard " << reach << " (" << mLayout.mWidth << "x"
+                                               << mLayout.mHeight << ", " << mLayout.mLevels << " levels, " << mLayout.mLayers
+                                               << " layers)" << LL_ENDL;
+                    }
+                }
+                // </FS:Trish>
                 setState(WRITE_TO_CACHE);
             }
             // fall through
@@ -2484,13 +2649,21 @@ bool LLTextureFetchWorker::doWork(S32 param)
     if (mState == DONE)
     {
         LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("tfwdw - DONE"); //<FS:Beq/> fix incorrect category
-        if (mDecodedDiscard >= 0 && mDesiredDiscard < mDecodedDiscard)
+        // <FS:Trish> Alchemy exact J2C byte ranges: the decode can come out finer than the bytes support
+        // when the codestream has fewer resolutions than the level loaded, so the bytes' level counts as
+        // well. A failed network request decodes what it holds and finishes instead of asking again.
+        //if (mDecodedDiscard >= 0 && mDesiredDiscard < mDecodedDiscard)
+        if (mDecodedDiscard >= 0 && !mFetchFailed && mDesiredDiscard < llmax(mDecodedDiscard, mLoadedDiscard))
+        // </FS:Trish>
         {
             // More data was requested, return to INIT
             setState(INIT);
+            //LL_DEBUGS(LOG_TXT) << mID << " more data requested, returning to INIT: "
+            //                   << " mDecodedDiscard " << mDecodedDiscard << ">= 0 && mDesiredDiscard " << mDesiredDiscard
+            //                   << "<" << " mDecodedDiscard " << mDecodedDiscard << LL_ENDL;
             LL_DEBUGS(LOG_TXT) << mID << " more data requested, returning to INIT: "
-                               << " mDecodedDiscard " << mDecodedDiscard << ">= 0 && mDesiredDiscard " << mDesiredDiscard
-                               << "<" << " mDecodedDiscard " << mDecodedDiscard << LL_ENDL;
+                               << " mDecodedDiscard " << mDecodedDiscard << " mLoadedDiscard " << mLoadedDiscard
+                               << " > mDesiredDiscard " << mDesiredDiscard << LL_ENDL; // <FS:Trish/>
             // return false;
             return doWork(param);
         }
@@ -3430,6 +3603,10 @@ S32 LLTextureFetch::createRequest(FTType f_type, const std::string& url, const L
         desired_discard = MAX_DISCARD_LEVEL;
     }
 
+    // <FS:Trish> FSTextureExactByteRanges: LLImageJ2C's own byte targets follow the setting too
+    static LLCachedControl<bool> exact_ranges(gSavedSettings, "FSTextureExactByteRanges", true);
+    LLImageJ2C::sFSExactByteRanges.store(exact_ranges, std::memory_order_relaxed);
+    // </FS:Trish>
 
     if (worker)
     {
@@ -3438,6 +3615,7 @@ S32 LLTextureFetch::createRequest(FTType f_type, const std::string& url, const L
             return CREATE_REQUEST_ERROR_ABORTED; // need to wait for previous aborted request to complete
         }
         worker->lockWorkMutex();                                        // +Mw
+        desired_size = worker->calcDesiredSize(desired_discard, desired_size); // <FS:Trish/> Alchemy exact J2C byte ranges
         if (worker->mState == LLTextureFetchWorker::DONE && worker->mDesiredSize == llmax(desired_size, TEXTURE_CACHE_ENTRY_SIZE) && worker->mDesiredDiscard == desired_discard) {
             worker->unlockWorkMutex();                                  // -Mw
 

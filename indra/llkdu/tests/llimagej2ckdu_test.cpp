@@ -111,6 +111,10 @@ S8  LLImageJ2C::getRawDiscardLevel() { return 0; }
 void LLImageJ2C::resetLastError() { }
 void LLImageJ2C::setLastError(const std::string&, const std::string&) { }
 bool LLImageJ2C::updateData() { return false; }
+// <FS:Trish> Alchemy exact J2C byte ranges
+void LLImageJ2C::deleteData() { }
+void LLImageJ2C::onDataChanged() { }
+// </FS:Trish>
 void LLImageJ2C::updateRawDiscardLevel() { }
 
 LLKDUMemIn::LLKDUMemIn(const U8*, const U32, const U16, const U16, const U8, kdu_core::siz_params*) { }

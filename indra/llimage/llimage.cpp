@@ -2897,6 +2897,7 @@ void LLImageFormatted::setData(U8 *data, S32 size)
         setDataAndSize(data, size); // Access private LLImageBase members
 
         sGlobalFormattedMemory += getDataSize();
+        onDataChanged(); // <FS:Trish/> Alchemy exact J2C byte ranges
     }
 }
 
@@ -2917,6 +2918,7 @@ void LLImageFormatted::appendData(U8 *data, S32 size)
             reallocateData(newsize);
             memcpy(getData() + cursize, data, size);
             ll_aligned_free_16(data);
+            onDataChanged(); // <FS:Trish/> Alchemy exact J2C byte ranges
         }
     }
 }
