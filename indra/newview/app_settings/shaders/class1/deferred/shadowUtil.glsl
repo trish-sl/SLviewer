@@ -150,11 +150,19 @@ float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, 
     // Each map's own size: the far cascades can be smaller than the near ones
     vec2 res = vec2(textureSize(shadowMap, 0));
     vec2 texel = 1.0 / res;
-    float x0 = stc.x;
-    stc.x = floor(stc.x*res.x + fract(pos_screen.y*res.y))/res.x; // add some chaotic jitter to X sample pos according to Y to disguise the snapping going on here
-    // Per-tap receiver-plane bias: the snap's own shift plus the tap's offset and half a texel of
-    // bilinear footprint, in uv
-    vec2 snap = vec2(abs(stc.x - x0), 0.0) + 0.5 * texel;
+    // <FS:Trish> No snap: x was floored onto the texel grid, so the taps filtered nothing across x and
+    // the edge came in whole texel steps, which a per screen row jitter then dithered. Only a blur
+    // of the light map (with SSAO or PCSS) or TAA turned that back into a gradient; without them
+    // shadow edges and soft shadows were hatched and speckled. Unsnapped, each tap's hardware 2x2
+    // comparison interpolates across x as it does across y, and the kernel's result is smooth.
+    //float x0 = stc.x;
+    //stc.x = floor(stc.x*res.x + fract(pos_screen.y*res.y))/res.x; // add some chaotic jitter to X sample pos according to Y to disguise the snapping going on here
+    // </FS:Trish>
+    // Per-tap receiver-plane bias: the tap's offset plus half a texel of bilinear footprint, in uv
+    // <FS:Trish> No snap, so no snap shift
+    //vec2 snap = vec2(abs(stc.x - x0), 0.0) + 0.5 * texel;
+    vec2 snap = 0.5 * texel;
+    // </FS:Trish>
     float cs = texture(shadowMap, vec3(stc.xy, stc.z - min(dot(grad, snap), PCF_RPDB_MAX)));
     float shadow = cs * 4.0;
     float a = texture(shadowMap, vec3(stc.xy + vec2( 1.5,  0.5) * texel, stc.z - min(dot(grad, snap + vec2(1.5, 0.5) * texel), PCF_RPDB_MAX)));
@@ -193,7 +201,7 @@ bool fsOutsideSpotMap(vec4 stc)
 }
 // </FS:Trish>
 
-// pos_screen: window position in pixels (gl_FragCoord.xy), it picks the per-row jitter // <FS:Trish/>
+// pos_screen: window position in pixels (gl_FragCoord.xy), unused since the snap's jitter went // <FS:Trish/>
 float pcfSpotShadow(sampler2DShadow shadowMap, vec4 stc, float bias_scale, vec2 pos_screen)
 {
 #if defined(SPOT_SHADOW)
@@ -213,7 +221,10 @@ float pcfSpotShadow(sampler2DShadow shadowMap, vec4 stc, float bias_scale, vec2 
     {
         return texture(shadowMap, stc.xyz);
     }
-    stc.x = floor(proj_shadow_res.x * stc.x + fract(pos_screen.y*0.666666666)) / proj_shadow_res.x; // snap
+    // <FS:Trish> No snap, as in pcfShadow: the dithered texel steps stayed on screen as a stipple
+    // whenever nothing blurred the light map
+    //stc.x = floor(proj_shadow_res.x * stc.x + fract(pos_screen.y*0.666666666)) / proj_shadow_res.x; // snap
+    // </FS:Trish>
 
     float cs = texture(shadowMap, stc.xyz);
     float shadow = cs;
