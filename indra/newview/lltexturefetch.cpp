@@ -1907,6 +1907,18 @@ bool LLTextureFetchWorker::doWork(S32 param)
             return doWork(param);
         }
         mRequestedSize = mDesiredSize;
+        // <FS:Trish> FSTextureFetchRestOfFile: a texture going back to the network for more than it
+        // already holds, or wanted at near full detail, asks for the rest of the file in one request.
+        // The reply then ends short of what was asked, marks the file complete (mHaveAllData) and the
+        // whole file goes into the disk cache, so later visits load every detail level from disk
+        // instead of the network. The first, low detail request stays small.
+        static LLCachedControl<bool> fetch_rest(gSavedSettings, "FSTextureFetchRestOfFile", true);
+        if (fetch_rest && (cur_size > 0 || mDesiredDiscard <= 1) &&
+            (mFormattedImage.isNull() || mFormattedImage->getCodec() == IMG_CODEC_J2C))
+        {
+            mRequestedSize = llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
+        }
+        // </FS:Trish>
         mRequestedDiscard = mDesiredDiscard;
         mRequestedSize -= cur_size;
         mRequestedOffset = cur_size;
