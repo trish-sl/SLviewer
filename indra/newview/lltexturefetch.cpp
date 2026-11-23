@@ -439,6 +439,7 @@ public:
     bool tryDecodedCache();
     // Threads:  Tid
     void callbackDecodedCache(U32 handle, LLImageRaw* raw, S32 discard);
+    bool waitsOnDecodedCache(U32 handle);
     // </FS:Trish>
 
     // Threads:  T*
@@ -3078,9 +3079,17 @@ bool LLTextureFetchWorker::tryDecodedCache()
     const LLUUID id = mID;
     const bool posted = LLAppViewer::getImageDecodeThread()->postTask([fetcher, id, handle, discard]()
         {
-            LLPointer<LLImageRaw> raw = FSDecodedTextureCache::instance().load(id, discard);
+            // A load reads the whole file of raw pixels. After a teleport many of the workers that
+            // posted one are gone or have moved on by the time it runs, and reading for them anyway
+            // held the few load slots and the disk while the new region's textures waited.
+            LLPointer<LLImageRaw> raw;
+            LLTextureFetchWorker* worker = fetcher->getWorker(id);
+            if (worker && worker->waitsOnDecodedCache(handle))
+            {
+                raw = FSDecodedTextureCache::instance().load(id, discard);
+            }
             FSDecodedTextureCache::instance().releaseLoad();
-            if (LLTextureFetchWorker* worker = fetcher->getWorker(id))
+            if (worker && (worker = fetcher->getWorker(id)))
             {
                 worker->callbackDecodedCache(handle, raw, discard);
             }
@@ -3096,6 +3105,13 @@ bool LLTextureFetchWorker::tryDecodedCache()
     LL_DEBUGS(LOG_TXT) << mID << ": loading discard " << discard << " from the decoded cache" << LL_ENDL;
     return true;
 }
+
+// Threads:  Tid. Same lifetime rules as DecodeResponder::isObsolete().
+bool LLTextureFetchWorker::waitsOnDecodedCache(U32 handle)
+{
+    LLMutexLock lock(&mWorkMutex);                                      // +Mw
+    return handle == mDecodedCacheHandle && mDecodedFromCache && mState == DECODE_IMAGE_UPDATE;
+}                                                                       // -Mw
 
 // Threads:  Tid
 void LLTextureFetchWorker::callbackDecodedCache(U32 handle, LLImageRaw* raw, S32 discard)
