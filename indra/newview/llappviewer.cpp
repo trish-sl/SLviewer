@@ -3065,7 +3065,10 @@ bool LLAppViewer::initThreads()
     // so try to leave at least one core free
     // <FS:Ansariel> Override image decode thread config
     //S32 image_decode_count = llclamp(cores - 6, 2, 16);
-    S32 image_decode_count = llclamp(cores - 4, 2, 8);
+    // <FS:Trish> Up to 16, as LL's: a 16 thread CPU and up keeps 4 for the rest and decodes on the others
+    //S32 image_decode_count = llclamp(cores - 4, 2, 8);
+    S32 image_decode_count = llclamp(cores - 4, 2, 16);
+    // </FS:Trish>
     if (auto max_decodes = gSavedSettings.getU32("FSImageDecodeThreads"); max_decodes > 0)
     {
         image_decode_count = llclamp((S32)max_decodes, 1, 32);
