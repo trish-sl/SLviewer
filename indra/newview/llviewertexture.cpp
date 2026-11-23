@@ -57,6 +57,7 @@
 #include "pipeline.h"
 #include "llappviewer.h"
 #include "llagent.h" // <FS:Trish/> teleport aware bias hold
+#include "llstartup.h" // <FS:Trish/> the login counts as a teleport for the bias hold
 #include "llagentcamera.h" // <FS:Trish/> FSTextureSharpenRateMB
 #include "fsdiskthread.h" // <FS:Trish/> FSPerfDiskThread
 #include "fslighterwhilemoving.h" // <FS:Trish/> FSRenderMovingTextureBiasHold
@@ -916,45 +917,39 @@ void LLViewerTexture::updateClass()
 
     static bool was_low = false;
 
-    // <FS:Trish> Bias the viewer last ran out of memory at, 0 when none. Lowering the bias again
-    // stops a little above it while headroom is modest, otherwise the textures it lets back in
-    // fill memory, the bias rises, and the scene keeps cycling between blurry and sharp.
-    static F32 overflow_bias = 0.f;
-    static F32 soft_zone_peak = 0.f;    // highest bias the soft zone raised it to since it was last left
-    static LLFrameTimer recovery_timer; // how long usage has been low enough to lower the bias
+    // <FS:Trish> FSTextureBiasHoldSeconds. After usage ran over the target the bias is held where the
+    // rise left it for a short while, longer the further it ran over, so the textures a lower bias
+    // lets back in don't arrive while the overshoot is still being cleared. Then it comes down at the
+    // stock rate (RenderHighMemMinDiscardDecrement, 0.1 a second, as the Second Life viewer does). It
+    // used to hold at the bias it ran out at and relax by 0.005 a second: after one overshoot at login
+    // the bias sat at 4.0 for four minutes and took twelve more to reach 2.3 with a fifth of the target
+    // free, and the scene stayed blurry all that time.
+    static LLFrameTimer recovery_timer;     // how long usage has been low enough to lower the bias
+    static LLFrameTimer since_over_target;  // reset while usage is over the target or system memory is low
+    static F32 over_peak = 0.f;             // furthest over the target in the last such episode
+    static bool hold_from_teleport = false; // that episode began during a teleport or the login
+    static LLFrameTimer hold_step_timer;    // time since the last step down after a teleport
     // </FS:Trish>
 
-    // <FS:Trish> A teleport briefly holds the old and the new region's textures together, so running
-    // out of memory then (or while the new scene streams in right after) says little about what the
-    // new scene needs, yet its hold kept the bias up for minutes. Such a hold is released in steps
-    // instead of the slow decay: one bias step at a time, each after usage has settled with room to
-    // spare, so the textures each step lets in arrive before the next and it can't overshoot.
-    // A hold from normal play decays as before.
+    // <FS:Trish> A teleport (and the login) briefly holds the old and the new region's textures
+    // together, so running out of memory then, or while the new scene streams in right after, says
+    // little about what the new scene needs. Such a hold is released in steps of the applied bias,
+    // one every few seconds once the teleport is over, so the textures each step lets in arrive
+    // before the next.
     static LLFrameTimer since_teleport;
-    if (gAgent.getTeleportState() != LLAgent::TELEPORT_NONE)
+    if (gAgent.getTeleportState() != LLAgent::TELEPORT_NONE || LLStartUp::getStartupState() < STATE_STARTED)
     {
         since_teleport.reset();
     }
     constexpr F32 TELEPORT_WINDOW = 15.f;      // seconds after arriving that still count as the teleport
     const bool recent_teleport = since_teleport.getElapsedTimeF32() < TELEPORT_WINDOW;
-    static bool teleport_hold = false;          // the hold comes from a teleport
-    static LLFrameTimer hold_step_timer;        // room since the last step
-    static F32 used_sample[2] = { -1.f, -1.f }; // usage now and about 2 seconds ago
-    static LLFrameTimer used_sample_timer;
-    if (used_sample_timer.getElapsedTimeF32() >= 2.f || used_sample[0] < 0.f)
-    {
-        used_sample[1] = used_sample[0] < 0.f ? used : used_sample[0];
-        used_sample[0] = used;
-        used_sample_timer.reset();
-    }
-    const bool usage_settled = fabsf(used - used_sample[1]) < 0.02f * target;
     // </FS:Trish>
 
     if (is_low && !was_low)
     {
         // <FS:Trish>
-        overflow_bias = sDesiredDiscardBias;
-        teleport_hold = recent_teleport;
+        over_peak = 0.f;
+        hold_from_teleport = recent_teleport;
         hold_step_timer.reset();
         // </FS:Trish>
         if (is_sys_low)
@@ -998,6 +993,10 @@ void LLViewerTexture::updateClass()
 
     if (is_low)
     {
+        // <FS:Trish> FSTextureBiasHoldSeconds: how far over it went decides the length of the hold
+        over_peak = llmax(over_peak, over_pct);
+        since_over_target.reset();
+        // </FS:Trish>
         // ramp up discard bias over time to free memory
         //if (sEvaluationTimer.getElapsedTimeF32() > MEMORY_CHECK_WAIT_TIME)
         if (sEvaluationTimer.getElapsedTimeF32() > MEMORY_CHECK_WAIT_TIME || fs_paging) // <FS:Trish/> paging: no wait
@@ -1051,29 +1050,15 @@ void LLViewerTexture::updateClass()
         // close to the target without one). A bias held up after running out still keeps new
         // loads smaller, but no longer shrinks textures while there is plenty of room.
         vram_tight = over_pct > -llmax(soft_zone, 0.1f);
-        // The hold over the bias that last ran out of memory relaxes while there is room: slowly,
-        // or a teleport's hold in settled steps. Both lowering paths below use it, so it can't
-        // stay put while usage sits between the soft zone and the lowering threshold.
-        auto relax_hold = [&]()
-        {
-            constexpr F32 HOLD_DECAY = 0.005f;              // per second
-            constexpr F32 TELEPORT_HOLD_STEP = 0.15f;       // one step of the applied bias
-            constexpr F32 TELEPORT_HOLD_SETTLE = 5.f;       // seconds of room before each step
-            overflow_bias = llmax(overflow_bias, soft_zone_peak);
-            soft_zone_peak = 0.f;
-            if (teleport_hold && !recent_teleport)
-            {
-                if (hold_step_timer.getElapsedTimeF32() > TELEPORT_HOLD_SETTLE && usage_settled)
-                {
-                    overflow_bias = llmax(overflow_bias - TELEPORT_HOLD_STEP, 0.f);
-                    hold_step_timer.reset();
-                }
-            }
-            else if (!teleport_hold)
-            {
-                overflow_bias = llmax(overflow_bias - HOLD_DECAY * gFrameIntervalSeconds.value(), 0.f);
-            }
-        };
+        // FSTextureBiasHoldSeconds: the hold after the last overshoot, up to twice as long the further
+        // usage went over the target (1 % over: the setting; 20 % or more: twice it)
+        static LLCachedControl<F32> hold_seconds_setting(gSavedSettings, "FSTextureBiasHoldSeconds", 20.f);
+        const F32 hold_seconds = llclamp((F32)hold_seconds_setting, 0.f, 300.f) * llclamp(1.f + over_peak * 5.f, 1.f, 2.f);
+        const bool holding = since_over_target.getElapsedTimeF32() < hold_seconds;
+        constexpr F32 RECOVERY_DELAY = 3.f;         // seconds of room before lowering
+        constexpr F32 TELEPORT_HOLD_STEP = 0.15f;   // one step of the applied bias
+        constexpr F32 TELEPORT_HOLD_STEP_WAIT = 5.f; // seconds between steps
+        constexpr F32 BAND_DECREMENT = 0.05f;       // per second, between the soft zone and the lowering threshold
         // </FS:Trish>
         if (soft_zone > 0.f && over_pct > -soft_zone)
         {
@@ -1092,15 +1077,7 @@ void LLViewerTexture::updateClass()
             {
                 sDesiredDiscardBias += soft_discard_increment * depth * gFrameIntervalSeconds;
             }
-            // <FS:Trish> a new peak decides where the hold comes from
-            //soft_zone_peak = llmax(soft_zone_peak, sDesiredDiscardBias);
-            if (sDesiredDiscardBias > soft_zone_peak)
-            {
-                soft_zone_peak = sDesiredDiscardBias;
-                teleport_hold = recent_teleport;
-            }
             hold_step_timer.reset();
-            // </FS:Trish>
             recovery_timer.reset(); // the band below no longer resets it, so the delay starts here
         }
         else
@@ -1115,35 +1092,21 @@ void LLViewerTexture::updateClass()
             static LLCachedControl<F32> high_mem_discard_decrement(gSavedSettings, "RenderHighMemMinDiscardDecrement", .1f);
 
             F32 decrement = high_mem_discard_decrement - llmin(over_pct - FREE_PERCENTAGE_TRESHOLD, 0.f);
-            // <FS:Trish> Lowering waits until there has been room for a few seconds and then goes
-            // slowly, unless there is plenty of room, as after moving somewhere lighter: the
-            // textures it lets back in take a while to arrive, and lowering faster than that
-            // overshot and filled memory again. It also holds above the bias that last ran out of
-            // memory (or that the soft zone needed) while headroom is modest. Once room shrinks
-            // back the hold applies from wherever the bias got to.
+            // <FS:Trish> Lowering waits until there has been room for a few seconds. Within the hold after
+            // an overshoot the bias stays where it is, except that a hold from a teleport or the login
+            // comes down one step of the applied bias every few seconds once the teleport is over. After
+            // the hold it lowers at the stock rate.
             //sDesiredDiscardBias -= decrement * gFrameIntervalSeconds;
-            static LLCachedControl<F32> recovery_margin(gSavedSettings, "FSTextureBiasRecoveryMargin", 0.25f);
-            static LLCachedControl<F32> recovery_headroom(gSavedSettings, "FSTextureBiasRecoveryHeadroom", 0.3f);
-            constexpr F32 RECOVERY_DELAY = 3.f;     // seconds of room before lowering
-            constexpr F32 SLOW_DECREMENT = 0.05f;   // per second, while headroom is modest
-            const F32 headroom = llmax((F32)recovery_headroom(), -FREE_PERCENTAGE_TRESHOLD + 0.1f);
-            overflow_bias = llmax(overflow_bias, soft_zone_peak);
-            soft_zone_peak = 0.f;
             if (recovery_timer.getElapsedTimeF32() > RECOVERY_DELAY)
             {
-                if (over_pct > -headroom)
+                if (!holding)
                 {
-                    decrement = llmin(decrement, SLOW_DECREMENT);
-                    // The hold relaxes slowly (a teleport's in settled steps), otherwise steady
-                    // modest headroom kept the bias above 1 for good
-                    relax_hold();
+                    sDesiredDiscardBias -= decrement * gFrameIntervalSeconds;
                 }
-                const F32 previous_bias = sDesiredDiscardBias;
-                sDesiredDiscardBias -= decrement * gFrameIntervalSeconds;
-                if (recovery_margin() > 0.f && overflow_bias > 0.f && over_pct > -headroom)
+                else if (hold_from_teleport && !recent_teleport && hold_step_timer.getElapsedTimeF32() > TELEPORT_HOLD_STEP_WAIT)
                 {
-                    const F32 hold = overflow_bias + recovery_margin();
-                    sDesiredDiscardBias = llmax(sDesiredDiscardBias, llmin(previous_bias, hold));
+                    sDesiredDiscardBias -= TELEPORT_HOLD_STEP;
+                    hold_step_timer.reset();
                 }
             }
             // </FS:Trish>
@@ -1154,24 +1117,13 @@ void LLViewerTexture::updateClass()
         //    recovery_timer.reset();
         //}
         // Between the soft zone and the lowering threshold the bias used to freeze wherever it
-        // was. It still doesn't go below the hold there, but a bias above it creeps down to it.
+        // was; after the hold it creeps down there, slowly, as the room is modest.
         else if (soft_zone > 0.f && sDesiredDiscardBias > 1.f && over_pct < FREE_PERCENTAGE_TRESHOLD + 0.15f
                  && isSystemMemoryRecovered())
         {
-            constexpr F32 BAND_RECOVERY_DELAY = 3.f;
-            constexpr F32 BAND_DECREMENT = 0.05f; // per second
-            static LLCachedControl<F32> band_recovery_margin(gSavedSettings, "FSTextureBiasRecoveryMargin", 0.25f);
-            const F32 hold_from = llmax(overflow_bias, soft_zone_peak);
-            if (hold_from > 0.f && recovery_timer.getElapsedTimeF32() > BAND_RECOVERY_DELAY)
+            if (!holding && recovery_timer.getElapsedTimeF32() > RECOVERY_DELAY)
             {
-                // The hold relaxes here too; it used to only relax below the lowering threshold,
-                // so usage settling in this band kept the bias where it was indefinitely
-                relax_hold();
-                const F32 hold = overflow_bias + llmax((F32)band_recovery_margin(), 0.f);
-                if (sDesiredDiscardBias > hold)
-                {
-                    sDesiredDiscardBias = llmax(sDesiredDiscardBias - BAND_DECREMENT * gFrameIntervalSeconds.value(), hold);
-                }
+                sDesiredDiscardBias = llmax(sDesiredDiscardBias - BAND_DECREMENT * gFrameIntervalSeconds.value(), 1.f);
             }
         }
         else
@@ -1180,13 +1132,11 @@ void LLViewerTexture::updateClass()
             hold_step_timer.reset(); // <FS:Trish/>
         }
 
-        // Back at 1 there is nothing left to hold: forget the old overflow, or its hold kept
-        // the next recovery above 1 however much memory was free by then
+        // Back at 1 there is nothing left to hold
         if (sDesiredDiscardBias <= 1.f)
         {
-            overflow_bias = 0.f;
-            soft_zone_peak = 0.f;
-            teleport_hold = false; // <FS:Trish/>
+            over_peak = 0.f;
+            hold_from_teleport = false;
         }
         // </FS:Trish>
     }

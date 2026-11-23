@@ -32077,32 +32077,21 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>0</integer>
     </map>
-    <key>FSTextureBiasRecoveryMargin</key>
+    <key>FSTextureBiasHoldSeconds</key>
     <map>
       <key>Comment</key>
-      <string>After texture memory ran out, lowering the discard bias again stops this far above the bias it ran out at, unless FSTextureBiasRecoveryHeadroom of the budget is free. Keeps textures from cycling between blurry and sharp. 0 disables.</string>
+      <string>Seconds the texture discard bias is held where it is after texture memory last ran over its target, up to twice as long the further it ran over (1% over: this long, 20% or more: twice as long), so the textures a lower bias lets back in don't arrive while the overshoot is still being cleared. After the hold the bias comes down at RenderHighMemMinDiscardDecrement a second (0.1, as the Second Life viewer does) once a tenth of the target is free. A hold that began during a teleport or the login instead comes down one step (0.15) every 5 seconds once the teleport is over. 0: no hold.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>F32</string>
       <key>Value</key>
-      <real>0.25</real>
-    </map>
-    <key>FSTextureBiasRecoveryHeadroom</key>
-    <map>
-      <key>Comment</key>
-      <string>Fraction of the texture memory target that must be free before the discard bias may go below the level it last ran out of memory at (see FSTextureBiasRecoveryMargin).</string>
-      <key>Persist</key>
-      <integer>1</integer>
-      <key>Type</key>
-      <string>F32</string>
-      <key>Value</key>
-      <real>0.3</real>
+      <real>20.0</real>
     </map>
     <key>FSTextureBiasSoftZone</key>
     <map>
       <key>Comment</key>
-      <string>Fraction of the texture memory target below it where the discard bias starts rising gently, so usage levels off before reaching the target instead of overflowing and dropping texture detail all at once. The bias comes back down once usage is below this zone, to the level it last ran out of memory at, and further once usage is 15% of the target below the zone. 0 disables (0-0.5). With FSTextureUseLiveVRAM the zone is on top of FSTextureVRAMReserveMB, and also leaves room for the GPU-driven draw arenas to grow without pushing textures over the target.</string>
+      <string>Fraction of the texture memory target below it where the discard bias starts rising gently, so usage levels off before reaching the target instead of overflowing and dropping texture detail all at once. The bias comes back down once usage is 15% of the target below the zone (slowly, 0.05 a second, while it is less than that below), after FSTextureBiasHoldSeconds. 0 disables (0-0.5). With FSTextureUseLiveVRAM the zone is on top of FSTextureVRAMReserveMB, and also leaves room for the GPU-driven draw arenas to grow without pushing textures over the target.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
