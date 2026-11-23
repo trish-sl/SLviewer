@@ -79,7 +79,13 @@ public:
     // (radius * 1.5, as the stock path sends), linear colour already scaled, and falloff. True
     // when clustered shading draws it; false when the stock passes must still draw it (shading
     // off, the light only kept for the glow).
-    bool add(const F32* center_agent, F32 size, const LLColor3& linear_color, F32 falloff);
+    // shadow_slot: its shadow map slot (FSPointLightShadows::slotOf), -1 for none.
+    bool add(const F32* center_agent, F32 size, const LLColor3& linear_color, F32 falloff, S32 shadow_slot = -1);
+
+    // How much a light weighs on screen: brightness times the share of the view its sphere takes.
+    // d2: squared distance from the camera to its centre. Ranks the lights for the short shadows
+    // and for the shadow maps (fspointlightshadows.cpp).
+    static F32 screenWeight(F32 d2, F32 size, const LLColor3& linear_color);
 
     // After the stock loop: bin, upload and draw the lights into the bound lighting target
     // (additive blend, as the stock light passes). screen_tri is the full screen triangle.
@@ -108,7 +114,8 @@ public:
     void release();
 
 private:
-    U32 sortShadowedLights(U32 wanted);
+    U32 moveMappedLights();
+    U32 sortShadowedLights(U32 first, U32 wanted);
     // The glow's lights (mGlowWeights), see the .cpp. Returns how many were chosen.
     U32 chooseGlowLights(U32 max_lights);
     void binLights(bool tile_lists);
@@ -137,6 +144,8 @@ private:
     U32 mFrame = 0;                     // frame of the last begin() that collected for the main view
 
     std::vector<LLVector4> mLights;     // per light: eye space centre + size, colour + falloff
+    std::vector<S8> mSlots;             // per light: its shadow map slot or -1, empty while none has one
+    S32 mMappedSlots[8] = {};           // slots of the lights moveMappedLights put first (FSPointLightShadows::MAX_LIGHTS)
     F32 mFarDepth = 1.f;                // farthest depth any light reaches
 
     // Grid of the last binning

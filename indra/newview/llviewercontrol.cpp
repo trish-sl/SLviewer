@@ -106,6 +106,7 @@
 #include "fsfloaterteleporthistory.h"
 #include "fslslbridge.h"
 #include "fsgpuocclusion.h" // <FS:Trish/> FSRenderGPUOcclusionCulling
+#include "fspointlightshadows.h" // <FS:Trish/> FSRenderLocalLightShadows
 #include "llfocusmgr.h" // <FS:Trish/> coalesced shader reloads: a held slider
 #include "llsdutil.h" // <FS:Trish/> coalesced shader reloads: llsd_equals
 #include "fsradar.h"
@@ -339,6 +340,19 @@ bool handleSetShaderChanged(const LLSD& newvalue)
     LLViewerShaderMgr::instance()->setShaders();
     return true;
 }
+
+// <FS:Trish> FSRenderLocalLightShadows: the local light programs are built again only when the
+// shadow maps are turned on or off; another number of lights only changes what is drawn
+static bool handleLocalLightShadowsChanged(const LLSD& newvalue)
+{
+    const bool wanted = newvalue.asInteger() > 0 && gSavedSettings.getS32("RenderShadowDetail") > 0;
+    if (wanted != FSPointLightShadows::programSamples(gDeferredLightProgram))
+    {
+        return handleSetShaderChanged(newvalue);
+    }
+    return true;
+}
+// </FS:Trish>
 
 // <FS:Trish> Coalesced shader reloads: runs a reload marked as due by handleSetShaderChanged once
 // shader-affecting settings have stopped changing
@@ -1692,6 +1706,7 @@ void settings_setup_listeners()
     setting_setup_signal_listener(gSavedSettings, "FSRenderBicubicUpsample", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderTerrainAntiTiling", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderPointLightShadows", handleSetShaderChanged); // <FS:Trish/>
+    setting_setup_signal_listener(gSavedSettings, "FSRenderLocalLightShadows", handleLocalLightShadowsChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderAvatarOcclusion", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderAlphaCoverageStrength", [](const LLSD&) { LLViewerShaderMgr::fsMarkAllUniformsDirty(); }); // <FS:Trish/> a uniform, the shadow programs need a nudge
     setting_setup_signal_listener(gSavedSettings, "FSRenderGTAO", handleSetShaderChanged); // <FS:Trish/>

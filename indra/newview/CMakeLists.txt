@@ -229,6 +229,7 @@ set(viewer_SOURCE_FILES
     fsparticlerender.cpp
     fsphotoshadows.cpp
     fspointlightbatch.cpp
+    fspointlightshadows.cpp
     fspose.cpp
     fsposeranimator.cpp
     fsposestate.cpp
@@ -1186,6 +1187,7 @@ set(viewer_HEADER_FILES
     fsparticlerender.h
     fsphotoshadows.h
     fspointlightbatch.h
+    fspointlightshadows.h
     fspose.h
     fsposeranimator.h
 	fsposestate.h

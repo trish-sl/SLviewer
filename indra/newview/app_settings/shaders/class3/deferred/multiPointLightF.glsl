@@ -82,6 +82,12 @@ vec3 fsSkinLocalTranslucency(vec3 albedo, vec3 n, vec3 l, float thickness_mm, fl
 vec3 fsSkinAlbedo(GBufferInfo gb);
 #endif
 // </FS:Trish>
+// <FS:Trish> Shadow maps of the local point lights (FSRenderLocalLightShadows, fsPointShadowMapF.glsl)
+#ifdef FS_POINT_SHADOW_MAP
+uniform int fs_lls_slots[LIGHT_COUNT];  // per light: its shadow map slot, -1 for none
+vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+#endif
+// </FS:Trish>
 
 void main()
 {
@@ -162,6 +168,14 @@ void main()
 #endif
                 // </FS:Trish>
                 intensity *= fsMicroShadow(nl, orm.r);
+                // <FS:Trish> Shadowed by the light's own shadow map, where it has one
+#ifdef FS_POINT_SHADOW_MAP
+                if (fs_lls_slots[light_idx] >= 0)
+                {
+                    intensity *= fsPointShadowMap(fs_lls_slots[light_idx], pos, n, light[light_idx].xyz);
+                }
+#endif
+                // </FS:Trish>
                 final_color += intensity * clampRadiance(nl * (diff + specPunc));
             }
             // <FS:Trish> Skin: light through it from behind (FSRenderSkinTranslucencyLocal)
@@ -238,6 +252,14 @@ void main()
                     // angles that product runs past what a half-float target can hold, and an
                     // inf here spreads to the whole frame through bloom. Colour-preserving, so
                     // a highlight that hits the ceiling dims rather than changing hue.
+                    // <FS:Trish> Shadowed by the light's own shadow map, where it has one
+#ifdef FS_POINT_SHADOW_MAP
+                    if (fs_lls_slots[i] >= 0)
+                    {
+                        col *= fsPointShadowMap(fs_lls_slots[i], pos, n, light[i].xyz);
+                    }
+#endif
+                    // </FS:Trish>
                     final_color += clampRadiance(col);
                 }
                 // <FS:Trish> Skin: light through it from behind (FSRenderSkinTranslucencyLocal)
@@ -265,5 +287,11 @@ void main()
     vec4 dummy2 = light_col[0];
     vec4 dummy3 = light[LIGHT_COUNT - 1];
     vec4 dummy4 = light_col[LIGHT_COUNT - 1];
+    // <FS:Trish>
+#ifdef FS_POINT_SHADOW_MAP
+    int dummy5 = fs_lls_slots[0];
+    int dummy6 = fs_lls_slots[LIGHT_COUNT - 1];
+#endif
+    // </FS:Trish>
 #endif
 }

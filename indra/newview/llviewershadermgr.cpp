@@ -57,6 +57,7 @@ extern U32 gFrameCount; // <FS:Trish/> FSRenderCreaseAO: the noise offset while 
 #include "llskinningutil.h"
 #include "fspointlightbatch.h" // <FS:Trish/>
 #include "fsclusteredlights.h" // <FS:Trish/>
+#include "fspointlightshadows.h" // <FS:Trish/> FSRenderLocalLightShadows
 #include "fswindfield.h" // <FS:Trish/> FSRenderWindEffects
 #include "fsspotlightbatch.h" // <FS:Trish/>
 #include "fsskinpalettebuffer.h" // <FS:Trish/>
@@ -245,6 +246,7 @@ LLGLSLShader            gFSBloomStreakProgram; // <FS:Trish/> Anamorphic streaks
 LLGLSLShader            gFSLensDirtProgram;
 LLGLSLShader            gFSLensEffectsProgram;
 LLGLSLShader            gFSAvatarMatteProgram;
+LLGLSLShader            gFSPointShadowAtlasProgram; // <FS:Trish/> FSRenderLocalLightShadowDebug
 LLGLSLShader            gFSDynResUpscaleProgram; // <FS:Trish/> Dynamic resolution
 LLGLSLShader            gFSNISUpscaleProgram; // <FS:Trish/> NVIDIA Image Scaling
 // </FS:Trish>
@@ -670,6 +672,31 @@ static void fs_add_spot_shadow_extra(LLGLSLShader& shader)
 }
 // </FS:Trish>
 
+
+// <FS:Trish> Shadow maps of the local point lights (FSRenderLocalLightShadows): the local light
+// programs look up the light's map (fsPointShadowMapF.glsl). Not the batched point lights: a light
+// with a map is drawn by the stock light volume instead.
+static void fs_add_local_light_shadows(LLGLSLShader& shader)
+{
+    if (FSPointLightShadows::wantedByShaders())
+    {
+        shader.addPermutation("FS_POINT_SHADOW_MAP", "1");
+        shader.addPermutation("FS_LLS_MAX", llformat("%d", (S32)FSPointLightShadows::MAX_LIGHTS));
+        shader.mShaderFiles.push_back(make_pair("deferred/fsPointShadowMapF.glsl", GL_FRAGMENT_SHADER));
+    }
+}
+
+// Takes out what fs_add_local_light_shadows put in, to build the program again without it
+static void fs_remove_local_light_shadows(LLGLSLShader& shader)
+{
+    shader.removePermutation("FS_POINT_SHADOW_MAP");
+    shader.removePermutation("FS_LLS_MAX");
+    auto& files = shader.mShaderFiles;
+    files.erase(std::remove_if(files.begin(), files.end(),
+                               [](const std::pair<std::string, GLenum>& file) { return file.first == "deferred/fsPointShadowMapF.glsl"; }),
+                files.end());
+}
+// </FS:Trish>
 
 static bool make_gltf_variant(LLGLSLShader& shader, LLGLSLShader& variant, bool alpha_blend, bool rigged, bool unlit, bool multi_uv, bool use_sun_shadow)
 {
@@ -2083,6 +2110,7 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         gFSLensFlareSelectProgram.unload();
         // </FS:Trish>
         gFSAvatarMatteProgram.unload();
+        gFSPointShadowAtlasProgram.unload(); // <FS:Trish/> FSRenderLocalLightShadowDebug
         gFSDynResUpscaleProgram.unload(); // <FS:Trish/> Dynamic resolution
         gFSNISUpscaleProgram.unload(); // <FS:Trish/> NVIDIA Image Scaling
         gFSTAAResolveProgram.unload(); // <FS:Trish/> FSRenderTAA
@@ -2633,6 +2661,29 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         llassert(success);
     }
 
+    // <FS:Trish> FSRenderLocalLightShadows: a local light program with the shadow map lookup is built
+    // outside the parallel compile batch, so a failure shows at once. It is then built again without
+    // the lookup, and its lights stay unshadowed instead of the deferred shaders failing.
+    auto fs_create_light_program = [this](LLGLSLShader& shader) -> bool
+    {
+        if (!shader.mDefines.count("FS_POINT_SHADOW_MAP"))
+        {
+            return shader.createShader();
+        }
+        const bool fs_batching = mFSBatching;
+        mFSBatching = false;
+        bool built = shader.createShader();
+        if (!built)
+        {
+            LL_WARNS("Shader") << shader.mName << " failed with the local light shadow maps, built without them" << LL_ENDL;
+            fs_remove_local_light_shadows(shader);
+            built = shader.createShader();
+        }
+        mFSBatching = fs_batching;
+        return built;
+    };
+    // </FS:Trish>
+
     if (success)
     {
         gDeferredLightProgram.mName = "Deferred Light Shader";
@@ -2650,8 +2701,10 @@ bool LLViewerShaderMgr::loadShadersDeferred()
 
         add_common_permutations(&gDeferredLightProgram);
         fs_add_skin_lighting(gDeferredLightProgram, false); // <FS:Trish/>
+        fs_add_local_light_shadows(gDeferredLightProgram); // <FS:Trish/>
 
-        success = gDeferredLightProgram.createShader();
+        //success = gDeferredLightProgram.createShader();
+        success = fs_create_light_program(gDeferredLightProgram); // <FS:Trish/>
         llassert(success);
     }
 
@@ -2714,8 +2767,10 @@ bool LLViewerShaderMgr::loadShadersDeferred()
 
             add_common_permutations(&gDeferredMultiLightProgram[i]);
             fs_add_skin_lighting(gDeferredMultiLightProgram[i], false); // <FS:Trish/>
+            fs_add_local_light_shadows(gDeferredMultiLightProgram[i]); // <FS:Trish/>
 
-            success = gDeferredMultiLightProgram[i].createShader();
+            //success = gDeferredMultiLightProgram[i].createShader();
+            success = fs_create_light_program(gDeferredMultiLightProgram[i]); // <FS:Trish/>
             llassert(success);
         }
     }
@@ -2745,12 +2800,13 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         {
             gFSClusteredLightProgram.addPermutation("FS_POINT_SHADOWS", "1");
         }
+        fs_add_local_light_shadows(gFSClusteredLightProgram); // the local light shadow maps
 
         // Built outside the parallel compile batch, like the batched point lights: a failure
         // there would load the whole deferred phase again
         const bool fs_batching = mFSBatching;
         mFSBatching = false;
-        const bool fs_built = gFSClusteredLightProgram.createShader();
+        const bool fs_built = fs_create_light_program(gFSClusteredLightProgram);
         mFSBatching = fs_batching;
         if (!fs_built)
         {
@@ -4065,6 +4121,7 @@ bool LLViewerShaderMgr::loadShadersDeferred()
             { &gFSLensFlareSelectProgram,  "FS Lens Flare Select",  "deferred/fsLensFlareSelectF.glsl",  false },
             // </FS:Trish>
             { &gFSAvatarMatteProgram,      "FS Avatar Matte",       "deferred/fsAvatarMatteF.glsl",      false },
+            { &gFSPointShadowAtlasProgram, "FS Point Shadow Atlas", "deferred/fsPointShadowAtlasF.glsl", false }, // <FS:Trish/> FSRenderLocalLightShadowDebug
             { &gFSDynResUpscaleProgram,    "FS Dynamic Resolution Upscale", "deferred/fsDynResUpscaleF.glsl", false }, // <FS:Trish/>
             { &gFSTAAResolveProgram,       "FS TAA Resolve",        "deferred/fsTAAResolveF.glsl",       false }, // <FS:Trish/> FSRenderTAA
             // <FS:Trish> FSRenderPhotoShadows: the blend of the sun shadow over frames, and its write back

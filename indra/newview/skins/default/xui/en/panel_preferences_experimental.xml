@@ -4926,7 +4926,7 @@
              bottom="-1">
                 <panel
                  follows="left|top"
-                 height="2570"
+                 height="2710"
                  layout="topleft"
                  left="0"
                  name="experimental_rendering_settings"
@@ -6175,7 +6175,7 @@
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
-                         parameter="FSRenderClusteredLights,FSRenderClusteredLightsDebug,FSRenderPointLightShadows,FSRenderPointLightShadowCount,FSRenderPointLightShadowLength,FSRenderPointLightShadowStrength" />
+                         parameter="FSRenderClusteredLights,FSRenderClusteredLightsDebug,FSRenderPointLightShadows,FSRenderPointLightShadowCount,FSRenderPointLightShadowLength,FSRenderPointLightShadowStrength,FSRenderLocalLightShadows,FSRenderLocalLightShadowResolution,FSRenderLocalLightShadowDistance,FSRenderLocalLightShadowStrength,FSRenderLocalLightShadowFacesPerFrame" />
                     </button>
                     <check_box
                      control_name="FSRenderClusteredLights"
@@ -6209,7 +6209,7 @@
                      layout="topleft"
                      left="35"
                      name="fs_fsrenderpointlightshadows"
-                     tool_tip="EXPERIMENTAL. Short shadows from the brightest local point lights: a lamp on a table now shades the table behind the objects on it, and avatars and furniture block some of a club's lights. Each lit pixel looks along the way to the light, in the depth of the image on screen, so only what is on screen casts and only over a short distance. Lights inside a lamp or bulb mesh still work: the last 20 cm before the light are not searched. Needs clustered local lights; reflections are left out. Rebuilds shaders."
+                     tool_tip="EXPERIMENTAL. Short shadows from the brightest local point lights: a lamp on a table now shades the table behind the objects on it, and avatars and furniture block some of a club's lights. Each lit pixel looks along the way to the light, in the depth of the image on screen, so only what is on screen casts and only over a short distance. Lights inside a lamp or bulb mesh still work: the last 20 cm before the light are not searched. Needs clustered local lights; reflections are left out. For real shadows that work all around a light, use &quot;Lights with real shadows&quot; below: lights with a shadow map take no short shadows. Rebuilds shaders."
                      top="1808"
                      width="455" />
                     <text
@@ -6292,12 +6292,141 @@
                      width="100" />
                     <text
                      follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="15"
+                     name="fs_fsrenderlocallightshadows_label"
+                     tool_tip="EXPERIMENTAL. Real shadows from this many local point lights, 0 for none: the ones that matter most on screen (bright, large and near), not worn ones. Each light gets a shadow map drawn from the light in all six directions, so walls, furniture and avatars block it wherever they are, on screen or not, with smooth edges that need no TAA. A map is only drawn again where something in it changes: a still room costs nothing to keep, avatars and moving objects near the light do. Lights with a map take no short shadows. Needs shadows. Turning it on or off rebuilds shaders."
+                     top="1920"
+                     width="310">
+                        Lights with real shadows (0 = off)
+                    </text>
+                    <spinner
+                     control_name="FSRenderLocalLightShadows"
+                     decimal_digits="0"
+                     follows="left|top"
+                     height="20"
+                     increment="1"
+                     layout="topleft"
+                     left="330"
+                     max_val="8"
+                     min_val="0"
+                     name="fs_fsrenderlocallightshadows"
+                     tool_tip="EXPERIMENTAL. Real shadows from this many local point lights, 0 for none: the ones that matter most on screen (bright, large and near), not worn ones. Each light gets a shadow map drawn from the light in all six directions, so walls, furniture and avatars block it wherever they are, on screen or not, with smooth edges that need no TAA. A map is only drawn again where something in it changes: a still room costs nothing to keep, avatars and moving objects near the light do. Lights with a map take no short shadows. Needs shadows. Turning it on or off rebuilds shaders."
+                     top="1918"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="15"
+                     name="fs_fsrenderlocallightshadowresolution_label"
+                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory: 6 MB per light at 512, 24 MB at 1024."
+                     top="1948"
+                     width="310">
+                        Shadow map size per face
+                    </text>
+                    <spinner
+                     control_name="FSRenderLocalLightShadowResolution"
+                     decimal_digits="0"
+                     enabled_control="FSRenderLocalLightShadows"
+                     follows="left|top"
+                     height="20"
+                     increment="128"
+                     layout="topleft"
+                     left="330"
+                     max_val="1024"
+                     min_val="128"
+                     name="fs_fsrenderlocallightshadowresolution"
+                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory: 6 MB per light at 512, 24 MB at 1024."
+                     top="1946"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="15"
+                     name="fs_fsrenderlocallightshadowdistance_label"
+                     tool_tip="EXPERIMENTAL. Lights farther than this from the camera (meters, measured to the edge of their reach) get no shadow map; their shadows fade out over the last fifth of it."
+                     top="1976"
+                     width="310">
+                        Real shadows up to (m)
+                    </text>
+                    <spinner
+                     control_name="FSRenderLocalLightShadowDistance"
+                     decimal_digits="0"
+                     enabled_control="FSRenderLocalLightShadows"
+                     follows="left|top"
+                     height="20"
+                     increment="4"
+                     layout="topleft"
+                     left="330"
+                     max_val="128"
+                     min_val="4"
+                     name="fs_fsrenderlocallightshadowdistance"
+                     tool_tip="EXPERIMENTAL. Lights farther than this from the camera (meters, measured to the edge of their reach) get no shadow map; their shadows fade out over the last fifth of it."
+                     top="1974"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="15"
+                     name="fs_fsrenderlocallightshadowstrength_label"
+                     tool_tip="EXPERIMENTAL. How much of the light a shadow from a shadow map takes away: 1 is fully dark."
+                     top="2004"
+                     width="310">
+                        Real shadow strength
+                    </text>
+                    <spinner
+                     control_name="FSRenderLocalLightShadowStrength"
+                     decimal_digits="2"
+                     enabled_control="FSRenderLocalLightShadows"
+                     follows="left|top"
+                     height="20"
+                     increment="0.05"
+                     layout="topleft"
+                     left="330"
+                     max_val="1"
+                     min_val="0"
+                     name="fs_fsrenderlocallightshadowstrength"
+                     tool_tip="EXPERIMENTAL. How much of the light a shadow from a shadow map takes away: 1 is fully dark."
+                     top="2002"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="15"
+                     name="fs_fsrenderlocallightshadowfacesperframe_label"
+                     tool_tip="EXPERIMENTAL. At most this many shadow map faces (six per light) are drawn per frame: new lights first, then the faces whose avatars or objects changed longest ago. Lower spreads the cost of many moving avatars over more frames; their shadows then lag a little."
+                     top="2032"
+                     width="310">
+                        Shadow faces drawn per frame
+                    </text>
+                    <spinner
+                     control_name="FSRenderLocalLightShadowFacesPerFrame"
+                     decimal_digits="0"
+                     enabled_control="FSRenderLocalLightShadows"
+                     follows="left|top"
+                     height="20"
+                     increment="1"
+                     layout="topleft"
+                     left="330"
+                     max_val="36"
+                     min_val="1"
+                     name="fs_fsrenderlocallightshadowfacesperframe"
+                     tool_tip="EXPERIMENTAL. At most this many shadow map faces (six per light) are drawn per frame: new lights first, then the faces whose avatars or objects changed longest ago. Lower spreads the cost of many moving avatars over more frames; their shadows then lag a little."
+                     top="2030"
+                     width="100" />
+                    <text
+                     follows="left|top"
                      font="SansSerifBold"
                      height="18"
                      layout="topleft"
                      left="15"
                      name="rendering_heading"
-                     top="1934"
+                     top="2074"
                      width="340">
                         Rendering workarounds
                     </text>
@@ -6324,7 +6453,7 @@
                      left="15"
                      name="render_alpha_blend_shadows"
                      tool_tip="Render alpha-blended objects into shadow maps; animated transparent effects may be expensive shadow casters"
-                     top="1957"
+                     top="2097"
                      width="475" />
                     <check_box
                      control_name="RLVaDebugSphereUseOpaqueDepth"
@@ -6335,7 +6464,7 @@
                      left="15"
                      name="rlva_debug_sphere_opaque_depth"
                      tool_tip="Use a pre-alpha depth snapshot so alpha wearables do not punch through the RLVa sphere effect"
-                     top="1985"
+                     top="2125"
                      width="475" />
                     <check_box
                      control_name="RenderAMDDisableShaderCache"
@@ -6346,7 +6475,7 @@
                      left="15"
                      name="render_amd_disable_shader_cache"
                      tool_tip="Bypass viewer shader binary caching on Windows AMD; restart required"
-                     top="2031"
+                     top="2171"
                      width="475" />
                     <check_box
                      control_name="RenderAMDDisableTextureThreading"
@@ -6357,7 +6486,7 @@
                      left="15"
                      name="render_amd_disable_texture_threading"
                      tool_tip="Force main-thread texture and media uploads on Windows AMD; restart required"
-                     top="2054"
+                     top="2194"
                      width="475" />
                     <check_box
                      control_name="RenderRiggedDirectNormals"
@@ -6368,7 +6497,7 @@
                      left="15"
                      name="render_rigged_direct_normals"
                      tool_tip="Transform rigged mesh normals and tangents as directions; restart required"
-                     top="2077"
+                     top="2217"
                      width="475" />
                     <check_box
                      control_name="RenderRiggedLocalOrigin"
@@ -6379,7 +6508,7 @@
                      left="15"
                      name="render_rigged_local_origin"
                      tool_tip="Test avatar-root-relative rigged mesh skinning; restart required"
-                     top="2100"
+                     top="2240"
                      width="475" />
                     <check_box
                      control_name="RenderRiggedPreciseMath"
@@ -6390,7 +6519,7 @@
                      left="15"
                      name="render_rigged_precise_math"
                      tool_tip="Test precise arithmetic and invariant positions in skinning shaders; restart required and may reduce performance"
-                     top="2123"
+                     top="2263"
                      width="475" />
                     <check_box
                      control_name="RenderGLMultiThreadedTexturesNVIDIA"
@@ -6401,7 +6530,7 @@
                      left="15"
                      name="render_nvidia_threaded_textures"
                      tool_tip="Create textures on a background OpenGL context on NVIDIA GPUs, whatever threaded textures is set to; restart required"
-                     top="2146"
+                     top="2286"
                      width="475" />
                     <!-- <FS:Trish> -->
                     <text
@@ -6411,7 +6540,7 @@
                      layout="topleft"
                      left="15"
                      name="fs_heading_depth"
-                     top="2182"
+                     top="2322"
                      width="340">
                         Depth precision
                     </text>
@@ -6423,7 +6552,7 @@
                      left="370"
                      name="reset_fs_heading_depth"
                      tool_tip="Set every option in &quot;Depth precision&quot; back to its default value."
-                     top="2181"
+                     top="2321"
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
@@ -6438,7 +6567,7 @@
                      left="15"
                      name="fs_fsrenderreversez"
                      tool_tip="EXPERIMENTAL. Stores depth with the near plane at 1 and the far plane at 0 in a 32 bit floating point depth buffer, which keeps depth precise all the way to the draw distance. Removes the flickering where distant surfaces meet (mainland at 500 m and more) and sharpens what reads depth far away: screen-space reflections, ambient occlusion, contact shadows and fog. Shadow maps are unchanged. Needs OpenGL 4.5; stays off on older drivers. Almost no GPU cost. Changing it rebuilds the shaders."
-                     top="2208"
+                     top="2348"
                      width="475" />
                     <text
                      follows="left|top"
@@ -6447,7 +6576,7 @@
                      layout="topleft"
                      left="15"
                      name="fs_heading_taa"
-                     top="2244"
+                     top="2384"
                      width="340">
                         Temporal anti-aliasing
                     </text>
@@ -6459,7 +6588,7 @@
                      left="370"
                      name="reset_fs_heading_taa"
                      tool_tip="Set every option in &quot;Temporal anti-aliasing&quot; back to its default value."
-                     top="2243"
+                     top="2383"
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
@@ -6474,7 +6603,7 @@
                      left="15"
                      name="fs_fsrendertaa"
                      tool_tip="EXPERIMENTAL. Moves the camera by a fraction of a pixel every frame and blends each frame with the ones before it, following the camera's movement and checking depth and the colours around each pixel. Smooths edges, thin geometry, foliage, hair and shimmering highlights far better than FXAA or SMAA, which it replaces while on. Snapshots keep the anti-aliasing chosen in Graphics. Needs HDR. Objects that move by themselves, such as walking avatars, can leave faint trails. About half a millisecond at 1440p. Switching it rebuilds the shaders."
-                     top="2270"
+                     top="2410"
                      width="475" />
                     <text
                      follows="left|top"
@@ -6483,7 +6612,7 @@
                      left="35"
                      name="fs_fsrendertaahistory_label"
                      tool_tip="EXPERIMENTAL. How much of the earlier frames is kept each frame. Higher is smoother and steadier but softer, and moving objects trail longer. 0.9 is a good balance."
-                     top="2298"
+                     top="2438"
                      width="285">
                         History weight
                     </text>
@@ -6500,7 +6629,7 @@
                      min_val="0.5"
                      name="fs_fsrendertaahistory"
                      tool_tip="EXPERIMENTAL. How much of the earlier frames is kept each frame. Higher is smoother and steadier but softer, and moving objects trail longer. 0.9 is a good balance."
-                     top="2296"
+                     top="2436"
                      width="100" />
                     <text
                      follows="left|top"
@@ -6509,7 +6638,7 @@
                      left="35"
                      name="fs_fsrendertaareactive_label"
                      tool_tip="EXPERIMENTAL. How strongly blended transparency, particles and water drop the earlier frames. Higher keeps them free of trails; lower keeps their edges smoother."
-                     top="2324"
+                     top="2464"
                      width="285">
                         Transparency and water response
                     </text>
@@ -6526,7 +6655,7 @@
                      min_val="0.0"
                      name="fs_fsrendertaareactive"
                      tool_tip="EXPERIMENTAL. How strongly blended transparency, particles and water drop the earlier frames. Higher keeps them free of trails; lower keeps their edges smoother."
-                     top="2322"
+                     top="2462"
                      width="100" />
                     <text
                      follows="left|top"
@@ -6535,7 +6664,7 @@
                      left="35"
                      name="fs_fsrendertaasharpness_label"
                      tool_tip="EXPERIMENTAL. Sharpens the anti-aliased image with CAS, to win back the softness of blending frames. While TAA runs it takes the place of the CAS sharpness setting, so the image is sharpened once. 0 turns sharpening off."
-                     top="2350"
+                     top="2490"
                      width="285">
                         Sharpness
                     </text>
@@ -6552,7 +6681,7 @@
                      min_val="0.0"
                      name="fs_fsrendertaasharpness"
                      tool_tip="EXPERIMENTAL. Sharpens the anti-aliased image with CAS, to win back the softness of blending frames. While TAA runs it takes the place of the CAS sharpness setting, so the image is sharpened once. 0 turns sharpening off."
-                     top="2348"
+                     top="2488"
                      width="100" />
                     <text
                      follows="left|top"
@@ -6561,7 +6690,7 @@
                      left="35"
                      name="fs_fsrendertaatexturebias_label"
                      tool_tip="EXPERIMENTAL. Objects, avatars and the classic terrain sample their textures this many mip levels sharper while TAA runs, since the blended frames resolve finer detail than a single frame. Lower is sharper but can shimmer on fine patterns. 0 turns it off. Shadows, reflections, HUDs and the UI are not affected."
-                     top="2376"
+                     top="2516"
                      width="285">
                         Texture detail
                     </text>
@@ -6578,7 +6707,7 @@
                      min_val="-1.5"
                      name="fs_fsrendertaatexturebias"
                      tool_tip="EXPERIMENTAL. Objects, avatars and the classic terrain sample their textures this many mip levels sharper while TAA runs, since the blended frames resolve finer detail than a single frame. Lower is sharper but can shimmer on fine patterns. 0 turns it off. Shadows, reflections, HUDs and the UI are not affected."
-                     top="2374"
+                     top="2514"
                      width="100" />
                     <!-- </FS:Trish> -->
                     <!-- <FS:Trish> -->
@@ -6589,7 +6718,7 @@
                      layout="topleft"
                      left="15"
                      name="fs_heading_crease_occlusion"
-                     top="2416"
+                     top="2556"
                      width="340">
                         Corner and crease occlusion
                     </text>
@@ -6601,7 +6730,7 @@
                      left="370"
                      name="reset_fs_heading_crease_occlusion"
                      tool_tip="Set every option in &quot;Corner and crease occlusion&quot; back to its default value."
-                     top="2415"
+                     top="2555"
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
@@ -6617,7 +6746,7 @@
                      left="15"
                      name="fs_fsrendercreaseao"
                      tool_tip="EXPERIMENTAL. A second, short range ambient occlusion at full resolution, on top of GTAO or the classic one, that darkens inside corners, creases, folds and the seams between objects, which the wider search barely sees. Needs Ambient Occlusion enabled. About 20 depth reads per pixel. Rebuilds the lighting shader."
-                     top="2442"
+                     top="2582"
                      width="475" />
                     <text
                      follows="left|top"
@@ -6626,7 +6755,7 @@
                      left="35"
                      name="fs_fsrendercreaseaoradius_label"
                      tool_tip="EXPERIMENTAL. How far crease occlusion looks around each point, in metres. Also capped at 24 pixels on screen. Smaller keeps it to tight creases; larger reaches into wider corners."
-                     top="2472"
+                     top="2612"
                      width="285">
                         Crease occlusion radius (m)
                     </text>
@@ -6643,7 +6772,7 @@
                      min_val="0.02"
                      name="fs_fsrendercreaseaoradius"
                      tool_tip="EXPERIMENTAL. How far crease occlusion looks around each point, in metres. Also capped at 24 pixels on screen. Smaller keeps it to tight creases; larger reaches into wider corners."
-                     top="2470"
+                     top="2610"
                      width="100" />
                     <text
                      follows="left|top"
@@ -6652,7 +6781,7 @@
                      left="35"
                      name="fs_fsrendercreaseaostrength_label"
                      tool_tip="EXPERIMENTAL. How dark crease occlusion makes corners and creases, 0 to 1."
-                     top="2500"
+                     top="2640"
                      width="285">
                         Crease occlusion strength
                     </text>
@@ -6669,7 +6798,7 @@
                      min_val="0.0"
                      name="fs_fsrendercreaseaostrength"
                      tool_tip="EXPERIMENTAL. How dark crease occlusion makes corners and creases, 0 to 1."
-                     top="2498"
+                     top="2638"
                      width="100" />
                     <text
                      follows="left|top"
@@ -6678,7 +6807,7 @@
                      left="15"
                      name="fs_fsrenderaofullrange_label"
                      tool_tip="EXPERIMENTAL. How far ambient occlusion may darken the ambient light and reflections. At 0 (the standard look) a fully occluded point still keeps about half of that light, so corners and creases never get properly dark, and reflection probes glow in them; at 1 full occlusion takes all of it. Works with every kind of ambient occlusion. No shader rebuild."
-                     top="2528"
+                     top="2668"
                      width="305">
                         Ambient occlusion depth
                     </text>
@@ -6694,7 +6823,7 @@
                      min_val="0.0"
                      name="fs_fsrenderaofullrange"
                      tool_tip="EXPERIMENTAL. How far ambient occlusion may darken the ambient light and reflections. At 0 (the standard look) a fully occluded point still keeps about half of that light, so corners and creases never get properly dark, and reflection probes glow in them; at 1 full occlusion takes all of it. Works with every kind of ambient occlusion. No shader rebuild."
-                     top="2526"
+                     top="2666"
                      width="100" />
                     <!-- </FS:Trish> -->
                 </panel>

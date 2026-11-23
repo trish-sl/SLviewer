@@ -28508,7 +28508,7 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSRenderPointLightShadows</key>
     <map>
       <key>Comment</key>
-      <string>EXPERIMENTAL. Short-range shadows for the strongest local point lights, with clustered local lights (FSRenderClusteredLights): each lit pixel marches through the depth buffer towards the light and is darkened where something in front blocks it. Screen space, so only what is on screen casts. Rebuilds shaders.</string>
+      <string>EXPERIMENTAL. Short-range shadows for the strongest local point lights, with clustered local lights (FSRenderClusteredLights): each lit pixel marches through the depth buffer towards the light and is darkened where something in front blocks it. Screen space, so only what is on screen casts. FSRenderLocalLightShadows gives real shadows from all around the light instead; lights with a shadow map take no short shadows. Rebuilds shaders.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
@@ -28548,6 +28548,83 @@ Change of this parameter will affect the layout of buttons in notification toast
       <string>F32</string>
       <key>Value</key>
       <real>0.8</real>
+    </map>
+    <key>FSRenderLocalLightShadows</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. Real shadows from this many local point lights, 0 (off) to 8: the ones that matter most on screen (bright, large and near the camera's focus), not worn ones. Each gets a shadow map of six faces drawn from the light, so walls, furniture and avatars block it wherever they are, on screen or not, with smooth edges that need no TAA. A face is only drawn again when something in it changes, so a still scene costs no drawing; moving avatars and objects near the light do. Needs shadows (RenderShadowDetail 1 or more). Turning it on or off rebuilds shaders.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>S32</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
+    <key>FSRenderLocalLightShadowDebug</key>
+    <map>
+      <key>Comment</key>
+      <string>Debug aid for FSRenderLocalLightShadows. 1: the light of each local light that has a shadow map is tinted by its map's slot (red, green, blue, yellow, magenta, cyan, orange, white); lights without a map keep their colour. The log (FSLocalLightShadows) also lists the lights ranked and which got maps each time the choice changes, and each slot taking or dropping a light. 2: as 1, and the shadow map atlas is drawn in the lower left corner (a row per slot, slot 0 at the bottom, the faces +X -X +Y -Y +Z -Z across; near the light white, far black, dark blue where nothing was drawn). 3: as 2, and every face is drawn again every frame (nothing kept: costly). 4: as 2, and maps once drawn are never drawn again (frozen). 5: as 2, but each mapped light paints half metre bands along the region axes measured from its map's centre the way the shadow lookup measures them: they must stay fixed to the floor and walls as the camera moves. 6: as 2, but each mapped light paints green where the light pass lights it from its map's centre and red where it lights it from somewhere else. 7: as 5.</string>
+      <key>Persist</key>
+      <integer>0</integer>
+      <key>Type</key>
+      <string>S32</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
+    <key>FSRenderLocalLightShadowResolution</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. Texels across each of the six faces of a local light shadow map, 128-1024. 512 keeps edges about 2 cm wide at 5 m from the light; memory is 6 x this squared x 4 bytes per light (6 MB per light at 512).</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>S32</string>
+      <key>Value</key>
+      <integer>512</integer>
+    </map>
+    <key>FSRenderLocalLightShadowDistance</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. Local lights whose reach starts farther than this from the camera (meters) get no shadow map; the shadows fade out over the last fifth of it.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>32.0</real>
+    </map>
+    <key>FSRenderLocalLightShadowStrength</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. How dark the local light shadow maps make their shadows, 0-1: 1 takes all of that light away.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>1.0</real>
+    </map>
+    <key>FSRenderLocalLightShadowFacesPerFrame</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. At most this many local light shadow map faces (six per light) are drawn per frame, 1-36: new lights first, then the faces whose casters changed longest ago. Lower spreads the cost of many moving avatars over more frames; their shadows then lag a little.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>S32</string>
+      <key>Value</key>
+      <integer>6</integer>
+    </map>
+    <key>FSRenderLocalLightShadowNearClip</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. What lies within this distance of a light (meters, 0.02-1, along each face's axis) casts no local light shadow, so a lamp shade or fitting closed around the light doesn't put everything in shadow. The light's own prim never casts.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>0.1</real>
     </map>
     <key>FSRenderAvatarOcclusion</key>
     <map>

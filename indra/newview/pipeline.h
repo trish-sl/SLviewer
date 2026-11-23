@@ -1117,6 +1117,13 @@ public:
     bool                    fsSpotShadowStill(U32 slot, LLCamera& shadow_cam);
     void                    fsSpotShadowRecord(U32 slot, LLCullResult& result, const glm::mat4& clip);
     bool                    fsSpotMasksUnchanged(const SpotShadowState& state) const;
+    // Shared with the local light shadow maps (fspointlightshadows.cpp), whose cube faces keep a
+    // SpotShadowState each
+    void                    fsShadowStateRecord(SpotShadowState& state, LLCullResult& result, const glm::mat4& clip, bool cacheable);
+    bool                    fsShadowStateNoteChanges(SpotShadowState& state);  // true when now dirty
+    const std::vector<LLVector4a>& fsShadowDynamicBounds();                    // centre, half size pairs, once a frame
+    static bool             fsBoxInClip(const glm::mat4& clip, const LLVector4a& lo, const LLVector4a& hi);
+    bool                    mFSPointShadowCacheInUse = false;                   // the local light shadow maps take the change notes
     // FSPerfSpotShadowSplit (pipeline.cpp): a projector with avatars or moving objects in view keeps its
     // static casters' depth and only culls and draws the dynamic ones over a copy of it each frame
     enum EFSShadowPartitions { FS_SHADOW_PARTS_ALL = 0, FS_SHADOW_PARTS_STATIC, FS_SHADOW_PARTS_DYNAMIC };

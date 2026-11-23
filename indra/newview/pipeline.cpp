@@ -122,6 +122,7 @@
 #include "fsfloaterprimfeed.h" // <FS:Beq/> for snapshotFrame
 #include "fspointlightbatch.h" // <FS:Trish/> batched local lights
 #include "fsclusteredlights.h" // <FS:Trish/> clustered local lights
+#include "fspointlightshadows.h" // <FS:Trish/> FSRenderLocalLightShadows
 #include "fsspotlightbatch.h" // <FS:Trish/> batched unshadowed spotlights
 #include "llsnapshotlivepreview.h" // <FS:Beq/> for snapshotFrame
 // #include "llpanelface.h"  // <FS:Zi> switchable edit texture/materials panel - include not needed
@@ -991,6 +992,7 @@ void LLPipeline::cleanup()
     mCubeVB = NULL;
     gFSPointLightBatch.release(); // <FS:Trish/>
     gFSClusteredLights.release(); // <FS:Trish/>
+    gFSPointLightShadows.release(); // <FS:Trish/>
     gFSSpotLightBatch.release(); // <FS:Trish/>
     FSAvatarOcclusion::release(); // <FS:Trish/>
 
@@ -1700,6 +1702,7 @@ void LLPipeline::releaseGLBuffers()
     fs_release_dust_points(); // <FS:Trish/> dust motes
     fs_release_ui_buffer(); // <FS:Trish/> FSRenderUICap
     FSGPUTimers::releaseGL(); // <FS:Trish/> FSRenderGPUTimings: query names die with the context
+    gFSPointLightShadows.release(); // <FS:Trish/> FSRenderLocalLightShadows, allocated again when next drawn
 
     if (mNoiseMap)
     {
@@ -2450,6 +2453,7 @@ void LLPipeline::unlinkDrawable(LLDrawable *drawable)
             mTargetShadowSpotLight[i] = NULL;
         }
     }
+    gFSPointLightShadows.forget(drawablep); // <FS:Trish/>
 }
 
 //static
@@ -2657,14 +2661,14 @@ void LLPipeline::updateMovedList(LLDrawable::drawable_vector_t& moved_list)
         bool done = true;
         if (!drawablep->isDead() && (!drawablep->isState(LLDrawable::EARLY_MOVE)))
         {
-            // <FS:Trish> FSPerfSpotShadowCache: where it was and where it is now
+            // <FS:Trish> FSPerfSpotShadowCache and the local light shadow maps: where it was and where it is now
             //done = drawablep->updateMove();
-            if (mFSSpotCacheInUse)
+            if (mFSSpotCacheInUse || mFSPointShadowCacheInUse)
             {
                 fsSpotCacheNoteMoved(drawablep);
             }
             done = drawablep->updateMove();
-            if (mFSSpotCacheInUse)
+            if (mFSSpotCacheInUse || mFSPointShadowCacheInUse)
             {
                 fsSpotCacheNoteMoved(drawablep);
             }
@@ -11596,6 +11600,8 @@ void LLPipeline::renderFinalize()
         }
     }
 
+    gFSPointLightShadows.drawDebugAtlas(sourceBuffer, mScreenTriangleVB); // <FS:Trish/> FSRenderLocalLightShadowDebug 2 and up
+
     // Present the screen target.
 
     // <FS:Trish> Avatars only snapshot: no dither noise, the colour has to line up with the matte
@@ -13229,6 +13235,7 @@ void LLPipeline::renderDeferredLighting()
             }
 
             std::list<LLVector4> light_colors;
+            std::list<S32> fs_light_slots; // <FS:Trish/> FSRenderLocalLightShadows: with fullscreen_lights, each one's shadow map slot
 
             // <FS:Trish> FSRenderGPUTimings: count the main view's lights only, not probe captures'
             static LLCachedControl<bool> fs_gpu_timings(gSavedSettings, "FSRenderGPUTimings", false);
@@ -13251,6 +13258,8 @@ void LLPipeline::renderDeferredLighting()
                 //bindDeferredShader(gDeferredLightProgram);
                 //gDeferredLightProgram.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0); // <FS:Trish/> once, not per light
                 bool fs_light_program_bound = false;
+                bool fs_lls_bound = false; // FSRenderLocalLightShadows: the program samples the shadow maps
+                static LLStaticHashedString s_fs_lls_slot("fs_lls_slot");
                 auto fs_bind_light_program = [&]()
                 {
                     if (!fs_light_program_bound)
@@ -13258,9 +13267,13 @@ void LLPipeline::renderDeferredLighting()
                         fs_light_program_bound = true;
                         bindDeferredShader(gDeferredLightProgram);
                         gDeferredLightProgram.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0); // once, not per light
+                        fs_lls_bound = gFSPointLightShadows.bind(gDeferredLightProgram, gDeferredLightProgram.mActiveTextureChannels);
                         mCubeVB->setBuffer();
                     }
                 };
+                // FSRenderLocalLightShadows: what the light programs sample in this pass, and the main
+                // view's point lights ranked for next frame's shadow maps
+                gFSPointLightShadows.beginLightPass(camera->getOrigin());
                 // </FS:Trish>
                 const bool fs_batch_lights = gFSPointLightBatch.begin(); // <FS:Trish/> FSPerfBatchedLocalLights
                 // <FS:Trish> FSRenderClusteredLights: the main view's point lights are handed over and
@@ -13334,6 +13347,13 @@ void LLPipeline::renderDeferredLighting()
                     //     continue;
                     // }
                     // </FS:Beq>
+                    // <FS:Trish> FSRenderLocalLightShadows: ranked for the shadow maps in view or not, so that
+                    // turning the camera doesn't hand the maps from one light to another
+                    if (!volume->isLightSpotlight())
+                    {
+                        gFSPointLightShadows.rank(drawablep, drawablep->getPositionAgent(), s, col);
+                    }
+                    // </FS:Trish>
                     LLVector4a sa;
                     sa.splat(s);
                     if (camera->AABBInFrustumNoFarClip(center, sa) == 0)
@@ -13342,6 +13362,10 @@ void LLPipeline::renderDeferredLighting()
                     }
 
                     sVisibleLightCount++;
+
+                    // <FS:Trish> FSRenderLocalLightShadows: its shadow map slot if it has one
+                    const S32 fs_lls_slot = volume->isLightSpotlight() ? -1 : gFSPointLightShadows.slotOf(drawablep);
+                    // </FS:Trish>
 
                     if (camera->getOrigin().mV[0] > c[0] + s + 0.2f || camera->getOrigin().mV[0] < c[0] - s - 0.2f ||
                         camera->getOrigin().mV[1] > c[1] + s + 0.2f || camera->getOrigin().mV[1] < c[1] - s - 0.2f ||
@@ -13357,14 +13381,17 @@ void LLPipeline::renderDeferredLighting()
                         sFSLightStats.mBoxPoint += fs_count; // <FS:Trish/>
 
                         // <FS:Trish> Clustered: shaded with the others after the loop (kept for the glow either way)
-                        if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
+                        //if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
+                        if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF), fs_lls_slot))
                         {
                             continue;
                         }
                         // </FS:Trish>
 
-                        // <FS:Trish> Batched: queue the light, drawn instanced after the loop
-                        if (fs_batch_lights)
+                        // <FS:Trish> Batched: queue the light, drawn instanced after the loop. A light with a shadow
+                        // map takes the stock light volume below, which samples it.
+                        //if (fs_batch_lights)
+                        if (fs_batch_lights && fs_lls_slot < 0)
                         {
                             gFSPointLightBatch.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF));
                             continue;
@@ -13372,6 +13399,12 @@ void LLPipeline::renderDeferredLighting()
                         // </FS:Trish>
 
                         fs_bind_light_program(); // <FS:Trish/>
+                        // <FS:Trish> FSRenderLocalLightShadows
+                        if (fs_lls_bound)
+                        {
+                            gDeferredLightProgram.uniform1i(s_fs_lls_slot, fs_lls_slot);
+                        }
+                        // </FS:Trish>
                         gDeferredLightProgram.uniform3fv(LLShaderMgr::LIGHT_CENTER, 1, c);
                         gDeferredLightProgram.uniform1f(LLShaderMgr::LIGHT_SIZE, s);
                         gDeferredLightProgram.uniform3fv(LLShaderMgr::DIFFUSE_COLOR, 1, col.mV);
@@ -13394,7 +13427,8 @@ void LLPipeline::renderDeferredLighting()
                         sFSLightStats.mInsidePoint += fs_count; // <FS:Trish/>
 
                         // <FS:Trish> Clustered: shaded with the others after the loop (kept for the glow either way)
-                        if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
+                        //if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
+                        if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF), fs_lls_slot))
                         {
                             continue;
                         }
@@ -13405,6 +13439,7 @@ void LLPipeline::renderDeferredLighting()
 
                         fullscreen_lights.push_back(LLVector4(tc.x, tc.y, tc.z, s));
                         light_colors.push_back(LLVector4(col.mV[0], col.mV[1], col.mV[2], volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)));
+                        fs_light_slots.push_back(fs_lls_slot); // <FS:Trish/>
                     }
                 }
                 } // <FS:Trish/> the loop's time
@@ -13416,8 +13451,13 @@ void LLPipeline::renderDeferredLighting()
                 //unbindDeferredShader(gDeferredLightProgram);
                 if (fs_light_program_bound)
                 {
+                    if (fs_lls_bound)
+                    {
+                        gFSPointLightShadows.unbind();
+                    }
                     unbindDeferredShader(gDeferredLightProgram);
                 }
+                gFSPointLightShadows.endLightPass(); // FSRenderLocalLightShadows: the lights for next frame's maps
                 // </FS:Trish>
 
                 // <FS:Trish> Draw the queued point lights: one upload, one instanced draw per 512
@@ -13534,6 +13574,8 @@ void LLPipeline::renderDeferredLighting()
                 const U32 max_count = LL_DEFERRED_MULTI_LIGHT_COUNT;
                 LLVector4 light[max_count];
                 LLVector4 col[max_count];
+                GLint fs_slots[max_count]; // <FS:Trish/> FSRenderLocalLightShadows: each one's shadow map slot
+                static LLStaticHashedString s_fs_lls_slots("fs_lls_slots"); // <FS:Trish/>
 
                 F32 far_z = 0.f;
 
@@ -13543,6 +13585,13 @@ void LLPipeline::renderDeferredLighting()
                     fullscreen_lights.pop_front();
                     col[count] = light_colors.front();
                     light_colors.pop_front();
+                    // <FS:Trish>
+                    fs_slots[count] = fs_light_slots.empty() ? -1 : fs_light_slots.front();
+                    if (!fs_light_slots.empty())
+                    {
+                        fs_light_slots.pop_front();
+                    }
+                    // </FS:Trish>
 
                     far_z = llmin(light[count].mV[2] - light[count].mV[3], far_z);
                     count++;
@@ -13556,10 +13605,24 @@ void LLPipeline::renderDeferredLighting()
                         gDeferredMultiLightProgram[idx].uniform4fv(LLShaderMgr::MULTI_LIGHT_COL, count, (GLfloat*)col);
                         gDeferredMultiLightProgram[idx].uniform1f(LLShaderMgr::MULTI_LIGHT_FAR_Z, far_z);
                         gDeferredMultiLightProgram[idx].uniform1i(LLShaderMgr::CLASSIC_MODE, (psky->canAutoAdjust()) ? 1 : 0);
+                        // <FS:Trish> FSRenderLocalLightShadows
+                        const bool fs_lls_multi = gFSPointLightShadows.bind(gDeferredMultiLightProgram[idx],
+                                                                            gDeferredMultiLightProgram[idx].mActiveTextureChannels);
+                        if (fs_lls_multi)
+                        {
+                            gDeferredMultiLightProgram[idx].uniform1iv(s_fs_lls_slots, count, fs_slots);
+                        }
+                        // </FS:Trish>
                         far_z = 0.f;
                         count = 0;
                         mScreenTriangleVB->setBuffer();
                         mScreenTriangleVB->drawArrays(LLRender::TRIANGLES, 0, 3);
+                        // <FS:Trish>
+                        if (fs_lls_multi)
+                        {
+                            gFSPointLightShadows.unbind();
+                        }
+                        // </FS:Trish>
                         unbindDeferredShader(gDeferredMultiLightProgram[idx]);
                     }
                 }
@@ -15425,7 +15488,7 @@ bool LLPipeline::fsShadowPoolAllowed(U32 pool_type) const
 // no_depth_change: a group rebuild that moved no vertex (FSPerfShadowStaticCacheStable), see llspatialpartition.cpp
 void LLPipeline::fsNoteShadowStaticChange(const LLVector4a* extents, bool no_depth_change, F32 caster_size, bool lod_only)
 {
-    if ((!mFSShadowCacheInUse && !mFSSpotCacheInUse) || !extents)
+    if ((!mFSShadowCacheInUse && !mFSSpotCacheInUse && !mFSPointShadowCacheInUse) || !extents)
     {
         return;
     }
@@ -16351,6 +16414,9 @@ namespace
 // geometry change, or something move, since their last render.
 void LLPipeline::fsSpotCacheBeginFrame()
 {
+    // The shadow maps of the local point lights (FSRenderLocalLightShadows) read the same notes
+    gFSPointLightShadows.noteChanges();
+
     static LLCachedControl<bool> spot_cache(gSavedSettings, "FSPerfSpotShadowCache", false);
     const bool enable = spot_cache && RenderShadowDetail > 1;
     if (!enable)
@@ -16360,27 +16426,44 @@ void LLPipeline::fsSpotCacheBeginFrame()
             fsSpotCacheForgetAll();
         }
         mFSSpotCacheInUse = false;
+        // noted for the local light shadow maps, now in their faces' dirty flags
+        mFSMovedBounds.clear();
+        mFSMovedAll = false;
         return;
     }
     mFSSpotCacheInUse = true;
 
     for (SpotShadowState& state : mSpotShadowState)
     {
-        if (!state.mStaticOnly || state.mDirty)
-        {
-            continue;
-        }
-        if (mFSShadowDirtyAll || mFSMovedAll ||
-            fs_boxes_in_clip(state.mClip, state.mClipMin, state.mClipMax, mFSShadowDirty) ||
-            fs_boxes_in_clip(state.mClip, state.mClipMin, state.mClipMax, mFSMovedBounds))
-        {
-            state.mDirty = true;
-        }
+        fsShadowStateNoteChanges(state);
     }
     // the moves noted since the last call (this frame's updateMove and updateGeom included) are
     // now in every slot's dirty flag
     mFSMovedBounds.clear();
     mFSMovedAll = false;
+}
+
+// A shadow map kept by its last render (a projector slot, a local light's cube face) is marked dirty
+// when static geometry changed in its frustum, or something moved through it, since that render
+bool LLPipeline::fsShadowStateNoteChanges(SpotShadowState& state)
+{
+    if (!state.mStaticOnly || state.mDirty)
+    {
+        return false;
+    }
+    if (mFSShadowDirtyAll || mFSMovedAll ||
+        fs_boxes_in_clip(state.mClip, state.mClipMin, state.mClipMax, mFSShadowDirty) ||
+        fs_boxes_in_clip(state.mClip, state.mClipMin, state.mClipMax, mFSMovedBounds))
+    {
+        state.mDirty = true;
+    }
+    return state.mDirty;
+}
+
+// static
+bool LLPipeline::fsBoxInClip(const glm::mat4& clip, const LLVector4a& lo, const LLVector4a& hi)
+{
+    return fs_box_in_clip(clip, lo, hi);
 }
 
 // updateMovedList, before and after a drawable's move: its agent space extents. A spatial bridge
@@ -16485,8 +16568,31 @@ bool LLPipeline::fsSpotShadowStill(U32 slot, LLCamera& shadow_cam)
         return false;
     }
 
-    // avatars that cast a shadow (attachments are in their bounds) and active objects, gathered
-    // once a frame
+    const std::vector<LLVector4a>& dynamic_bounds = fsShadowDynamicBounds();
+    LLVector4a sphere_center;
+    sphere_center.set(state.mClipCenter.x, state.mClipCenter.y, state.mClipCenter.z);
+    for (size_t i = 0; i + 1 < dynamic_bounds.size(); i += 2)
+    {
+        // the frustum's bounding sphere first, the six planes only for what it can't rule out
+        LLVector4a delta;
+        delta.setSub(dynamic_bounds[i], sphere_center);
+        const F32 reach = state.mClipRadius + dynamic_bounds[i + 1].getLength3().getF32();
+        if (delta.dot3(delta).getF32() > reach * reach)
+        {
+            continue;
+        }
+        if (shadow_cam.AABBInFrustum(dynamic_bounds[i], dynamic_bounds[i + 1]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Avatars that cast a shadow (attachments are in their bounds) and active objects: centre, half
+// size pairs in agent space, gathered once a frame
+const std::vector<LLVector4a>& LLPipeline::fsShadowDynamicBounds()
+{
     const U32 frame = LLFrameTimer::getFrameCount();
     if (mFSDynamicBoundsFrame != frame)
     {
@@ -16532,24 +16638,7 @@ bool LLPipeline::fsSpotShadowStill(U32 slot, LLCamera& shadow_cam)
             }
         }
     }
-    LLVector4a sphere_center;
-    sphere_center.set(state.mClipCenter.x, state.mClipCenter.y, state.mClipCenter.z);
-    for (size_t i = 0; i + 1 < mFSDynamicBounds.size(); i += 2)
-    {
-        // the frustum's bounding sphere first, the six planes only for what it can't rule out
-        LLVector4a delta;
-        delta.setSub(mFSDynamicBounds[i], sphere_center);
-        const F32 reach = state.mClipRadius + mFSDynamicBounds[i + 1].getLength3().getF32();
-        if (delta.dot3(delta).getF32() > reach * reach)
-        {
-            continue;
-        }
-        if (shadow_cam.AABBInFrustum(mFSDynamicBounds[i], mFSDynamicBounds[i + 1]))
-        {
-            return false;
-        }
-    }
-    return true;
+    return mFSDynamicBounds;
 }
 
 // Right after a slot's renderShadow: notes whether what it drew was static only.
@@ -16559,13 +16648,21 @@ void LLPipeline::fsSpotShadowRecord(U32 slot, LLCullResult& result, const glm::m
     {
         return;
     }
-    SpotShadowState& state = mSpotShadowState[slot];
+    fsShadowStateRecord(mSpotShadowState[slot], result, clip,
+                        mFSSpotCacheInUse && !gCubeSnapshot && !mFSSpotColoredDrawn[slot]);
+}
+
+// Right after a shadow map's renderShadow (a projector slot, a local light's cube face): notes what
+// it drew, and whether that was static only, so the map may be kept while nothing changes.
+// cacheable false: the map is never kept (its cache is off, or it holds coloured casters).
+void LLPipeline::fsShadowStateRecord(SpotShadowState& state, LLCullResult& result, const glm::mat4& clip, bool cacheable)
+{
     state.mStaticOnly = false;
     state.mDirty = false;
     state.mRenderTime = gFrameTimeSeconds;
     state.mClip = clip;
     state.mMaskTextures.clear();
-    if (!mFSSpotCacheInUse || gCubeSnapshot || mFSSpotColoredDrawn[slot])
+    if (!cacheable)
     {
         return;
     }
@@ -20557,6 +20654,7 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
         // </FS:Trish>
     }
 
+    gFSPointLightShadows.update(camera); // <FS:Trish/> FSRenderLocalLightShadows: the shadow map faces that changed
 
     if (!CameraOffset)
     {

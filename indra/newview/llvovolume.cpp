@@ -105,6 +105,7 @@
 #include "fslighterwhilemoving.h" // <FS:Trish/> FSRenderLighterWhileMoving
 #include "fsriggedpick.h" // <FS:Trish/> FSPerfFastRiggedPick
 #include "fslodfade.h" // <FS:Trish/> FSRenderFadeLOD
+#include "fspointlightshadows.h" // <FS:Trish/> FSRenderLocalLightShadows: detail of the casters
 
 const F32 FORCE_SIMPLE_RENDER_AREA = 512.f;
 const F32 FORCE_CULL_AREA = 8.f;
@@ -2029,6 +2030,10 @@ bool LLVOVolume::calcLOD()
         {
             return false;
         }
+        // <FS:Trish> FSRenderLocalLightShadows: within the reach of a light with a shadow map, at least the
+        // detail seen from the light, so that the map doesn't change with the camera's distance
+        distance = gFSPointLightShadows.lodDistance(mDrawable->getPositionAgent(), radius, distance);
+        // </FS:Trish>
     }
 
     //hold onto unmodified distance for debugging

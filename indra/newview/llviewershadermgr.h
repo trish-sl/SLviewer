@@ -285,6 +285,7 @@ extern LLGLSLShader         gFSBloomStreakProgram; // <FS:Trish/> Anamorphic str
 extern LLGLSLShader         gFSLensDirtProgram;
 extern LLGLSLShader         gFSLensEffectsProgram;
 extern LLGLSLShader         gFSAvatarMatteProgram;
+extern LLGLSLShader         gFSPointShadowAtlasProgram; // <FS:Trish/> FSRenderLocalLightShadowDebug
 extern LLGLSLShader         gFSDynResUpscaleProgram; // <FS:Trish/> Dynamic resolution
 extern LLGLSLShader         gFSNISUpscaleProgram; // <FS:Trish/> NVIDIA Image Scaling
 // </FS:Trish>

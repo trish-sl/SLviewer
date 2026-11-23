@@ -99,6 +99,12 @@ vec3 fsSkinLocalTranslucency(vec3 albedo, vec3 n, vec3 l, float thickness_mm, fl
 vec3 fsSkinAlbedo(GBufferInfo gb);
 #endif
 // </FS:Trish>
+// <FS:Trish> Shadow maps of the local point lights (FSRenderLocalLightShadows, fsPointShadowMapF.glsl)
+#ifdef FS_POINT_SHADOW_MAP
+uniform int fs_lls_slot;                // this light's shadow map slot, -1 for none
+vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+#endif
+// </FS:Trish>
 
 void main()
 {
@@ -246,6 +252,14 @@ void main()
             discard;
         }
     }
+    // <FS:Trish> Shadowed by the light's own shadow map, where it has one
+#ifdef FS_POINT_SHADOW_MAP
+    if (fs_lls_slot >= 0)
+    {
+        final_color *= fsPointShadowMap(fs_lls_slot, pos, n, trans_center.xyz);
+    }
+#endif
+    // </FS:Trish>
     float final_scale = 1.0;
     if (classic_mode > 0)
         final_scale = 0.9;

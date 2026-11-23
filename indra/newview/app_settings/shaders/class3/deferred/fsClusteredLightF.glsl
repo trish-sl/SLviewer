@@ -230,6 +230,27 @@ float fsPointShadow(int idx, vec3 pos, vec3 n, vec3 lv, float light_dist)
 }
 #endif
 
+#ifdef FS_POINT_SHADOW_MAP
+// Shadow maps of the local point lights (FSRenderLocalLightShadows, fsPointShadowMapF.glsl).
+// fsclusteredlights.cpp moves the lights that have one to the front of the light buffer: light
+// idx < fs_lls_count samples slot fs_lls_index[idx]. Those take no screen-space short shadows.
+uniform int fs_lls_count;
+uniform int fs_lls_index[FS_LLS_MAX];
+
+vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+
+// The shadow on a lit pixel from light idx: its shadow map where it has one
+vec3 fsLocalShadow(int idx, vec3 pos, vec3 n, vec3 shading_light)
+{
+#ifdef FS_POINT_SHADOW_MAP
+    if (idx < fs_lls_count)
+    {
+        return fsPointShadowMap(fs_lls_index[idx], pos, n, shading_light);
+    }
+    return vec3(1.0);
+}
+#endif
+
 // The cluster of a pixel, as fsclusteredlights.cpp bins them
 int clusterOf(vec2 tc, float depth)
 {
@@ -337,8 +358,8 @@ void main()
                 }
 #endif
                 intensity *= fsMicroShadow(nl, orm.r);
-#ifdef FS_POINT_SHADOWS
-                intensity *= fsPointShadow(idx, pos, n, lv, lightDist);
+#ifdef FS_POINT_SHADOW_MAP
+                intensity *= fsLocalShadow(idx, pos, n, light.xyz);
 #endif
                 final_color += intensity * clampRadiance(nl * (diff + specPunc));
             }
@@ -408,8 +429,8 @@ void main()
 #endif
 
                     // Bounded per light, as the stock passes do
-#ifdef FS_POINT_SHADOWS
-                    final_color += clampRadiance(col) * fsPointShadow(idx, pos, n, l, lightDist);
+#ifdef FS_POINT_SHADOW_MAP
+                    final_color += clampRadiance(col) * fsLocalShadow(idx, pos, n, light.xyz);
 #else
                     final_color += clampRadiance(col);
 #endif
