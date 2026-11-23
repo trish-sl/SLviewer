@@ -132,6 +132,9 @@ private:
     void onRegionChanged();
     void setPinnedRegions(const std::string& names);
     bool isPinned(U32 region) const; // mMutex held
+    // Whether the current mode lets this region read 'entry': listed only mode reads nothing outside
+    // the listed regions, current region mode only this region's entries and the listed ones. mMutex held
+    bool allowsLoad(const Entry& entry) const;
 
     std::string entryPath(const LLUUID& id, const Entry& entry) const;
     bool parseEntryName(const std::string& name, LLUUID& id, Entry& entry) const;

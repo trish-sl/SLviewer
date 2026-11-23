@@ -368,6 +368,26 @@ bool FSDecodedTextureCache::isPinned(U32 region) const
     return region && mPinnedRegions.count(region);
 }
 
+bool FSDecodedTextureCache::allowsLoad(const Entry& entry) const
+{
+    const U32 region = mCurrentRegion;
+    switch (sMode)
+    {
+    case MODE_LISTED_ONLY:
+        // A region that isn't listed neither writes nor reads: textures shared with a listed region
+        // (skins, common store textures) were otherwise read in every region, taking the load slots
+        // and the disk during the burst after a teleport
+        return isPinned(region);
+    case MODE_CURRENT_REGION:
+        // dropOtherRegions() runs on the writer thread some time after arriving: until then the
+        // departed region's entries are still indexed. Untagged entries from before region tags
+        // are kept by it and tagged when used.
+        return !entry.mRegion || (region && entry.mRegion == region) || isPinned(entry.mRegion);
+    default:
+        return true;
+    }
+}
+
 bool FSDecodedTextureCache::wantsStore(bool from_texture_cache) const
 {
     if (!isEnabled() || mReadOnly)
@@ -526,7 +546,7 @@ bool FSDecodedTextureCache::canLoad(const LLUUID& id, S32 discard) const
     }
     std::lock_guard<std::mutex> lock(mMutex);
     auto it = mEntries.find(id);
-    if (it == mEntries.end() || it->second.mDiscard > discard)
+    if (it == mEntries.end() || it->second.mDiscard > discard || !allowsLoad(it->second))
     {
         return false;
     }
@@ -574,7 +594,8 @@ LLPointer<LLImageRaw> FSDecodedTextureCache::load(const LLUUID& id, S32 discard)
     {
         std::lock_guard<std::mutex> lock(mMutex);
         auto it = mEntries.find(id);
-        if (it == mEntries.end() || it->second.mDiscard > discard)
+        // Also checks the region again: the agent may have left it while this load waited its turn
+        if (it == mEntries.end() || it->second.mDiscard > discard || !allowsLoad(it->second))
         {
             return nullptr;
         }
