@@ -29,6 +29,7 @@
 
 #include "fsclusteredlights.h"
 #include "fsblocktimer.h"
+#include "fstaa.h"
 #include "fswindfield.h"
 
 #include "llagent.h"
@@ -684,8 +685,10 @@ void FSClusteredLights::flush(LLVertexBuffer* screen_tri)
     shader.uniform1i(s_debug, debug ? 1 : 0);
     if (shader.mDefines.count("FS_POINT_SHADOWS"))
     {
+        // w: the march's noise offset while TAA blends frames, -1 (no noise) otherwise
+        const F32 noise_offset = FSTAA::frameActive() ? (F32)fmod((F64)gFrameCount * 0.6180339887, 1.0) : -1.f;
         shader.uniform4f(s_pl_shadow, (F32)shadowed, llclamp((F32)pl_shadow_length, 0.1f, 4.f),
-                         llclamp((F32)pl_shadow_strength, 0.f, 1.f), 0.f);
+                         llclamp((F32)pl_shadow_strength, 0.f, 1.f), noise_offset);
         shader.uniformMatrix4fv(s_pl_shadow_proj, 1, GL_FALSE, glm::value_ptr(mProjection));
     }
     screen_tri->setBuffer();

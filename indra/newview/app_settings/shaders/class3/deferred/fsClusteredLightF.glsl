@@ -99,7 +99,8 @@ vec3 fsSkinAlbedo(GBufferInfo gb);
 // their lamp or bulb mesh, so the stretch of the ray nearest the light is never marched: an
 // occluder there is taken to be the light's own fitting. Nothing is known in screen space about
 // which object a depth sample belongs to, so the light's linkset can't be told apart otherwise.
-uniform vec4 fs_pl_shadow;          // x: lights shadowed, y: march length (m), z: strength 0-1
+uniform vec4 fs_pl_shadow;          // x: lights shadowed, y: march length (m), z: strength 0-1,
+                                    // w: noise offset 0-1 while TAA blends frames, -1 otherwise
 uniform mat4 fs_pl_shadow_proj;     // this view's projection (eye to clip)
 
 float ndcZFromScreenDepth(float d);
@@ -166,8 +167,20 @@ float fsPointShadow(int idx, vec3 pos, vec3 n, vec3 lv, float light_dist)
     }
     float px = length((c1.xy / c1.w - c0.xy / c0.w) * 0.5 * screen_res);
     int steps = int(clamp(px * 0.5, float(FS_PLS_MIN_STEPS), float(FS_PLS_MAX_STEPS)));
-    float jitter = fsPointShadowNoise(gl_FragCoord.xy, float(idx));
+    // Per pixel noise only while TAA blends it away; otherwise every pixel takes the same steps,
+    // so a still pattern can't stay on screen as a stipple
+    float jitter = fs_pl_shadow.w >= 0.0 ? fract(fsPointShadowNoise(gl_FragCoord.xy, float(idx)) + fs_pl_shadow.w) : 0.5;
 
+    // Soft, not hit or miss (as the sun's contact shadows, fsShadowExtrasF.glsl). A hit used to be
+    // all or nothing, so the shadow ended in a hard line exactly where the depth buffer test
+    // stopped finding the occluder: along the outline of a leg on a floor, rays passing behind
+    // it. Each sample now occludes by how well it fits the thickness, a hit far along the ray is
+    // lighter, and a ray that crosses a surface between two steps counts as a hit.
+    float occ = 0.0;
+    bool prev_valid = false;
+    float prev_delta = 0.0;
+    float prev_surf = 0.0;
+    float prev_ray = 0.0;
     for (int i = 0; i < FS_PLS_MAX_STEPS; ++i)
     {
         if (i >= steps)
@@ -175,6 +188,12 @@ float fsPointShadow(int idx, vec3 pos, vec3 n, vec3 lv, float light_dist)
             break;
         }
         float t = (float(i) + jitter) / float(steps);
+        // full up to a fifth of the march length, then a smooth fall to none at its end
+        float fade = 1.0 - smoothstep(0.2, 1.0, t * len / max(fs_pl_shadow.y, 0.01));
+        if (occ >= fade)
+        {
+            break; // no later sample can add any more
+        }
         vec4 clip = mix(c0, c1, t);
         vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
         if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))
@@ -184,20 +203,30 @@ float fsPointShadow(int idx, vec3 pos, vec3 n, vec3 lv, float light_dist)
         float d = getDepth(uv);
         if (isFarDepth(d))
         {
+            prev_valid = false;
             continue;
         }
         // > 0: the surface the depth buffer has there is in front of the ray
-        float delta = clip.w - fsPointShadowSceneDistance(d);
-        if (delta > min_delta && delta < thickness)
+        float surf = fsPointShadowSceneDistance(d);
+        float delta = clip.w - surf;
+        float w = smoothstep(min_delta, 2.0 * min_delta, delta) * (1.0 - smoothstep(0.6 * thickness, thickness, delta));
+        // Stepped over: in front of the surface at the last sample, deeper behind it than the
+        // thickness now, while the surface barely moved in depth (less than the ray did, plus half
+        // the thickness): the same surface the ray went through, not a nearer one it passed behind
+        if (prev_valid && prev_delta <= min_delta && delta >= thickness &&
+            abs(surf - prev_surf) < abs(clip.w - prev_ray) + 0.5 * thickness)
         {
-            // fades out towards the end of the march, so the shadow has no hard end where the
-            // march length runs out, and at the screen edges
-            vec2 edge = min(uv, vec2(1.0) - uv);
-            float fade = (1.0 - smoothstep(0.6, 1.0, t * len / max(fs_pl_shadow.y, 0.01))) * smoothstep(0.0, 0.04, min(edge.x, edge.y));
-            return 1.0 - strength * fade;
+            w = 1.0;
         }
+        vec2 edge = min(uv, vec2(1.0) - uv);
+        w *= fade * smoothstep(0.0, 0.04, min(edge.x, edge.y));
+        occ = max(occ, w);
+        prev_valid = true;
+        prev_delta = delta;
+        prev_surf = surf;
+        prev_ray = clip.w;
     }
-    return 1.0;
+    return 1.0 - strength * occ;
 }
 #endif
 
