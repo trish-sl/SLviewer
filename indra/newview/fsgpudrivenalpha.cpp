@@ -301,7 +301,10 @@ namespace
         shader.mDefines = stock.mDefines;   // the stock permutations (HAS_SKIN, FS_WBOIT, FS_HAIR, ...), then ours
         shader.addPermutation(slot_material(slot) ? "FS_GDD_MATERIAL" : "FS_GDD_LEGACY", "1");
         const bool success = shader.createShader();
-        shader.mUniformsDirty = true; // the environment uniforms at its first bind
+        // Not marked dirty here: with batched loading the program is linked later, inside setShaders, and
+        // mapUniforms binds it there; a dirty program would then pull the environment uniforms before the
+        // environment exists (a crash at startup). LLEnvironment::update marks these programs dirty every
+        // frame (fsGDDAlphaMarkUniformsDirty), so they get the uniforms before their first draw.
         shader.mFeatures.calculatesLighting = stock.mFeatures.calculatesLighting;
         shader.mFeatures.hasLighting = stock.mFeatures.hasLighting;
         return success;
