@@ -156,6 +156,20 @@ bool LLViewerTexture::sFSVRAMTight = false;
 bool LLViewerTexture::sFSBiasAtCap = false;
 bool LLViewerTexture::sFSHoldSharpening = false;
 S32 LLViewerTexture::sVRAMLiveFreeMegabytes = -1;
+S32 LLViewerTexture::sVRAMSource = LLViewerTexture::VRAM_SOURCE_ESTIMATE; // FSTextureUseDXGIVRAM
+S32 LLViewerTexture::sVRAMLiveUsedMegabytes = -1;
+S32 LLViewerTexture::sVRAMLiveBudgetMegabytes = -1;
+
+//static
+const char* LLViewerTexture::vramSourceName()
+{
+    switch (sVRAMSource)
+    {
+    case VRAM_SOURCE_DXGI:   return "DXGI";
+    case VRAM_SOURCE_DRIVER: return "driver";
+    default:                 return "estimate";
+    }
+}
 // </FS:Trish>
 
 S32 LLViewerTexture::sMaxSculptRez = 128; //max sculpt image size
@@ -760,6 +774,13 @@ void LLViewerTexture::updateClass()
     // sampled right after our own freeing (FSTextureVRAMTargetFraction).
     static LLFrameTimer live_vram_timer;
     static S32 live_vram_free = -1;
+    // FSTextureUseDXGIVRAM: with DXGI the live figures are this process's use and the budget the OS
+    // grants it (which already leaves out other programs), and "free" is what is left of the budget;
+    // what is held outside our textures is then the process use minus what we track, instead of the
+    // card minus free minus tracked. -1 while the figure comes from the driver's free memory instead.
+    static S32 live_vram_used = -1;
+    static S32 live_vram_budget = -1;
+    static LLCachedControl<bool> use_dxgi(gSavedSettings, "FSTextureUseDXGIVRAM", true);
     static F32 live_vram_untracked = -1.f; // GPU MB in use outside of what we track, measured without pressure
     static F32 live_vram_target = -1.f;    // held between reads
     static std::deque<std::pair<F64, F32>> live_untracked_samples; // (time, untracked MB)
@@ -777,7 +798,38 @@ void LLViewerTexture::updateClass()
         if (live_vram_free < 0 || live_vram_timer.getElapsedTimeF32() > (live_near_reserve ? 0.25f : 1.f))
         // </FS:Trish>
         {
-            live_vram_free = gGLManager.getAvailableVRAMMegabytes();
+            // <FS:Trish> FSTextureUseDXGIVRAM: DXGI first (this process against its budget), the driver's
+            // free memory (NVX, ATI) when DXGI can't report. Logged once, and again if the source changes.
+            //live_vram_free = gGLManager.getAvailableVRAMMegabytes();
+            U64 dx_used_bytes = 0;
+            U64 dx_budget_bytes = 0;
+            S32 source = VRAM_SOURCE_ESTIMATE;
+            if (use_dxgi && gViewerWindow && gViewerWindow->getWindow() &&
+                gViewerWindow->getWindow()->getVideoMemoryInfo(dx_used_bytes, dx_budget_bytes))
+            {
+                live_vram_used = (S32)(dx_used_bytes >> 20);
+                live_vram_budget = (S32)(dx_budget_bytes >> 20);
+                live_vram_free = llmax(live_vram_budget - live_vram_used, 0);
+                source = VRAM_SOURCE_DXGI;
+            }
+            else
+            {
+                live_vram_used = -1;
+                live_vram_budget = -1;
+                live_vram_free = gGLManager.getAvailableVRAMMegabytes();
+                source = live_vram_free >= 0 ? VRAM_SOURCE_DRIVER : VRAM_SOURCE_ESTIMATE;
+            }
+            if (source != sVRAMSource)
+            {
+                sVRAMSource = source;
+                LL_INFOS("FSTextureBias") << "Live video memory source: "
+                                          << (source == VRAM_SOURCE_DXGI ? "DXGI, this process's use against the budget the OS grants it"
+                                              : source == VRAM_SOURCE_DRIVER ? "the driver's free memory on the card (NVX or ATI)"
+                                              : "none, the stock estimate")
+                                          << (source == VRAM_SOURCE_DXGI ? llformat(" (%d MB used of %d MB budget)", live_vram_used, live_vram_budget) : "")
+                                          << LL_ENDL;
+            }
+            // </FS:Trish>
             live_vram_timer.reset();
             if (live_vram_free >= 0)
             {
@@ -830,9 +882,14 @@ void LLViewerTexture::updateClass()
                 // our own freeing (the driver hands that memory back late, so for a few seconds it looks
                 // taken by something else), which is what the smallest-of-window used to guard against.
                 //if ((F32)live_vram_free > 2.f * reserve && total > (F32)live_vram_free)
-                if ((F32)live_vram_free > reserve + 1024.f && total > (F32)live_vram_free && now - live_last_shrink > TARGET_DROP_DELAY)
+                // FSTextureUseDXGIVRAM: with DXGI, what is held outside our textures is the process use
+                // minus what we track; with the driver's free memory, the card minus free minus tracked
+                const bool from_dxgi = live_vram_used >= 0 && live_vram_budget > 0;
+                const F32 untracked_now = from_dxgi ? llmax((F32)live_vram_used - tracked, 0.f)
+                                                    : llmax(total - (F32)live_vram_free - tracked, 0.f);
+                if ((F32)live_vram_free > reserve + 1024.f && (from_dxgi || total > (F32)live_vram_free) && now - live_last_shrink > TARGET_DROP_DELAY)
                 {
-                    live_untracked_samples.emplace_back(now, llmax(total - (F32)live_vram_free - tracked, 0.f));
+                    live_untracked_samples.emplace_back(now, untracked_now);
                     while (live_untracked_samples.size() > 1 && now - live_untracked_samples.front().first > UNTRACKED_WINDOW)
                     {
                         live_untracked_samples.pop_front();
@@ -848,7 +905,9 @@ void LLViewerTexture::updateClass()
                 F32 sample_target = tracked + (F32)live_vram_free - reserve;
                 if (live_vram_untracked >= 0.f)
                 {
-                    sample_target = llmin(sample_target, total - reserve - live_vram_untracked);
+                    // FSTextureUseDXGIVRAM: the process budget stands in for the card with DXGI
+                    //sample_target = llmin(sample_target, total - reserve - live_vram_untracked);
+                    sample_target = llmin(sample_target, (from_dxgi ? (F32)live_vram_budget : total) - reserve - live_vram_untracked);
                 }
                 // FSTextureVRAMTargetFraction: at most this share of the card. The stock budget counts
                 // every texture byte twice, so on a 16 GB card it stops textures and buffers at about
@@ -901,14 +960,23 @@ void LLViewerTexture::updateClass()
     else
     {
         live_vram_free = -1;
+        live_vram_used = -1;   // FSTextureUseDXGIVRAM
+        live_vram_budget = -1;
         live_vram_untracked = -1.f;
         live_vram_target = -1.f;
         live_untracked_samples.clear();
         live_target_samples.clear();
         fs_end_paging(); // <FS:Trish/> FSTextureVRAMPagingFloorMB
         fs_live_reserve = -1.f; // <FS:Trish/>
+        if (sVRAMSource != VRAM_SOURCE_ESTIMATE)
+        {
+            sVRAMSource = VRAM_SOURCE_ESTIMATE;
+            LL_INFOS("FSTextureBias") << "Live video memory source: none, the stock estimate" << LL_ENDL;
+        }
     }
     sVRAMLiveFreeMegabytes = live_vram_free;
+    sVRAMLiveUsedMegabytes = live_vram_used;     // FSTextureUseDXGIVRAM
+    sVRAMLiveBudgetMegabytes = live_vram_budget;
     // </FS:Trish>
 
     sFreeVRAMMegabytes = llmax(target - used, 0.f);

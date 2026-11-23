@@ -133,6 +133,8 @@ public:
 
     F32 getSystemUISize() override;
 
+    bool getVideoMemoryInfo(U64& used_bytes, U64& budget_bytes) override; // <FS:Trish/> FSTextureUseDXGIVRAM
+
     LLWindowCallbacks::DragNDropResult completeDragNDropRequest( const LLCoordGL gl_coord, const MASK mask, LLWindowCallbacks::DragNDropAction action, const std::string url );
     LLWindowCallbacks::DragNDropResult completeDropFilesRequest( const LLCoordGL gl_coord, const MASK mask, LLWindowCallbacks::DragNDropAction action, const std::vector<std::string>& files ); // <FS:Trish/> Drag and drop files to upload
 

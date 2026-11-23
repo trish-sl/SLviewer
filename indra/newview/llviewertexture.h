@@ -285,6 +285,17 @@ public:
     static F32 sVRAMTargetMegabytes;
     static bool sSystemMemoryLow;
     static S32 sVRAMLiveFreeMegabytes; // free on the GPU as the driver reports it, -1 when unused
+    // FSTextureUseDXGIVRAM: where the live figure comes from, and the process figures DXGI gives
+    enum EVRAMSource
+    {
+        VRAM_SOURCE_ESTIMATE = 0,   // the stock estimate (texture bytes counted twice)
+        VRAM_SOURCE_DRIVER,         // free memory on the card as the driver reports it (NVX, ATI)
+        VRAM_SOURCE_DXGI            // this process's use against the budget the OS grants it (DXGI)
+    };
+    static S32 sVRAMSource;
+    static S32 sVRAMLiveUsedMegabytes;   // DXGI: what this process holds on the GPU, -1 otherwise
+    static S32 sVRAMLiveBudgetMegabytes; // DXGI: what the OS grants it, -1 otherwise
+    static const char* vramSourceName();
     // </FS:Trish>
 
     enum EDebugTexels

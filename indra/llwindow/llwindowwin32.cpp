@@ -5612,6 +5612,96 @@ F32 LLWindowWin32::getSystemUISize()
     return scale_value;
 }
 
+// <FS:Trish> FSTextureUseDXGIVRAM
+// Live per-process VRAM use and OS budget from DXGI. GL doesn't say which DXGI
+// adapter it renders on, and on hybrid laptops adapter 0 is often the
+// integrated GPU, so pick the adapter where this process uses the most local
+// memory, and stick with it once that usage is unambiguous.
+bool LLWindowWin32::getVideoMemoryInfo(U64& used_bytes, U64& budget_bytes)
+{
+    static IDXGIFactory4* s_factory = nullptr;
+    static IDXGIAdapter3* s_adapter = nullptr;
+    static bool s_adapter_locked = false;
+    static bool s_unavailable = false;
+    constexpr U64 LOCK_USAGE_BYTES = 256ull * 1024 * 1024;
+
+    if (s_unavailable)
+    {
+        return false;
+    }
+
+    if (!s_factory && FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&s_factory)))
+    {
+        s_factory = nullptr;
+        s_unavailable = true;
+        LL_WARNS("Window") << "DXGI unavailable, video memory use will be read from the driver or estimated" << LL_ENDL;
+        return false;
+    }
+
+    if (!s_adapter_locked)
+    {
+        IDXGIAdapter3* best = nullptr;
+        U64 best_usage = 0;
+        IDXGIAdapter1* adapter = nullptr;
+        for (UINT i = 0; s_factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i)
+        {
+            IDXGIAdapter3* adapter3 = nullptr;
+            if (SUCCEEDED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&adapter3)))
+            {
+                DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+                if (SUCCEEDED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))
+                    && (!best || info.CurrentUsage > best_usage))
+                {
+                    if (best)
+                    {
+                        best->Release();
+                    }
+                    best = adapter3;
+                    best_usage = info.CurrentUsage;
+                }
+                else
+                {
+                    adapter3->Release();
+                }
+            }
+            adapter->Release();
+        }
+
+        if (!best)
+        {
+            s_unavailable = true;
+            LL_WARNS("Window") << "No DXGI adapter reports video memory, use will be read from the driver or estimated" << LL_ENDL;
+            return false;
+        }
+
+        if (s_adapter)
+        {
+            s_adapter->Release();
+        }
+        s_adapter = best;
+        if (best_usage >= LOCK_USAGE_BYTES)
+        {
+            s_adapter_locked = true;
+            DXGI_ADAPTER_DESC desc;
+            if (SUCCEEDED(s_adapter->GetDesc(&desc)))
+            {
+                LL_INFOS("Window") << "Tracking video memory on adapter: " << ll_convert_wide_to_string(std::wstring(desc.Description)) << LL_ENDL;
+            }
+        }
+    }
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+    if (FAILED(s_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)) || info.Budget == 0)
+    {
+        return false;
+    }
+
+    used_bytes = info.CurrentUsage;
+    budget_bytes = info.Budget;
+    return true;
+}
+// </FS:Trish>
+
 //static
 PROC WINAPI LLWindowWin32::getProcAddress(const char* func)
 {
@@ -5767,7 +5857,10 @@ void LLWindowWin32::LLWindowWin32Thread::checkDXMem()
 
                     // Alternatively use GetDesc from below to get adapter's memory
                     UINT64 budget_mb = info.Budget / (1024 * 1024);
-                    if (gGLManager.mIsIntel)
+                    // <FS:Trish> The outer Intel check made the non-Intel 75% of RAM cap and the 2 GB
+                    // no-data cap below unreachable; the inner check still picks the Intel 25%
+                    //if (gGLManager.mIsIntel)
+                    // </FS:Trish>
                     {
                         U32Megabytes phys_mb = gSysMemory.getPhysicalMemoryKB();
                         LL_WARNS() << "Physical memory: " << phys_mb << " MB" << LL_ENDL;

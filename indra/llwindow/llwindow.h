@@ -205,6 +205,12 @@ public:
     // Get system UI size based on DPI (for 96 DPI UI size should be 1.0)
     virtual F32 getSystemUISize() { return 1.0f; }
 
+    // <FS:Trish> FSTextureUseDXGIVRAM
+    // Video memory this process is using and the budget the OS currently grants it, in bytes.
+    // Returns false where the platform can't report it. Main thread only.
+    virtual bool getVideoMemoryInfo(U64& used_bytes, U64& budget_bytes) { return false; }
+    // </FS:Trish>
+
     static std::vector<std::string> getDisplaysResolutionList();
 
     // windows only DirectInput8 for joysticks
