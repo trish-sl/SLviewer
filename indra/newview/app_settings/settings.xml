@@ -3182,13 +3182,13 @@
     <key>CacheSize</key>
     <map>
       <key>Comment</key>
-      <string>Controls amount of hard drive space reserved for local texture caching in MB</string>
+      <string>Controls amount of hard drive space reserved for local texture caching in MB (the Second Life viewer's default is 6144 of which 65% is textures; a visit to a busy region fills 1-2 GB)</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>U32</string>
       <key>Value</key>
-      <integer>2048</integer>
+      <integer>4096</integer>
     </map>
     <key>CacheValidateCounter</key>
     <map>
