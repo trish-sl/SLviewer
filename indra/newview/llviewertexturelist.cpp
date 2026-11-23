@@ -1499,7 +1499,11 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
     const S64 fs_budget_bytes = (fs_upload_budget_mb > 0.f && !gTeleportDisplay) ? (S64)(fs_upload_budget_mb * 1048576.f) : 0;
     const bool fs_track_uploads = fs_upload_pbo || fs_upload_budget_mb > 0.f || fs_upload_diagnostics;
     S64 fs_upload_bytes = 0;
-    if (fs_budget_bytes > 0)
+    // The list is served in arrival order within the frame's time budget, which after a teleport put
+    // the destination's textures behind everything decoded on the way; now always the boosted and the
+    // largest on screen first (cheap: the list rarely holds more than a few hundred)
+    //if (fs_budget_bytes > 0)
+    if (fs_budget_bytes > 0 || mCreateTextureList.size() > 1)
     {
         fs_sort_create_queue(mCreateTextureList);
     }
