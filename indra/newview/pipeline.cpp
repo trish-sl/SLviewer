@@ -12301,10 +12301,12 @@ static void fs_bind_contact_shadow(LLGLSLShader& shader, bool apply_here)
     static const LLStaticHashedString sContactHere("fs_contact_here");
     // The march's noise moves on every frame while TAA or the photo shadows (FSRenderPhotoShadows) blend
     // the frames; a still pattern otherwise. While the photo shadows blend, the ray also leaves for this
-    // frame's point of the sun's disc, as the shadow maps do, and takes twice the steps.
+    // frame's point of the sun's disc, as the shadow maps do, and takes twice the steps. With nothing
+    // blending the frames the march takes no noise at all (-1): the term is applied after the light map
+    // blur, so a still noise pattern stayed on screen as a stipple.
     const bool photo = FSPhotoShadows::frameActive() && !gCubeSnapshot;
     const F32 noise_offset = photo ? FSPhotoShadows::noiseOffset()
-                                   : (FSTAA::frameActive() ? (F32)fmod((F64)gFrameCount * 0.6180339887, 1.0) : 0.f);
+                                   : (FSTAA::frameActive() ? (F32)fmod((F64)gFrameCount * 0.6180339887, 1.0) : -1.f);
     shader.uniform4f(sContactShadow, llclamp((F32)contact_length, 0.05f, 2.f), llclamp((F32)contact_strength, 0.f, 1.f),
                      noise_offset, photo ? 48.f : 24.f);
     static const LLStaticHashedString sContactLightJitter("fs_contact_light_jitter");
