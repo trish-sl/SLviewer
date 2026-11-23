@@ -83,8 +83,8 @@ public:
     bool add(const F32* center_agent, F32 size, const LLColor3& linear_color, F32 falloff, S32 shadow_slot = -1);
 
     // How much a light weighs on screen: brightness times the share of the view its sphere takes.
-    // d2: squared distance from the camera to its centre. Ranks the lights for the short shadows
-    // and for the shadow maps (fspointlightshadows.cpp).
+    // d2: squared distance from the camera to its centre. Ranks the lights for the shadow maps
+    // (fspointlightshadows.cpp).
     static F32 screenWeight(F32 d2, F32 size, const LLColor3& linear_color);
 
     // After the stock loop: bin, upload and draw the lights into the bound lighting target
@@ -115,7 +115,6 @@ public:
 
 private:
     U32 moveMappedLights();
-    U32 sortShadowedLights(U32 first, U32 wanted);
     // The glow's lights (mGlowWeights), see the .cpp. Returns how many were chosen.
     U32 chooseGlowLights(U32 max_lights);
     void binLights(bool tile_lists);

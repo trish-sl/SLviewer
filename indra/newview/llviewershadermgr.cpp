@@ -2793,13 +2793,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
 
         add_common_permutations(&gFSClusteredLightProgram);
         fs_add_skin_lighting(gFSClusteredLightProgram, false);
-        // Short-range point light shadows (FSRenderPointLightShadows); count, length and strength
-        // are uniforms (FSClusteredLights::flush)
-        static LLCachedControl<bool> fs_pl_shadows(gSavedSettings, "FSRenderPointLightShadows", false);
-        if (fs_pl_shadows)
-        {
-            gFSClusteredLightProgram.addPermutation("FS_POINT_SHADOWS", "1");
-        }
         fs_add_local_light_shadows(gFSClusteredLightProgram); // the local light shadow maps
 
         // Built outside the parallel compile batch, like the batched point lights: a failure

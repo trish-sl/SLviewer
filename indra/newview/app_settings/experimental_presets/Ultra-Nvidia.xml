@@ -442,14 +442,6 @@
     <real>1.0</real>
     <key>FSRenderPointLightScatterVariation</key>
     <real>0.35</real>
-    <key>FSRenderPointLightShadowCount</key>
-    <integer>8</integer>
-    <key>FSRenderPointLightShadowLength</key>
-    <real>1.0</real>
-    <key>FSRenderPointLightShadows</key>
-    <boolean>1</boolean>
-    <key>FSRenderPointLightShadowStrength</key>
-    <real>0.8</real>
     <key>FSRenderProbeBlendSmooth</key>
     <real>1.0</real>
     <key>FSRenderProbeFilterQuality</key>

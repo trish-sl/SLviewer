@@ -739,8 +739,8 @@ void FSPointLightShadows::beginLightPass(const LLVector3& camera_origin)
     mUniAtlas[3] = (F32)llmax(mRes, 1u);
 }
 
-// Scored as FSClusteredLights scores lights for the short shadows: brightness times the share of
-// the view the light's sphere takes
+// Scored by FSClusteredLights::screenWeight: brightness times the share of the view the light's
+// sphere takes
 void FSPointLightShadows::rank(LLDrawable* light, const LLVector3& center, F32 size, const LLColor3& color)
 {
     if (!mRanking || !light)

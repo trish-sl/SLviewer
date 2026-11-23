@@ -30,7 +30,6 @@
 #include "fsclusteredlights.h"
 #include "fsblocktimer.h"
 #include "fspointlightshadows.h"
-#include "fstaa.h"
 #include "fswindfield.h"
 
 #include "llagent.h"
@@ -46,8 +45,6 @@
 #include "llviewershadermgr.h"
 #include "llworld.h"
 #include "pipeline.h"
-
-#include "glm/gtc/type_ptr.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -93,14 +90,8 @@ namespace
     LLStaticHashedString s_scatter_look("fs_scatter_look");
     LLStaticHashedString s_scatter_noise_origin("fs_scatter_noise_origin");
     LLStaticHashedString s_scatter_noise_basis("fs_scatter_noise_basis");
-    LLStaticHashedString s_pl_shadow("fs_pl_shadow");
-    LLStaticHashedString s_pl_shadow_proj("fs_pl_shadow_proj");
     LLStaticHashedString s_lls_count("fs_lls_count");
     LLStaticHashedString s_lls_index("fs_lls_index");
-
-    // Point light shadows (FSRenderPointLightShadows): the shader marches towards the first
-    // FSRenderPointLightShadowCount lights of the buffer only
-    constexpr U32 MAX_SHADOWED = 8;
 
     // The point light glow: at most this many lights (drawScatter's clamp of
     // FSRenderPointLightScatterMaxLights), and the share of the last wanted light's score below
@@ -184,63 +175,8 @@ U32 FSClusteredLights::moveMappedLights()
     return mapped;
 }
 
-// Moves the lights that weigh most on screen (screenWeight) to the front of the list, after the
-// first `first` lights, which stay where they are. Only called before binning, so the lists and
-// the glow follow the new order. Returns how many lights lead the rest of the list.
-U32 FSClusteredLights::sortShadowedLights(U32 first, U32 wanted)
-{
-    const U32 count = (U32)(mLights.size() / 2);
-    if (first >= count)
-    {
-        return 0;
-    }
-    wanted = llmin(wanted, count - first);
-    if (wanted == 0)
-    {
-        return 0;
-    }
-
-    std::vector<std::pair<F32, U32>> score(count - first);
-    for (U32 i = first; i < count; ++i)
-    {
-        const LLVector4& c = mLights[i * 2];
-        const LLVector4& col = mLights[i * 2 + 1];
-        const F32 d2 = c.mV[VX] * c.mV[VX] + c.mV[VY] * c.mV[VY] + c.mV[VZ] * c.mV[VZ];
-        // negated: the strongest first
-        score[i - first] = { -screenWeight(d2, c.mV[VW], LLColor3(col.mV[VX], col.mV[VY], col.mV[VZ])), i };
-    }
-    std::partial_sort(score.begin(), score.begin() + wanted, score.end());
-
-    // stable for the rest: the others keep their nearest-first order
-    std::vector<U8> taken(count, 0);
-    std::vector<LLVector4> sorted;
-    sorted.reserve(mLights.size());
-    for (U32 i = 0; i < first; ++i)
-    {
-        sorted.push_back(mLights[i * 2]);
-        sorted.push_back(mLights[i * 2 + 1]);
-    }
-    for (U32 i = 0; i < wanted; ++i)
-    {
-        const U32 idx = score[i].second;
-        taken[idx] = 1;
-        sorted.push_back(mLights[idx * 2]);
-        sorted.push_back(mLights[idx * 2 + 1]);
-    }
-    for (U32 i = first; i < count; ++i)
-    {
-        if (!taken[i])
-        {
-            sorted.push_back(mLights[i * 2]);
-            sorted.push_back(mLights[i * 2 + 1]);
-        }
-    }
-    mLights.swap(sorted);
-    return wanted;
-}
-
 // The point light glow's lights, chosen once for the whole screen: the max_lights whose glow weighs
-// most on screen, scored like sortShadowedLights (brightness times the share of the view the
+// most on screen, scored as screenWeight scores (brightness times the share of the view the
 // sphere takes). The glow used to take the first lights of each screen tile's list instead, so a
 // light kept in one tile could be dropped in the next, where more lights reached: its halo was cut
 // along the tile edges, in long straight lines where a big light's tiles ended. Now a light glows
@@ -738,20 +674,10 @@ void FSClusteredLights::flush(LLVertexBuffer* screen_tri)
     LL_PROFILE_ZONE_NAMED_CATEGORY_PIPELINE("renderDeferredLighting - clustered lights");
     LL_PROFILE_GPU_ZONE("clustered lights");
 
-    // Point light shadows: the main view only, never a probe face
-    static LLCachedControl<bool> pl_shadows(gSavedSettings, "FSRenderPointLightShadows", false);
-    static LLCachedControl<S32> pl_shadow_count(gSavedSettings, "FSRenderPointLightShadowCount", 4);
-    static LLCachedControl<F32> pl_shadow_length(gSavedSettings, "FSRenderPointLightShadowLength", 1.f);
-    static LLCachedControl<F32> pl_shadow_strength(gSavedSettings, "FSRenderPointLightShadowStrength", 0.8f);
-    // Lights with a shadow map (FSRenderLocalLightShadows) lead the list, the short shadows take
-    // the strongest of the others
+    // Lights with a shadow map (FSRenderLocalLightShadows) lead the list: the main view only,
+    // never a probe face
     const bool shadow_maps = !mProbe && FSPointLightShadows::programSamples(gFSClusteredLightProgram);
     const U32 mapped = shadow_maps ? moveMappedLights() : 0;
-    U32 shadowed = 0;
-    if (pl_shadows && !mProbe && gFSClusteredLightProgram.mDefines.count("FS_POINT_SHADOWS"))
-    {
-        shadowed = sortShadowedLights(mapped, (U32)llclamp((S32)pl_shadow_count, 1, (S32)MAX_SHADOWED));
-    }
 
     // The glow's tile lists are binned with the clusters, while the lights are at hand (not for
     // a probe face, which has no glow)
@@ -769,16 +695,6 @@ void FSClusteredLights::flush(LLVertexBuffer* screen_tri)
     LLSettingsSky::ptr_t psky = LLEnvironment::instance().getCurrentSky();
     shader.uniform1i(LLShaderMgr::CLASSIC_MODE, (psky && psky->canAutoAdjust()) ? 1 : 0);
     shader.uniform1i(s_debug, debug ? 1 : 0);
-    if (shader.mDefines.count("FS_POINT_SHADOWS"))
-    {
-        // x: how many lights from the first are shadowed, those with a map included (the map
-        // takes precedence in the shader); w: the march's noise offset while TAA blends frames,
-        // -1 (no noise) otherwise
-        const F32 noise_offset = FSTAA::frameActive() ? (F32)fmod((F64)gFrameCount * 0.6180339887, 1.0) : -1.f;
-        shader.uniform4f(s_pl_shadow, (F32)(mapped + shadowed), llclamp((F32)pl_shadow_length, 0.1f, 4.f),
-                         llclamp((F32)pl_shadow_strength, 0.f, 1.f), noise_offset);
-        shader.uniformMatrix4fv(s_pl_shadow_proj, 1, GL_FALSE, glm::value_ptr(mProjection));
-    }
     // The shadow maps take the unit after the two buffer textures (begin() checked it is there)
     const bool maps_bound = gFSPointLightShadows.bind(shader, mUnits[1] + 1);
     if (maps_bound)
