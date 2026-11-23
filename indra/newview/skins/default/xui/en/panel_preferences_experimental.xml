@@ -6348,7 +6348,7 @@
                      left="370"
                      name="reset_rendering_heading"
                      tool_tip="Set every option in &quot;Rendering and diagnostics&quot; back to its default value."
-                     top="1821"
+                     top="1961"
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
