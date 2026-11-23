@@ -32157,24 +32157,13 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSTextureVRAMPagingFloorMB</key>
     <map>
       <key>Comment</key>
-      <string>With FSTextureUseLiveVRAM, free video memory in MB at or below which the GPU is taken to be paging: once it is full, the driver moves memory out to system RAM to keep about this much free, and every frame then waits on it. Paging cuts textures at once to what gets back to FSTextureVRAMReserveMB, raises the texture bias fast, lets go of textures on no face after 5 seconds, and is logged under FSTextureBias. Always at least 256 MB under the reserve (an 8 GB card's 1536 MB reserve gives 1280). 0 turns the detection off.</string>
+      <string>With FSTextureUseLiveVRAM, free video memory in MB at or below which the GPU is taken to be paging: once it is full, the driver moves memory out to system RAM to keep about this much free, and every frame then waits on it. Paging cuts textures at once to what gets back to FSTextureVRAMReserveMB, raises the texture bias fast, lets go of textures on no face after 5 seconds, stops uploads and keeps a texture shrunk for memory in the last 30 seconds from loading sharper again, and is logged under FSTextureBias. Always at least 256 MB under the reserve (an 8 GB card's 1536 MB reserve gives 1280). 0 turns the detection off.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>U32</string>
       <key>Value</key>
       <integer>1536</integer>
-    </map>
-    <key>FSTextureSharpenRateMB</key>
-    <map>
-      <key>Comment</key>
-      <string>With FSTextureUseLiveVRAM, MB per second by which textures already showing something may load sharper while video memory is paging, while less than 1 GB is free above FSTextureVRAMReserveMB, and for 10 seconds after a camera mode change (mouselook) or a teleport unless more than 3 GB is free above it. Keeps a burst of full size loads from filling the GPU faster than the texture bias can follow. Textures showing nothing yet load as before. 0 turns the limit off.</string>
-      <key>Persist</key>
-      <integer>1</integer>
-      <key>Type</key>
-      <string>F32</string>
-      <key>Value</key>
-      <real>256</real>
     </map>
     <key>FSAutoSizeResources</key>
     <map>

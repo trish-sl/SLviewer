@@ -264,7 +264,7 @@ public:
     // The bias is at its cap (FSTextureMaxDiscardBias): textures take any memory that frees up, so the
     // GPU driven draw arenas keep theirs (FSGDDArena::beginFrame)
     static bool sFSBiasAtCap;
-    // At the cap with little room left: a texture shrunk for memory doesn't sharpen again for a while
+    // While the GPU pages: a texture shrunk for memory doesn't sharpen again for a while
     // (LLViewerFetchedTexture::updateFetch), or it was shrunk and loaded back over and over
     static bool sFSHoldSharpening;
     // </FS:Trish>

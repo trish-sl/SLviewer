@@ -59,7 +59,7 @@
 #include "llagent.h" // <FS:Trish/> teleport aware bias hold
 #include "llstartup.h" // <FS:Trish/> the login counts as a teleport for the bias hold
 #include "llimageworker.h" // <FS:Trish/> FSPerfTextureUploadFullRoomMB: decodes in flight
-#include "llagentcamera.h" // <FS:Trish/> FSTextureSharpenRateMB
+#include "llagentcamera.h" // <FS:Trish/> camera mode changes logged with the video memory state
 #include "fsdiskthread.h" // <FS:Trish/> FSPerfDiskThread
 #include "fslighterwhilemoving.h" // <FS:Trish/> FSRenderMovingTextureBiasHold
 #include "fstexturerelease.h" // <FS:Trish/> FSTextureReleaseFaceless
@@ -572,7 +572,7 @@ namespace FSTextureInflow
 }
 // </FS:Trish>
 
-// <FS:Trish> FSTextureVRAMPagingFloorMB and FSTextureSharpenRateMB, with FSTextureUseLiveVRAM
+// <FS:Trish> FSTextureVRAMPagingFloorMB, with FSTextureUseLiveVRAM
 namespace
 {
     F32 fs_live_reserve = -1.f;         // video memory kept free in MB, -1 while the live figure isn't used
@@ -583,10 +583,7 @@ namespace
     F64 fs_paging_cap_time = 0.0;       // when the cap was last set
     F64 fs_paging_clear_since = -1.0;   // since when free memory has been clearly above the floor
     F32 fs_paging_tracked_start = 0.f;
-    F64 fs_view_switch_time = -1.0e9;   // last camera mode change or teleport
-    bool fs_sharpen_metered = false;    // textures already showing something sharpen at a bounded rate
-    F64 fs_sharpen_budget = 0.0;        // bytes they may still sharpen by
-    U32 fs_sharpen_deferred = 0;        // sharpenings put off, for the log
+    F64 fs_view_switch_time = -1.0e9;   // last camera mode change or teleport, for the log
 
     void fs_end_paging()
     {
@@ -673,27 +670,6 @@ namespace
         FSTextureRelease::setUrgent(fs_paging);
     }
 
-    // A texture already showing something asks to load sharper: while metered, only so many bytes
-    // a second may, so a burst (the camera jumping into the head for mouselook, a teleport) can't
-    // fill the GPU between two reads of the free figure
-    bool fs_take_sharpen_budget(const LLViewerFetchedTexture* tex, S32 desired_discard)
-    {
-        if (!fs_sharpen_metered)
-        {
-            return true;
-        }
-        if (fs_sharpen_budget <= 0.0)
-        {
-            ++fs_sharpen_deferred;
-            return false;
-        }
-        const S32 d = llclamp(desired_discard, 0, 12);
-        const F64 w = (F64)llmax(tex->getFullWidth() >> d, 1);
-        const F64 h = (F64)llmax(tex->getFullHeight() >> d, 1);
-        const F64 c = (F64)llclamp((S32)tex->getComponents(), 1, 4);
-        fs_sharpen_budget -= w * h * c * 4.0 / 3.0; // with its mips; one may take it below zero
-        return true;
-    }
 }
 // </FS:Trish>
 
@@ -831,7 +807,7 @@ void LLViewerTexture::updateClass()
                                               << LL_ENDL;
                 }
                 // </FS:Trish>
-                fs_live_reserve = reserve; // FSTextureVRAMPagingFloorMB, FSTextureSharpenRateMB
+                fs_live_reserve = reserve; // FSTextureVRAMPagingFloorMB, FSPerfTextureUploadFullRoomMB
                 // FSTextureVRAMPagingFloorMB: what is taken outside of our textures used to be measured
                 // only above twice the reserve (about 4 GB free on a 16 GB card). Once textures filled
                 // more than that it was never measured again, so render targets and other programs that
@@ -1236,10 +1212,13 @@ void LLViewerTexture::updateClass()
     static LLCachedControl<F32> max_bias_setting(gSavedSettings, "FSTextureMaxDiscardBias", 4.f);
     const F32 max_bias = llclamp((F32)max_bias_setting, 4.f, 6.f);
     sDesiredDiscardBias = llclamp(sDesiredDiscardBias, 1.f, max_bias); // backgrounded (5) included
-    // At the cap, usage sits just under the target: whatever frees up is filled again at once
-    constexpr F32 FS_SHARPEN_HEADROOM_MB = 512.f;
     sFSBiasAtCap = sDesiredDiscardBias >= max_bias - 0.01f;
-    sFSHoldSharpening = sFSBiasAtCap && sFreeVRAMMegabytes < FS_SHARPEN_HEADROOM_MB;
+    // While the GPU pages, a texture shrunk for memory in the last 30 s keeps what it shows (updateFetch);
+    // it used to hold at the cap with little room too, and with the inflow now following the room
+    // (FSPerfTextureUploadFullRoomMB) that only kept visible textures blurry
+    //constexpr F32 FS_SHARPEN_HEADROOM_MB = 512.f;
+    //sFSHoldSharpening = sFSBiasAtCap && sFreeVRAMMegabytes < FS_SHARPEN_HEADROOM_MB;
+    sFSHoldSharpening = fs_paging;
     // Every 30 s while the bias is up: where it is and how full video memory is
     {
         static LLFrameTimer s_bias_log_timer;
@@ -1325,13 +1304,12 @@ void LLViewerTexture::updateClass()
         last_texture_update_count_bias = sDesiredDiscardBias;
     }
 
-    // <FS:Trish> FSTextureSharpenRateMB: with the live free figure, textures already showing something
-    // sharpen at a bounded rate while the GPU is paging, while less than 1 GB is left above the reserve,
-    // and for 10 s after a camera mode change or a teleport unless there is plenty of room. Entering
-    // mouselook puts the camera in the head, and everything close asked for full size in the same
-    // second, faster than the bias could follow.
+    // <FS:Trish> Camera mode changes and teleports are logged with the video memory state. The sharpening
+    // meter that lived here (FSTextureSharpenRateMB, so many MB/s for textures already showing something)
+    // is gone: at 256 MB/s it never limited the login burst (12 GB in a minute), yet it put off about 2000
+    // sharpen requests every 10 s with 4.5 GB free, all of them textures in view. The inflow now follows
+    // the room left (FSPerfTextureUploadFullRoomMB) instead.
     {
-        static LLCachedControl<F32> sharpen_rate(gSavedSettings, "FSTextureSharpenRateMB", 256.f);
         static S32 s_last_camera_mode = -1;
         const F64 now = LLTimer::getTotalSeconds();
         const S32 camera_mode = (S32)gAgentCamera.getCameraMode();
@@ -1344,9 +1322,9 @@ void LLViewerTexture::updateClass()
         {
             const F32 tracked_mb = (F32)((LLImageGL::getTextureBytesAllocated() + LLVertexBuffer::getBytesAllocated()) / 1024.0 / 1024.0);
             static LLCachedControl<bool> limit_fps(gSavedSettings, "FSLimitFramerate", false);
-            LL_INFOS("FSTextureBias") << what << llformat(": %d MB free (reserve %.0f), textures and buffers %.0f MB, target %.0f MB, bias %.2f, %s, %s; app focus %d, frame limit %d; %.1f ms a frame over %u frames",
+            LL_INFOS("FSTextureBias") << what << llformat(": %d MB free (reserve %.0f), textures and buffers %.0f MB, target %.0f MB, bias %.2f, %s, inflow %.2f; app focus %d, frame limit %d; %.1f ms a frame over %u frames",
                                                           live_vram_free, fs_live_reserve, tracked_mb, sVRAMTargetMegabytes, sDesiredDiscardBias,
-                                                          fs_paging ? "paging" : "not paging", fs_sharpen_metered ? "sharpening metered" : "sharpening free",
+                                                          fs_paging ? "paging" : "not paging", FSTextureInflow::sScale.load(std::memory_order_relaxed),
                                                           (S32)gFocusMgr.getAppHasFocus(), (S32)limit_fps(),
                                                           s_frame_count > 0 ? s_frame_sum * 1000.0 / (F64)s_frame_count : 0.0, s_frame_count) << LL_ENDL;
             s_frame_sum = 0.0;
@@ -1371,40 +1349,6 @@ void LLViewerTexture::updateClass()
         {
             s_last_camera_mode = camera_mode;
             fs_view_switch_time = now;
-        }
-        constexpr F64 SWITCH_WINDOW = 10.0;     // seconds
-        constexpr F32 NEAR_RESERVE = 1024.f;    // MB above the reserve
-        constexpr F32 SWITCH_ROOM = 3072.f;     // MB above the reserve that is plenty after a switch
-        const bool live = fs_live_reserve > 0.f && live_vram_free >= 0;
-        const F32 room = live ? (F32)live_vram_free - fs_live_reserve : 0.f;
-        const bool metered = live && sharpen_rate() > 0.f &&
-                             (fs_paging || room < NEAR_RESERVE || (now - fs_view_switch_time < SWITCH_WINDOW && room < SWITCH_ROOM));
-        if (metered)
-        {
-            const F64 rate = (F64)sharpen_rate() * 1024.0 * 1024.0;
-            const F64 dt = llclamp((F64)gFrameIntervalSeconds.value(), 0.0, 0.25);
-            if (!fs_sharpen_metered)
-            {
-                fs_sharpen_budget = 0.0;
-            }
-            fs_sharpen_budget = llmin(fs_sharpen_budget + rate * dt, rate * 0.25);
-        }
-        else
-        {
-            fs_sharpen_budget = 0.0;
-        }
-        fs_sharpen_metered = metered;
-        static LLFrameTimer s_sharpen_log_timer;
-        if (s_sharpen_log_timer.getElapsedTimeF32() > 10.f)
-        {
-            s_sharpen_log_timer.reset();
-            if (fs_sharpen_deferred > 0)
-            {
-                LL_INFOS("FSTextureBias") << llformat("Sharpening metered at %.0f MB/s: %u requests put off over the last 10 s; %d MB free, reserve %.0f, %s, bias %.2f",
-                                                      (F32)sharpen_rate(), fs_sharpen_deferred, live_vram_free, fs_live_reserve,
-                                                      fs_paging ? "paging" : "not paging", sDesiredDiscardBias) << LL_ENDL;
-            }
-            fs_sharpen_deferred = 0;
         }
     }
     // </FS:Trish>
@@ -3424,21 +3368,14 @@ bool LLViewerFetchedTexture::updateFetch()
                 LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("vftuf - current <= desired");
                 make_request = false;
             }
-            // <FS:Trish> At the bias cap with little room: a texture shrunk for memory in the last 30 s
-            // keeps what it shows. Sharpening it took the memory something else was then shrunk for, and
-            // the two went back and forth (3 GB a minute loaded to the GPU in a busy crowd). Not for
-            // boosted textures, and a texture showing nothing still loads.
+            // <FS:Trish> While the GPU pages: a texture shrunk for memory in the last 30 s keeps what it
+            // shows. Sharpening it took the memory something else was then shrunk for, and the two went
+            // back and forth (3 GB a minute loaded to the GPU in a busy crowd). Not for boosted textures,
+            // and a texture showing nothing still loads.
             else if (sFSHoldSharpening && current_discard >= 0 && mBoostLevel < LLGLTexture::BOOST_HIGH &&
                      sCurrentTime - mFSDownscaleTime < 30.f)
             {
-                LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("vftuf - held at the bias cap");
-                make_request = false;
-            }
-            // FSTextureSharpenRateMB: near full, sharpening goes at a bounded rate (see updateClass)
-            else if (current_discard >= 0 && mBoostLevel < LLGLTexture::BOOST_HIGH &&
-                     !fs_take_sharpen_budget(this, desired_discard))
-            {
-                LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("vftuf - sharpening metered");
+                LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("vftuf - held while paging");
                 make_request = false;
             }
             // </FS:Trish>
