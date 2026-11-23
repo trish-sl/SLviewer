@@ -267,6 +267,40 @@ static void set_tcp_rates(opj_cparameters_t* parameters, U32 num_layers = 1, F32
     }
 }
 
+// <FS:Trish> A damaged or crafted header can claim an image of millions of pixels a side or tens of
+// thousands of tiles. Non-strict mode takes it as valid, and opj_decode then spends seconds to minutes
+// on a decode thread before failing. Nothing larger than the viewer can show is decoded.
+constexpr U64 FS_J2C_MAX_TILES = (MAX_IMAGE_SIZE / 64) * (MAX_IMAGE_SIZE / 64); // 64 pixel tiles over 4096 x 4096
+
+static bool fsJ2CHeaderSizeOk(opj_codec_t* decoder, const opj_image_t* image)
+{
+    if (!decoder || !image || image->numcomps == 0 || image->numcomps > MAX_IMAGE_COMPONENTS)
+    {
+        return false;
+    }
+    if (image->x1 <= image->x0 || image->y1 <= image->y0 ||
+        image->x1 - image->x0 > (OPJ_UINT32)MAX_IMAGE_SIZE || image->y1 - image->y0 > (OPJ_UINT32)MAX_IMAGE_SIZE)
+    {
+        LL_WARNS_ONCE("Texture") << "J2C header claims " << (image->x1 - image->x0) << "x" << (image->y1 - image->y0)
+                                 << " pixels, larger than " << MAX_IMAGE_SIZE << ": not decoded" << LL_ENDL;
+        return false;
+    }
+    opj_codestream_info_v2_t* info = opj_get_cstr_info(decoder);
+    if (!info)
+    {
+        return false;
+    }
+    const U64 tiles = (U64)info->tw * (U64)info->th;
+    opj_destroy_cstr_info(&info);
+    if (tiles == 0 || tiles > FS_J2C_MAX_TILES)
+    {
+        LL_WARNS_ONCE("Texture") << "J2C header claims " << tiles << " tiles: not decoded" << LL_ENDL;
+        return false;
+    }
+    return true;
+}
+// </FS:Trish>
+
 class JPEG2KDecode : public JPEG2KBase
 {
 public:
@@ -358,6 +392,13 @@ public:
             return false;
         }
 
+        // <FS:Trish> Refuse a header claiming more than the viewer can show
+        if (!fsJ2CHeaderSizeOk(decoder, image))
+        {
+            return false;
+        }
+        // </FS:Trish>
+
         codestream_info = opj_get_cstr_info(decoder);
 
         if (!codestream_info)
@@ -434,6 +475,13 @@ public:
         {
             return false;
         }
+
+        // <FS:Trish> Refuse a header claiming more than the viewer can show, before opj_decode works on it
+        if (!fsJ2CHeaderSizeOk(decoder, image))
+        {
+            return false;
+        }
+        // </FS:Trish>
 
         // needs to happen before decode which may fail
         if (channels)
