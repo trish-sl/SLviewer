@@ -39,6 +39,7 @@
 #include "llrender.h"
 #include "gltfscenemanager.h"
 #include "fsgpudrivenlegacy.h" // <FS:Trish/> FSPerfGPUDrivenLegacy
+#include "fssoftparticles.h" // <FS:Trish/> FSRenderSoftParticles
 
 static LLTrace::BlockTimerStatHandle FTM_RENDER_SIMPLE_DEFERRED("Deferred Simple");
 static LLTrace::BlockTimerStatHandle FTM_RENDER_GRASS_DEFERRED("Deferred Grass");
@@ -64,11 +65,18 @@ void LLDrawPoolGlow::renderPostDeferred(S32 pass)
 
     //first pass -- static objects
     shader->bind();
+    // <FS:Trish> Soft particles (FSRenderSoftParticles): the emissive program is also the alpha pool's glow
+    // program, where a particle group's glow sets its fade. Left set, this pass would fade every glowing
+    // face against the pre-alpha depth it sits on, to nothing: the glow is off on every frame after one
+    // whose last alpha glow was a particle's, and flickers as particles come and go
+    FSSoftParticles::apply(*shader, false, false);
+    // </FS:Trish>
     pushBatches(LLRenderPass::PASS_GLOW, true, true);
 
     // second pass -- rigged objects
     shader = shader->mRiggedVariant;
     shader->bind();
+    FSSoftParticles::apply(*shader, false, false); // <FS:Trish/> as above
     pushRiggedBatches(LLRenderPass::PASS_GLOW_RIGGED, true, true);
 
     gGL.setColorMask(true, false);

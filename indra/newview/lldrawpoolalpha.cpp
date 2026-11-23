@@ -973,6 +973,15 @@ void LLDrawPoolAlpha::renderEmissives(std::vector<LLDrawInfo*>& emissives)
         drawEmissive(draw);
         RestoreTexSetup(tex_setup);
     }
+
+    // <FS:Trish> Soft particles: the program is the glow pool's too, which draws every glowing face
+    // with it next frame and would fade them all against the depth they sit on: it leaves here with
+    // no fade (the glow pool clears it too; this keeps the program clean for any other user)
+    if (sFSSoftOn && sFSSoftGroup)
+    {
+        FSSoftParticles::apply(*emissive_shader, false, false);
+    }
+    // </FS:Trish>
 }
 
 void LLDrawPoolAlpha::renderPbrEmissives(std::vector<LLDrawInfo*>& emissives)
