@@ -74,6 +74,7 @@ struct FSTextureFaceBias
     F32 mAvatarFloor = 0.f; // FSTextureAvatarSmallParts: virtual size floor, 0 when off
     bool mBiasRamp = false; // FSTextureBiasRamp
     F32 mDistanceScale = 0.f; // FSTextureBiasDistanceScale: per metre, 0 when off
+    F32 mCameraBoostCap = 0.f; // FSTextureCameraBoostMaxLevels as a multiplier (4 for one level), 0 when off
     F32 mMapReduceDistance = -1.f; // FSTextureMaterialMapReduce: metres, below 0 when off
 
     static FSTextureFaceBias current();
@@ -81,6 +82,11 @@ struct FSTextureFaceBias
     bool inView(const LLFace* face) const;
     // FSTextureOccludedDiscard: in the frustum, but in a group hidden for the grace
     bool occluded(const LLFace* face) const;
+    // What the virtual size of a face in view is multiplied by for its importance to the camera: importance x
+    // boost (TextureCameraBoost), at least 1, and with FSTextureCameraBoostMaxLevels at most that many
+    // discard levels (4 per level), so a texture inside a large object's bounding sphere (importance 1) isn't
+    // loaded 8 times the pixels the screen shows
+    F32 cameraBoost(F32 importance, F32 boost) const;
     // FSTextureAvatarSmallParts: the virtual size of an in view face of a world attachment, raised to the
     // floor, so small parts (eyes, lips, nails) load early and stay loaded instead of going by their tiny
     // pixel area. Reads only flags of objp, safe on the priority workers.

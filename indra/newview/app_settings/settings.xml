@@ -32209,6 +32209,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>1</integer>
     </map>
+    <key>FSTextureCameraBoostMaxLevels</key>
+    <map>
+      <key>Comment</key>
+      <string>How many detail levels at most the camera boost (TextureCameraBoost, up to 8x the virtual size of a face important to the camera) may add to a texture's size. The importance is 1 for every face of an object whose bounding sphere the camera is inside (a room, a building, a skybox), so 8x loaded every wall texture there about 1.5 levels larger than its screen pixels need: a 2048 texture over 100k screen pixels at 1024 instead of 512, four times the pixels. 1: one level (4x). 0: the boost no longer enlarges textures. -1: no cap, the stock rule.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>1.0</real>
+    </map>
     <key>FSTextureBiasDistanceScale</key>
     <map>
       <key>Comment</key>

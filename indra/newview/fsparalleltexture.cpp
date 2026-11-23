@@ -370,6 +370,8 @@ FSTextureFaceBias FSTextureFaceBias::current()
     bias.mBiasRamp = bias_ramp;
     static LLCachedControl<F32> bias_distance_scale(gSavedSettings, "FSTextureBiasDistanceScale", 8.f);
     bias.mDistanceScale = bias_ramp ? llclamp((F32)bias_distance_scale, 0.f, 64.f) : 0.f;
+    static LLCachedControl<F32> camera_boost_levels(gSavedSettings, "FSTextureCameraBoostMaxLevels", 1.f);
+    bias.mCameraBoostCap = camera_boost_levels >= 0.f ? exp2f(2.f * llmin((F32)camera_boost_levels, 4.f)) : 0.f;
     static LLCachedControl<bool> map_reduce(gSavedSettings, "FSTextureMaterialMapReduce", true);
     static LLCachedControl<F32> map_reduce_distance(gSavedSettings, "FSTextureMaterialMapDistance", 16.f);
     bias.mMapReduceDistance = map_reduce ? llclamp((F32)map_reduce_distance, 0.f, 256.f) : -1.f;
@@ -463,6 +465,16 @@ F32 FSTextureFaceBias::faceDivisor(bool in_view, F32 importance, F32 vsize_bias,
         divisor = llclamp(llmax(divisor, by_distance), 1.f, exp2f(2.f * max_levels));
     }
     return divisor;
+}
+
+F32 FSTextureFaceBias::cameraBoost(F32 importance, F32 boost) const
+{
+    // boost resolution of textures that are important to the camera
+    const F32 scale = llmax(importance * boost, 1.f);
+    // FSTextureCameraBoostMaxLevels: importance is 1 for every face of an object whose bounding sphere the
+    // camera is inside (a room, a building, a skybox), and x8 there raised every wall texture 1.5 levels:
+    // a 2048 texture over 100k screen pixels loaded at 1024 instead of 512, four times the pixels
+    return mCameraBoostCap > 0.f ? llmin(scale, mCameraBoostCap) : scale;
 }
 
 F32 FSTextureFaceBias::materialMapScale(U32 channel, const LLFace* face, const LLViewerObject* objp, bool reducible,
@@ -592,7 +604,8 @@ void FSParallelTexture::reduceFaces(LLViewerFetchedTexture* imagep, const Params
 
                 if (in_view)
                 {
-                    vsize *= llmax(face->mImportanceToCamera * p.mCameraBoost, 1.f);
+                    // FSTextureCameraBoostMaxLevels: as in updateImageDecodePriority
+                    vsize *= p.mFaceBias.cameraBoost(face->mImportanceToCamera, p.mCameraBoost);
                     vsize = p.mFaceBias.avatarFloor(objp, vsize); // FSTextureAvatarSmallParts: as in updateImageDecodePriority
                 }
                 if (occluded)

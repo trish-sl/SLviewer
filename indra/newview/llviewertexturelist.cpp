@@ -1188,7 +1188,10 @@ void LLViewerTextureList::updateImageDecodePriority(LLViewerFetchedTexture* imag
                     // </FS:Trish>
                     {
                         static LLCachedControl<F32> texture_camera_boost(gSavedSettings, "TextureCameraBoost", 8.f);
-                        vsize *= llmax(face->mImportanceToCamera*texture_camera_boost, 1.f);
+                        // <FS:Trish> FSTextureCameraBoostMaxLevels: the boost's effect on the size is capped
+                        //vsize *= llmax(face->mImportanceToCamera*texture_camera_boost, 1.f);
+                        vsize *= face_bias.cameraBoost(face->mImportanceToCamera, texture_camera_boost);
+                        // </FS:Trish>
                         vsize = face_bias.avatarFloor(objp, vsize); // <FS:Trish/> FSTextureAvatarSmallParts
                     }
                     // <FS:Trish> FSTextureOccludedDiscard: a face in an occluded group counts one level smaller
