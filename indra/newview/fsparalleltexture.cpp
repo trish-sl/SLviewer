@@ -368,6 +368,8 @@ FSTextureFaceBias FSTextureFaceBias::current()
     bias.mNow = LLFrameTimer::getElapsedSeconds();
     static LLCachedControl<bool> bias_ramp(gSavedSettings, "FSTextureBiasRamp", true);
     bias.mBiasRamp = bias_ramp;
+    static LLCachedControl<F32> bias_distance_scale(gSavedSettings, "FSTextureBiasDistanceScale", 8.f);
+    bias.mDistanceScale = bias_ramp ? llclamp((F32)bias_distance_scale, 0.f, 64.f) : 0.f;
     static LLCachedControl<bool> map_reduce(gSavedSettings, "FSTextureMaterialMapReduce", true);
     static LLCachedControl<F32> map_reduce_distance(gSavedSettings, "FSTextureMaterialMapDistance", 16.f);
     bias.mMapReduceDistance = map_reduce ? llclamp((F32)map_reduce_distance, 0.f, 256.f) : -1.f;
@@ -430,7 +432,8 @@ F32 FSTextureFaceBias::biasLevel(F32 max_discard, F32 desired_bias)
     return llclamp(max_discard - 2.f + llclamp(desired_bias - 4.f, 0.f, 2.f), 1.f, desired_bias);
 }
 
-F32 FSTextureFaceBias::faceDivisor(bool in_view, F32 importance, F32 vsize_bias, F32 bias_level, F32 desired_bias) const
+F32 FSTextureFaceBias::faceDivisor(bool in_view, F32 importance, F32 vsize_bias, F32 bias_level, F32 desired_bias, F32 distance,
+                                   F32 max_discard) const
 {
     // apply bias to offscreen faces all the time, but only to onscreen faces when bias is large
     if (!in_view)
@@ -448,7 +451,18 @@ F32 FSTextureFaceBias::faceDivisor(bool in_view, F32 importance, F32 vsize_bias,
     // drop deadband then step each texture at its own point instead of the whole scene at 1.9.
     const F32 spared = importance * llclamp((4.f - desired_bias) * 0.5f, 0.f, 1.f);
     const F32 levels = llclamp(desired_bias - 1.f - spared, 0.f, bias_level - 1.f);
-    return levels > 0.f ? exp2f(2.f * levels) : 1.f;
+    F32 divisor = levels > 0.f ? exp2f(2.f * levels) : 1.f;
+    // FSTextureBiasDistanceScale, from the Alchemy viewer 7.1.9 (vsize /= max(1, (bias - 1) * (1 + distance *
+    // TextureBiasDistanceScale))): far faces give memory back first, what the camera is close to keeps its
+    // detail. At bias 1.15 a face 50 m away loses three levels and one at 2 m none. Never below the texture's
+    // own floor (as vsizeBias(): a 2048 texture stops at 256).
+    if (mDistanceScale > 0.f && desired_bias > 1.f)
+    {
+        const F32 by_distance = (desired_bias - 1.f) * (1.f + llmax(distance, 0.f) * mDistanceScale);
+        const F32 max_levels = llclamp(max_discard - 2.f, 1.f, 4.f);
+        divisor = llclamp(llmax(divisor, by_distance), 1.f, exp2f(2.f * max_levels));
+    }
+    return divisor;
 }
 
 F32 FSTextureFaceBias::materialMapScale(U32 channel, const LLFace* face, const LLViewerObject* objp, bool reducible,
@@ -570,8 +584,9 @@ void FSParallelTexture::reduceFaces(LLViewerFetchedTexture* imagep, const Params
                 // FSTexturePriorityGLTFScale and texture animations: as in updateImageDecodePriority
                 vsize /= p.mFaceBias.scale(objp, te, te_offset, i, p.mScaleMin, p.mScaleMax);
 
-                // FSTextureBiasRamp: as in updateImageDecodePriority
-                vsize /= p.mFaceBias.faceDivisor(in_view, face->mImportanceToCamera, bias, bias_level, p.mDiscardBias);
+                // FSTextureBiasRamp, FSTextureBiasDistanceScale: as in updateImageDecodePriority
+                vsize /= p.mFaceBias.faceDivisor(in_view, face->mImportanceToCamera, bias, bias_level, p.mDiscardBias,
+                                                 face->getFSCameraDistance(), max_discard);
                 // FSTextureMaterialMapReduce: as in updateImageDecodePriority
                 vsize *= p.mFaceBias.materialMapScale(i, face, objp, map_reducible, occluded);
 

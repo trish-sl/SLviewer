@@ -73,6 +73,7 @@ struct FSTextureFaceBias
     F64 mNow = 0.0;
     F32 mAvatarFloor = 0.f; // FSTextureAvatarSmallParts: virtual size floor, 0 when off
     bool mBiasRamp = false; // FSTextureBiasRamp
+    F32 mDistanceScale = 0.f; // FSTextureBiasDistanceScale: per metre, 0 when off
     F32 mMapReduceDistance = -1.f; // FSTextureMaterialMapReduce: metres, below 0 when off
 
     static FSTextureFaceBias current();
@@ -99,8 +100,12 @@ struct FSTextureFaceBias
     static F32 biasLevel(F32 max_discard, F32 desired_bias);
     // What a face's virtual size is divided by for the texture bias: vsize_bias (vsizeBias()) for a face out of
     // view; for one in view, vsize_bias once desired_bias is over 1.9 + importance / 2, or 1 below that (the
-    // stock rule), or with FSTextureBiasRamp a smooth part of it (bias_level is biasLevel()).
-    F32 faceDivisor(bool in_view, F32 importance, F32 vsize_bias, F32 bias_level, F32 desired_bias) const;
+    // stock rule), or with FSTextureBiasRamp a smooth part of it (bias_level is biasLevel()), and at least
+    // (desired_bias - 1) * (1 + distance * FSTextureBiasDistanceScale) as the Alchemy viewer does, so far faces
+    // give memory back first; never below the texture's own floor (max_discard as for vsizeBias()).
+    // distance is the face's distance from the camera in metres (LLFace::getFSCameraDistance()).
+    F32 faceDivisor(bool in_view, F32 importance, F32 vsize_bias, F32 bias_level, F32 desired_bias, F32 distance,
+                    F32 max_discard) const;
     // FSTextureMaterialMapReduce: what the virtual size of a face showing the texture in channel is multiplied
     // by: OCCLUDED_VSIZE_SCALE for a material map far from the camera, else 1. reducible: the texture is an
     // unboosted LOD texture. occluded: the face already takes FSTextureOccludedDiscard's level.

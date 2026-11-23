@@ -1175,8 +1175,9 @@ void LLViewerTextureList::updateImageDecodePriority(LLViewerFetchedTexture* imag
                     //{
                     //    vsize /= bias;
                     //}
+                    // FSTextureBiasDistanceScale: far faces give memory back first (the Alchemy viewer's rule)
                     vsize /= face_bias.faceDivisor(in_view, face->mImportanceToCamera, bias, fs_bias_level,
-                                                   LLViewerTexture::sDesiredDiscardBias);
+                                                   LLViewerTexture::sDesiredDiscardBias, face->getFSCameraDistance(), max_discard);
                     vsize *= face_bias.materialMapScale(i, face, objp, fs_map_reducible, fs_occluded);
                     // </FS:Trish>
 

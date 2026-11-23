@@ -32212,13 +32212,24 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSTextureBiasRamp</key>
     <map>
       <key>Comment</key>
-      <string>When video memory fills and the texture discard bias rises, textures in view are reduced a little at a time as the bias rises, the least important (far away, off to the side) first, instead of the whole mid and far scene switching between full and quarter resolution each time the bias crosses 1.9. Off: the stock rule.</string>
+      <string>When video memory fills and the texture discard bias rises, textures in view are reduced a little at a time as the bias rises, the least important (far away, off to the side) first, and by distance (FSTextureBiasDistanceScale), instead of the whole mid and far scene switching between full and quarter resolution each time the bias crosses 1.9. Off: the stock rule, and no distance weighting.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>Boolean</string>
       <key>Value</key>
       <integer>1</integer>
+    </map>
+    <key>FSTextureBiasDistanceScale</key>
+    <map>
+      <key>Comment</key>
+      <string>With FSTextureBiasRamp, how much a face's distance from the camera adds to the texture bias it takes, as in the Alchemy viewer 7.1.9 (its TextureBiasDistanceScale): a face in view is reduced by at least (bias - 1) x (1 + distance in metres x this), so far textures give video memory back first and what the camera is close to keeps its detail. At bias 1.15 with 8, a face 50 m away loses three detail levels, one at 5 m loses one and one at 2 m none. A texture never goes below its own floor (a 2048 texture stops at 256). 0 turns it off (0-64).</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>8.0</real>
     </map>
     <key>FSTextureExactByteRanges</key>
     <map>
