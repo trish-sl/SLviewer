@@ -160,6 +160,8 @@ S32 LLViewerTexture::sVRAMSource = LLViewerTexture::VRAM_SOURCE_ESTIMATE; // FST
 S32 LLViewerTexture::sVRAMLiveUsedMegabytes = -1;
 S32 LLViewerTexture::sVRAMLiveBudgetMegabytes = -1;
 F32 LLViewerTexture::sFSTexturePressure = 0.f; // FSObjectRetentionFollowsTextureBudget
+F32 LLViewerTexture::sFSInflowScale = 1.f;          // texture console
+F32 LLViewerTexture::sFSBiasHoldSecondsLeft = 0.f;
 
 //static
 const char* LLViewerTexture::vramSourceName()
@@ -1086,6 +1088,7 @@ void LLViewerTexture::updateClass()
         // <FS:Trish> FSTextureBiasHoldSeconds: how far over it went decides the length of the hold
         over_peak = llmax(over_peak, over_pct);
         since_over_target.reset();
+        sFSBiasHoldSecondsLeft = 0.f; // texture console: the hold starts once usage is back under
         // </FS:Trish>
         // ramp up discard bias over time to free memory
         //if (sEvaluationTimer.getElapsedTimeF32() > MEMORY_CHECK_WAIT_TIME)
@@ -1145,6 +1148,7 @@ void LLViewerTexture::updateClass()
         static LLCachedControl<F32> hold_seconds_setting(gSavedSettings, "FSTextureBiasHoldSeconds", 20.f);
         const F32 hold_seconds = llclamp((F32)hold_seconds_setting, 0.f, 300.f) * llclamp(1.f + over_peak * 5.f, 1.f, 2.f);
         const bool holding = since_over_target.getElapsedTimeF32() < hold_seconds;
+        sFSBiasHoldSecondsLeft = holding && sDesiredDiscardBias > 1.f ? hold_seconds - since_over_target.getElapsedTimeF32() : 0.f; // texture console
         constexpr F32 RECOVERY_DELAY = 3.f;         // seconds of room before lowering
         constexpr F32 TELEPORT_HOLD_STEP = 0.15f;   // one step of the applied bias
         constexpr F32 TELEPORT_HOLD_STEP_WAIT = 5.f; // seconds between steps
@@ -1454,6 +1458,7 @@ void LLViewerTexture::updateClass()
             scale = llclamp((room - NO_ROOM_MB) / ((F32)full_room() - NO_ROOM_MB), MIN_SCALE, 1.f);
         }
         FSTextureInflow::sScale.store(scale, std::memory_order_relaxed);
+        sFSInflowScale = scale; // texture console
         if (LLImageDecodeThread* decoder = LLAppViewer::getImageDecodeThread())
         {
             const U32 width = (U32)decoder->getWidth();

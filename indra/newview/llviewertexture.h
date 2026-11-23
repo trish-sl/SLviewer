@@ -300,6 +300,10 @@ public:
     // over the target, or the bias above 1 as a share of the way to its cap, whichever is larger
     // (backgrounding not counted). LLVOCacheEntry::updateDebugSettings keeps fewer out-of-view objects by it.
     static F32 sFSTexturePressure;
+    // For the texture console: the inflow scale (FSPerfTextureUploadFullRoomMB, 1 full speed, 0 paging)
+    // and the seconds left of the bias hold after an overshoot (FSTextureBiasHoldSeconds), 0 when none
+    static F32 sFSInflowScale;
+    static F32 sFSBiasHoldSecondsLeft;
     // </FS:Trish>
 
     enum EDebugTexels

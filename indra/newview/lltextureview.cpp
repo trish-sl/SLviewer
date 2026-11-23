@@ -587,17 +587,55 @@ void LLGLTexMemBar::draw()
     gGL.color4f(0.f, 0.f, 0.f, 0.25f);
     gl_rect_2d(-10, getRect().getHeight() + line_height*2 + 1, getRect().getWidth()+2, getRect().getHeight()+2);
 
-    text = llformat("Budget Free: %d MB Heap Free: %d MB RSS: %d MB GL Tex: %d MB FBO: %d MB Probe#: %d Probe Mem: %d MB Bias: %.2f Cache: %.1f/%.1f MB",
+    // <FS:Trish> The video memory source, what is used of the target and what the target leaves for
+    // textures after the vertex buffers, the bias with its hold, and the inflow scale (FSTextureUseDXGIVRAM,
+    // FSTextureBiasHoldSeconds, FSPerfTextureUploadFullRoomMB)
+    //text = llformat("Budget Free: %d MB Heap Free: %d MB RSS: %d MB GL Tex: %d MB FBO: %d MB Probe#: %d Probe Mem: %d MB Bias: %.2f Cache: %.1f/%.1f MB",
+    //                (S32)LLViewerTexture::sFreeVRAMMegabytes,
+    //                LLMemory::getAvailableMemKB()/1024,
+    //                LLMemory::getAllocatedMemKB()/1024,
+    //                LLImageGL::getTextureBytesAllocated() / 1024 / 1024,
+    //                LLRenderTarget::sBytesAllocated/(1024*1024),
+    //                gPipeline.mReflectionMapManager.probeCount(),
+    //                gPipeline.mReflectionMapManager.probeMemory(),
+    //                discard_bias,
+    //                cache_usage,
+    //                cache_max_usage);
+    std::string vram_text = llformat("VRAM %s: %d/%d MB", LLViewerTexture::vramSourceName(),
+                                     (S32)LLViewerTexture::sVRAMUsedMegabytes, (S32)LLViewerTexture::sVRAMTargetMegabytes);
+    if (LLViewerTexture::sVRAMSource == LLViewerTexture::VRAM_SOURCE_DXGI)
+    {
+        vram_text += llformat(" (proc %d/%d)", LLViewerTexture::sVRAMLiveUsedMegabytes, LLViewerTexture::sVRAMLiveBudgetMegabytes);
+    }
+    else if (LLViewerTexture::sVRAMSource == LLViewerTexture::VRAM_SOURCE_DRIVER)
+    {
+        vram_text += llformat(" (free %d)", LLViewerTexture::sVRAMLiveFreeMegabytes);
+    }
+    const S32 tex_budget_mb = (S32)(LLViewerTexture::sVRAMTargetMegabytes - (F32)(LLVertexBuffer::getBytesAllocated() / 1024 / 1024));
+    std::string bias_text = llformat("Bias: %.2f", discard_bias);
+    if (LLViewerTexture::sFSBiasHoldSecondsLeft > 0.f)
+    {
+        bias_text += llformat(" (hold %.0fs)", LLViewerTexture::sFSBiasHoldSecondsLeft);
+    }
+    else if (LLViewerTexture::sFSVRAMTight)
+    {
+        bias_text += " (tight)";
+    }
+    text = llformat("Free: %d MB %s Tex: %d MB Heap Free: %d MB RSS: %d MB GL Tex: %d MB FBO: %d MB Probe#: %d Probe Mem: %d MB %s Inflow: %.2f Cache: %.1f/%.1f MB",
                     (S32)LLViewerTexture::sFreeVRAMMegabytes,
+                    vram_text.c_str(),
+                    tex_budget_mb,
                     LLMemory::getAvailableMemKB()/1024,
                     LLMemory::getAllocatedMemKB()/1024,
                     LLImageGL::getTextureBytesAllocated() / 1024 / 1024,
                     LLRenderTarget::sBytesAllocated/(1024*1024),
                     gPipeline.mReflectionMapManager.probeCount(),
                     gPipeline.mReflectionMapManager.probeMemory(),
-                    discard_bias,
+                    bias_text.c_str(),
+                    LLViewerTexture::sFSInflowScale,
                     cache_usage,
                     cache_max_usage);
+    // </FS:Trish>
     // <FS:Ansariel> Texture memory bars
     //LLFontGL::getFontMonospace()->renderUTF8(text, 0, 0, v_offset + line_height*7,
     LLFontGL::getFontMonospace()->renderUTF8(text, 0, 0, v_offset + line_height*9,
@@ -626,7 +664,13 @@ void LLGLTexMemBar::draw()
     gGL.color4f(0.5f, 0.5f, 0.5f, 0.75f);
     gl_rect_2d(left, top, right, bottom);
 
-    U32 gpu_used = gGLManager.mVRAM - (S32)LLViewerTexture::sFreeVRAMMegabytes;
+    // <FS:Trish> FSTextureUseDXGIVRAM: the process's measured use when DXGI reports it, else the card
+    // minus the driver's free figure, else the estimate as before
+    //U32 gpu_used = gGLManager.mVRAM - (S32)LLViewerTexture::sFreeVRAMMegabytes;
+    U32 gpu_used = LLViewerTexture::sVRAMSource == LLViewerTexture::VRAM_SOURCE_DXGI ? (U32)llmax(LLViewerTexture::sVRAMLiveUsedMegabytes, 0)
+                 : LLViewerTexture::sVRAMSource == LLViewerTexture::VRAM_SOURCE_DRIVER ? (U32)llmax(gGLManager.mVRAM - LLViewerTexture::sVRAMLiveFreeMegabytes, 0)
+                 : (U32)llmax(gGLManager.mVRAM - (S32)LLViewerTexture::sFreeVRAMMegabytes, 0);
+    // </FS:Trish>
     color = (gpu_used < (U32)llfloor(gGLManager.mVRAM * 0.85f)) ? LLColor4::green :
         (gpu_used < gGLManager.mVRAM) ? LLColor4::yellow : LLColor4::red;
     color[VALPHA] = .75f;
