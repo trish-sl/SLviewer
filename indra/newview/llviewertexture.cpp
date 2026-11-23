@@ -917,7 +917,7 @@ void LLViewerTexture::updateClass()
                 // 6.5 GB; the live target let them reach 12.2 GB, which 16 decode threads filled 25 s
                 // after login, faster than the free figure (read every 0.25-1 s) and the bias could
                 // follow, and the driver paged for 39 s with 300-900 ms frames.
-                static LLCachedControl<F32> target_fraction(gSavedSettings, "FSTextureVRAMTargetFraction", 0.5f);
+                static LLCachedControl<F32> target_fraction(gSavedSettings, "FSTextureVRAMTargetFraction", 0.7f);
                 if (target_fraction() > 0.f)
                 {
                     sample_target = llmin(sample_target, total * llclamp((F32)target_fraction, 0.1f, 1.f));

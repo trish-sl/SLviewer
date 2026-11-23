@@ -32179,13 +32179,13 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSTextureVRAMTargetFraction</key>
     <map>
       <key>Comment</key>
-      <string>With FSTextureUseLiveVRAM, the texture memory target (textures and vertex buffers) is at most this share of the card's video memory, whatever the driver reports free: 0.5 on a 16 GB card is 8 GB. The stock budget counts every texture byte twice, so it stops at about 40% of the card; the live target could reach 75%, which many decode threads filled within half a minute of login, faster than the bias could follow, and the driver then paged for most of a minute. 0 turns the cap off (0.1-1).</string>
+      <string>With FSTextureUseLiveVRAM, the texture memory target (textures and vertex buffers) is at most this share of the card's video memory, whatever the driver reports free: 0.7 on a 16 GB card is about 11 GB. The stock budget counts every texture byte twice, so it stops at about 40% of the card; the live target could reach 75%, which many decode threads filled within half a minute of login, faster than the bias could follow, and the driver then paged for most of a minute. 0 turns the cap off (0.1-1).</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>F32</string>
       <key>Value</key>
-      <real>0.5</real>
+      <real>0.7</real>
     </map>
     <key>FSTextureVRAMPagingFloorMB</key>
     <map>

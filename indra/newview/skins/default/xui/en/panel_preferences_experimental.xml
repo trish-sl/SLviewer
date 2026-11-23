@@ -26,7 +26,7 @@
     <string name="indicator_visual_none">none</string>
     <string name="indicator_tooltip">Performance cost: [COST]. Visual impact: [VISUAL].</string>
     <!-- Settings on the preset tabs that presets leave alone: driver workarounds and skinning tests that need a restart -->
-    <string name="preset_excluded_settings">FSDecodedTextureCacheMode,FSDecodedTextureCacheRegions,FSDecodedTextureCacheSizeMB,FSDecodedTextureCacheMinSize,FSDecodedTextureCacheUncompressed,FSLowPriorityTextureThreads,FSTextureUseLiveVRAM,FSTextureBiasSoftZone,RenderTextureMemoryUsageBias,TextureFetchPipelineDiagnostics,FSTextureFetchSelfHeal,FSExperimentalRepairAnimations,FSExperimentalSyncAnimationClock,FSAvatarDropStaleAppearance</string>
+    <string name="preset_excluded_settings">FSDecodedTextureCacheMode,FSDecodedTextureCacheRegions,FSDecodedTextureCacheSizeMB,FSDecodedTextureCacheMinSize,FSDecodedTextureCacheUncompressed,FSLowPriorityTextureThreads,FSTextureUseLiveVRAM,FSTextureBiasSoftZone,FSTextureVRAMTargetFraction,RenderTextureMemoryUsageBias,TextureFetchPipelineDiagnostics,FSTextureFetchSelfHeal,FSExperimentalRepairAnimations,FSExperimentalSyncAnimationClock,FSAvatarDropStaleAppearance</string>
     <string name="preset_extra_settings">FSFetchOfflineIMsWhileOnline,FSBuildClientUndo,FSChatHistoryLinesShown,RenderShadowDetail</string>
     <text
      follows="left|top|right"
@@ -8165,7 +8165,7 @@
              bottom="-1">
                 <panel
                  follows="left|top"
-                 height="845"
+                 height="871"
                  layout="topleft"
                  left="0"
                  name="experimental_textures_settings"
@@ -8378,13 +8378,40 @@
                      top="316"
                      width="100" />
                     <text
+                     enabled_control="FSTextureUseLiveVRAM"
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="35"
+                     name="texture_vram_target_fraction_label"
+                     tool_tip="EXPERIMENTAL. With the video memory the driver reports, textures and geometry use at most this share of the card. Higher keeps more textures sharp; too high and the card runs out of memory and pages right after login or a teleport, which stutters and blurs everything. 0.7 is about 11 GB on a 16 GB card. 0 removes this cap."
+                     top="344"
+                     width="285">
+                        Share of video memory textures may use
+                    </text>
+                    <spinner
+                     control_name="FSTextureVRAMTargetFraction"
+                     decimal_digits="2"
+                     enabled_control="FSTextureUseLiveVRAM"
+                     follows="left|top"
+                     height="20"
+                     increment="0.05"
+                     layout="topleft"
+                     left="330"
+                     max_val="1"
+                     min_val="0"
+                     name="texture_vram_target_fraction"
+                     tool_tip="EXPERIMENTAL. With the video memory the driver reports, textures and geometry use at most this share of the card. Higher keeps more textures sharp; too high and the card runs out of memory and pages right after login or a teleport, which stutters and blurs everything. 0.7 is about 11 GB on a 16 GB card. 0 removes this cap."
+                     top="342"
+                     width="100" />
+                    <text
                      follows="left|top"
                      font="SansSerifBold"
                      height="18"
                      layout="topleft"
                      left="15"
                      name="fs_heading_textures"
-                     top="358"
+                     top="384"
                      width="340">
                         Texture uploads
                     </text>
@@ -8411,7 +8438,7 @@
                      left="15"
                      name="fs_fsperftextureuploadpbo"
                      tool_tip="EXPERIMENTAL. Copies newly loaded textures to the graphics card asynchronously, which can reduce stutter when many textures arrive at once. Only has an effect when textures are not already created on a background thread (usually AMD and Intel graphics). Needs OpenGL 4.4."
-                     top="384"
+                     top="410"
                      width="475" />
                     <text
                      follows="left|top"
@@ -8420,7 +8447,7 @@
                      left="35"
                      name="fs_fsperftextureuploadbudgetmb_label"
                      tool_tip="EXPERIMENTAL. Spreads bursts of newly loaded textures over several frames so they don't all land in one frame, uploading the most important ones first. Lower is smoother but textures appear more slowly. 0 = no limit. 16 is a good start."
-                     top="412"
+                     top="438"
                      width="285">
                         Texture upload budget per frame (MB)
                     </text>
@@ -8436,7 +8463,7 @@
                      min_val="0"
                      name="fs_fsperftextureuploadbudgetmb"
                      tool_tip="EXPERIMENTAL. Spreads bursts of newly loaded textures over several frames so they don't all land in one frame, uploading the most important ones first. Lower is smoother but textures appear more slowly. 0 = no limit. 16 is a good start."
-                     top="410"
+                     top="436"
                      width="100" />
                     <text
                      follows="left|top"
@@ -8445,7 +8472,7 @@
                      layout="topleft"
                      left="15"
                      name="texture_memory_heading"
-                     top="452"
+                     top="478"
                      width="340">
                         Texture memory
                     </text>
@@ -8458,7 +8485,7 @@
                      left="370"
                      name="reset_texture_memory_heading"
                      tool_tip="Set every option in &quot;Texture memory&quot; back to its default value."
-                     top="451"
+                     top="477"
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
@@ -8471,7 +8498,7 @@
                      layout="topleft"
                      left="35"
                      name="texture_memory_bias_label"
-                     top="479"
+                     top="505"
                      width="285">
                         Texture memory usage bias (0.25 - 4.0)
                     </text>
@@ -8486,7 +8513,7 @@
                      max_val="4"
                      min_val="0.25"
                      name="texture_memory_usage_bias"
-                     top="476"
+                     top="502"
                      width="100" />
                     <check_box
                      control_name="TextureFetchPipelineDiagnostics"
@@ -8497,7 +8524,7 @@
                      left="15"
                      name="texture_fetch_pipeline_diagnostics"
                      tool_tip="Periodically log a texture HTTP pipeline snapshot for diagnosing stalled texture fetches"
-                     top="503"
+                     top="529"
                      width="475" />
                     <check_box
                      control_name="FSTextureFetchSelfHeal"
@@ -8508,7 +8535,7 @@
                      left="15"
                      name="texture_fetch_self_heal"
                      tool_tip="EXPERIMENTAL. If textures sit waiting for a download slot while no texture downloads are actually running, give the slots back so loading continues. Logged under Texture."
-                     top="525"
+                     top="551"
                      width="475" />
                     <check_box
                      control_name="FSTexturePriorityHiddenFaces"
@@ -8519,7 +8546,7 @@
                      left="15"
                      name="fs_fstexturepriorityhiddenfaces"
                      tool_tip="EXPERIMENTAL. Textures seen only on surfaces the occlusion test has found hidden behind other objects for a few seconds are treated like textures off screen: when video memory runs short they are reduced first, and they no longer get the close-up boost. Surfaces that come back into view count as visible again at once. Has an effect only while textures are being reduced to save memory."
-                     top="551"
+                     top="577"
                      width="475" />
                     <text
                      enabled_control="FSTexturePriorityHiddenFaces"
@@ -8529,7 +8556,7 @@
                      left="35"
                      name="fs_fstexturepriorityhiddengrace_label"
                      tool_tip="EXPERIMENTAL. How long, in seconds, a surface must stay hidden behind other objects before its textures are treated like textures off screen. Longer keeps textures sharp behind things passing in front of them."
-                     top="577"
+                     top="603"
                      width="285">
                         Seconds hidden before reducing
                     </text>
@@ -8546,7 +8573,7 @@
                      min_val="0"
                      name="fs_fstexturepriorityhiddengrace"
                      tool_tip="EXPERIMENTAL. How long, in seconds, a surface must stay hidden behind other objects before its textures are treated like textures off screen. Longer keeps textures sharp behind things passing in front of them."
-                     top="575"
+                     top="601"
                      width="100" />
                     <check_box
                      control_name="FSTexturePriorityGLTFScale"
@@ -8557,7 +8584,7 @@
                      left="15"
                      name="fs_fstexturepriorityglftscale"
                      tool_tip="EXPERIMENTAL. Choose the detail of PBR (GLTF) material textures from the repeats of the material's own texture transform, which is what draws them, instead of the face's legacy texture repeats, which PBR materials don't use. Textures repeated many times load less detail, stretched ones more."
-                     top="601"
+                     top="627"
                      width="475" />
                     <check_box
                      control_name="FSTextureAvatarSmallParts"
@@ -8568,7 +8595,7 @@
                      left="15"
                      name="fs_fstextureavatarsmallparts"
                      tool_tip="EXPERIMENTAL. Textures load in order of how much of the screen they cover, so tiny avatar parts like eyes load last and are the first to be dropped when video memory runs short, leaving grey eyes. With this on, the textures of attachments in view count as at least the size below, so they load early and stay loaded. Uses a little more video memory."
-                     top="625"
+                     top="651"
                      width="475" />
                     <text
                      follows="left|top"
@@ -8577,7 +8604,7 @@
                      left="35"
                      name="fs_fstextureavatarsmallpartssize_label"
                      tool_tip="EXPERIMENTAL. The smallest texture size, in pixels, the textures of attachments in view are loaded at. 128 keeps eyes sharp at a conversation distance."
-                     top="651"
+                     top="677"
                      width="285">
                         Smallest size for avatar part textures
                     </text>
@@ -8594,7 +8621,7 @@
                      min_val="16"
                      name="fs_fstextureavatarsmallpartssize"
                      tool_tip="EXPERIMENTAL. The smallest texture size, in pixels, the textures of attachments in view are loaded at. 128 keeps eyes sharp at a conversation distance."
-                     top="649"
+                     top="675"
                      width="100" />
                     <!-- <FS:Trish> FSTextureOccludedDiscard -->
                     <check_box
@@ -8606,7 +8633,7 @@
                      left="15"
                      name="fs_fstextureoccludeddiscard"
                      tool_tip="EXPERIMENTAL. A texture whose every surface in view has been hidden behind other objects for a few seconds (the seconds set above, also without that option) is wanted at half its width and height. As soon as any of its surfaces is visible again it counts in full and sharpens as fast as it loads. Saves video memory in busy scenes; it takes effect once textures are being reduced to save memory."
-                     top="675"
+                     top="701"
                      width="475" />
                     <!-- </FS:Trish> -->
                     <!-- <FS:Trish> FSTextureBiasRamp, FSTextureMaterialMapReduce -->
@@ -8619,7 +8646,7 @@
                      left="15"
                      name="fs_fstexturebiasramp"
                      tool_tip="When video memory fills up and textures are being reduced, textures in view are reduced a little at a time as memory gets fuller, far away and off to the side ones first. Off: the whole mid and far scene switches between sharp and quarter resolution each time the reduction crosses a fixed point, so textures go soft and sharp again over and over."
-                     top="699"
+                     top="725"
                      width="475" />
                     <check_box
                      control_name="FSTextureMaterialMapReduce"
@@ -8630,7 +8657,7 @@
                      left="15"
                      name="fs_fstexturematerialmapreduce"
                      tool_tip="Normal, specular and metallic-roughness maps on surfaces further away than the distance below load at half the width and height of their colour texture. Their fine detail is hardly visible that far away, and the video memory saved lets colour textures everywhere stay sharp. Not added on top of the option above for textures behind other objects."
-                     top="723"
+                     top="749"
                      width="475" />
                     <text
                      enabled_control="FSTextureMaterialMapReduce"
@@ -8640,7 +8667,7 @@
                      left="35"
                      name="fs_fstexturematerialmapdistance_label"
                      tool_tip="Surfaces further from the camera than this, in metres, load their normal, specular and metallic-roughness maps one size smaller. 16 matches the distance within which textures get the close-up boost."
-                     top="749"
+                     top="775"
                      width="285">
                         Distance for smaller material maps (m)
                     </text>
@@ -8657,7 +8684,7 @@
                      min_val="0"
                      name="fs_fstexturematerialmapdistance"
                      tool_tip="Surfaces further from the camera than this, in metres, load their normal, specular and metallic-roughness maps one size smaller. 16 matches the distance within which textures get the close-up boost."
-                     top="747"
+                     top="773"
                      width="100" />
                     <!-- </FS:Trish> -->
                     <!-- <FS:Trish> FSTextureReleaseFaceless -->
@@ -8670,7 +8697,7 @@
                      left="15"
                      name="fs_fstexturereleasefaceless"
                      tool_tip="Textures that have been on no surface for the seconds below, such as those of the region you just teleported from, of objects that went out of view, or kept by a cached material, are shrunk to their smallest size a few at a time instead of holding their video memory until they are dropped or memory runs out. That memory goes to what is in view, so it loads sharper. The UI, HUDs, avatars, the sky, terrain, sculpts, projectors, particles, previews and media keep theirs. A texture that comes back into view loads again as usual."
-                     top="773"
+                     top="799"
                      width="475" />
                     <text
                      enabled_control="FSTextureReleaseFaceless"
@@ -8680,7 +8707,7 @@
                      left="35"
                      name="fs_fstexturereleasefacelessdelay_label"
                      tool_tip="How long a texture has to be on no surface, and not drawn at all, before its video memory is released. Shorter frees memory sooner after a teleport; longer avoids loading textures again when you turn around and look back."
-                     top="799"
+                     top="825"
                      width="285">
                         Release after this long on no surface (s)
                     </text>
@@ -8697,7 +8724,7 @@
                      min_val="5"
                      name="fs_fstexturereleasefacelessdelay"
                      tool_tip="How long a texture has to be on no surface, and not drawn at all, before its video memory is released. Shorter frees memory sooner after a teleport; longer avoids loading textures again when you turn around and look back."
-                     top="797"
+                     top="823"
                      width="100" />
                     <!-- </FS:Trish> -->
                 </panel>

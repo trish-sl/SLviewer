@@ -444,6 +444,7 @@ namespace
         { "FSLowPriorityTextureThreads", CS, VN },
         { "FSTextureUseLiveVRAM", CL, VN },
         { "FSTextureBiasSoftZone", CL, VN },
+        { "FSTextureVRAMTargetFraction", CL, VN },
         { "FSPerfTextureUploadPBO", CS, VN },
         { "FSPerfTextureUploadBudgetMB", CS, VN },
         { "RenderTextureMemoryUsageBias", CM, VM },
