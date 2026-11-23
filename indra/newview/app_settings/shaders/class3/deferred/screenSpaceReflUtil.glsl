@@ -198,6 +198,32 @@ float getLinearDepth(vec2 tc)
     return -z / w;
 }
 
+// <FS:Trish> How far the classic march should reach along d from p0 (the scene map's camera space):
+// to where the ray leaves the screen or comes up to the camera, within maxZDepth.
+float fsSSRReach(vec3 p0, vec3 d)
+{
+    float len = 1000.0;
+    if (d.z > 0.0)
+    {
+        len = min(len, (-p0.z - 0.05) / d.z);
+    }
+    len = max(len, 1e-3);
+    vec4 c0 = projection_matrix * vec4(p0, 1.0);
+    vec4 c1 = projection_matrix * vec4(p0 + d * len, 1.0);
+    vec3 s0 = vec3((c0.xy / c0.w * 0.5 + 0.5) * screen_res, 1.0 / c0.w);
+    vec3 sd = vec3((c1.xy / c1.w * 0.5 + 0.5) * screen_res, 1.0 / c1.w) - s0;
+    float tMax = 1.0;
+    if (sd.x > 0.0) tMax = min(tMax, (screen_res.x - s0.x) / sd.x);
+    else if (sd.x < 0.0) tMax = min(tMax, -s0.x / sd.x);
+    if (sd.y > 0.0) tMax = min(tMax, (screen_res.y - s0.y) / sd.y);
+    else if (sd.y < 0.0) tMax = min(tMax, -s0.y / sd.y);
+    tMax = max(tMax, 0.0);
+    // 1/z is linear along the screen, the distance isn't
+    float u = tMax * (s0.z + sd.z) / max(s0.z + sd.z * tMax, 1e-8);
+    return clamp(len * u, 0.5, max(maxZDepth, 0.5));
+}
+// </FS:Trish>
+
 bool traceScreenRay(vec3 position, vec3 reflection, out vec4 hitColor, out float hitDepth, float depth, sampler2D textureFrame)
 {
     // transform position and reflection into same coordinate frame as the sceneMap and sceneDepth
@@ -208,7 +234,18 @@ bool traceScreenRay(vec3 position, vec3 reflection, out vec4 hitColor, out float
 
     depth = -position.z;
 
-    vec3 step = rayStep * reflection;
+    // <FS:Trish> The first step is sized so that half the iterations, growing by the adaptive step
+    // multiplier, reach as far as the ray can go on screen, leaving the other half to the binary
+    // search. A fixed RenderScreenSpaceReflectionRayStep left the march either crawling (0.02 m:
+    // sixteen iterations used up before the ray reached the far wall, every other row a miss) or
+    // stepping over everything near. The hit tolerance is held to a sane range for the same reason:
+    // a large RenderScreenSpaceReflectionDistanceBias took surfaces the ray passed near as hits.
+    //vec3 step = rayStep * reflection;
+    float fsGrowth = max(adaptiveStepMultiplier, 1.05);
+    float fsMainSteps = max(floor(iterationCount * 0.5), 4.0);
+    vec3 step = reflection * (fsSSRReach(position, reflection) * (fsGrowth - 1.0) / (pow(fsGrowth, fsMainSteps) - 1.0));
+    float fsBias = clamp(distanceBias, 0.005, 0.1);
+    // </FS:Trish>
     vec3 marchingPosition = position + step;
 
     // Clip-space twins of the march state. Every update below is a scale, a sum or a midpoint,
@@ -230,6 +267,17 @@ bool traceScreenRay(vec3 position, vec3 reflection, out vec4 hitColor, out float
     vec4 clipFront = clipMarch - clipStep;
     vec4 clipBack = clipFront;
 
+    // <FS:Trish> Where the ray starts, in pixels, so samples still on the starting pixel are known
+    vec2 originPx = vec2(-1e6);
+    {
+        vec2 otc;
+        if (projectScreenRay(projection_matrix * vec4(position, 1.0), otc))
+        {
+            originPx = otc * screen_res;
+        }
+    }
+    // </FS:Trish>
+
     int i = 0;
     if (depth > depthRejectBias)
     {
@@ -243,12 +291,42 @@ bool traceScreenRay(vec3 position, vec3 reflection, out vec4 hitColor, out float
             depthFromScreen = getLinearDepth(screenPosition);
             delta = -marchingPosition.z - depthFromScreen;
 
-            if (depth < depthFromScreen + epsilon && depth > depthFromScreen - epsilon)
+            // <FS:Trish> A sample still on the starting pixel, or on the starting surface's depth, is
+            // the ray's own surface: step on past it. It ended the ray as a miss, and with a short
+            // RenderScreenSpaceReflectionRayStep the first several samples all land there, so
+            // nearly every pixel reflected nothing.
+            //if (depth < depthFromScreen + epsilon && depth > depthFromScreen - epsilon)
+            //{
+            //    break;
+            //}
+            if ((depth < depthFromScreen + epsilon && depth > depthFromScreen - epsilon) ||
+                distance(screenPosition * screen_res, originPx) < 1.5)
             {
-                break;
+                if (delta < 0.0)
+                {   // in front of what's there: a start for the binary search
+                    haveFront = true;
+                    frontPosition = marchingPosition;
+                    clipFront = clipMarch;
+                }
+                marchingPosition += step;
+                clipMarch += clipStep;
+                if (isExponentialStepEnabled)
+                {
+                    step *= adaptiveStepMultiplier;
+                    clipStep *= adaptiveStepMultiplier;
+                }
+                continue;
             }
+            // </FS:Trish>
 
-            if (abs(delta) < distanceBias)
+            // <FS:Trish> Only once the ray has reached the surface. A ray still in front of it by up to
+            // RenderScreenSpaceReflectionDistanceBias took the colour there as its hit, so a ray
+            // passing over a surface picked it up early, all along the way: smeared, stretched
+            // reflections that don't line up with the scene, worse the larger the bias. A ray that
+            // goes on to cross the surface finds the crossing in the binary search below.
+            //if (abs(delta) < distanceBias)
+            if (abs(delta) < fsBias && (delta >= 0.0 || !isBinarySearchEnabled))
+            // </FS:Trish>
             {
                 if (fsSSRClipped(marchingPosition))
                 {
@@ -328,7 +406,11 @@ bool traceScreenRay(vec3 position, vec3 reflection, out vec4 hitColor, out float
                     break;
                 }
 
-                if (abs(delta) < distanceBias && depthFromScreen != (depth - distanceBias))
+                // <FS:Trish> within the bias, or within what the ray's own depth spans over the bracket
+                // left, which the depth buffer can't resolve any finer
+                //if (abs(delta) < distanceBias && depthFromScreen != (depth - distanceBias))
+                if (abs(delta) < fsBias + abs(frontPosition.z - backPosition.z) && depthFromScreen != (depth - distanceBias))
+                // </FS:Trish>
                 {
                     if (fsSSRClipped(marchingPosition))
                     {
@@ -577,8 +659,33 @@ vec3 fsSSRHitNormal(ivec2 px, vec2 res, vec3 c)
     return dot(n, c) > 0.0 ? -n : n;
 }
 
+// <FS:Trish> Whether pixel q lies on the plane through c with normal n. Measured along q's own view
+// ray, not across the plane: a surface seen edge on (a silhouette) holds the background behind it
+// within a hair of its plane across it, but far off it along the view ray.
+bool fsSSRSamePlane(ivec2 q, vec2 res, vec3 c, vec3 n)
+{
+    float d = texelFetch(sceneDepth, q, 0).r;
+#ifdef REVERSE_Z
+    if (d <= 0.0)
+#else
+    if (d >= 1.0)
+#endif
+    {
+        return false; // sky
+    }
+    vec3 qp = fsSSRViewPosAt(q, res);
+    float dv = dot(normalize(qp), n);
+    if (abs(dv) < 1e-4)
+    {
+        return false;
+    }
+    float along = dot(qp - c, n) / dv;
+    return abs(along) < 0.1 * length(qp - c) + 0.002 * max(-c.z, 0.0);
+}
+// </FS:Trish>
+
 // position, dir - current-frame view space. Returns false on a miss. On a hit: hitUV in the
-// scene map, confidence in [0,1], travelPx the hit's screen distance from the ray origin.
+// scene map, confidence in [0,1], travelPx the ray's length in pixels at the hit's depth.
 bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, out float travelPx)
 {
     hitUV = vec2(0.0);
@@ -633,6 +740,28 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
     int maxLevel = int(floor(log2(max(res.x, res.y))));
     ivec2 lastPx = ivec2(res) - 1;
 
+    // <FS:Trish> The surface the ray starts on, as the depth buffer describes it, when it is in the
+    // depth buffer (opaque; alpha surfaces and water are not). Its normal-mapped shading normal can
+    // aim the ray along it or into it: a bumpy wall seen at a low angle then "reflected" its own
+    // bumps a few pixels on, each row its own colour smeared sideways into long stripes. A ray
+    // into the surface has nothing on screen to find.
+    vec3 originN = vec3(0.0);
+    vec3 originP = p0;
+    {
+        ivec2 opx = clamp(ivec2(s0.xy), ivec2(0), lastPx);
+        vec3 op = fsSSRViewPosAt(opx, res);
+        if (abs(op.z - p0.z) < 0.01 * depth0 + 0.02)
+        {
+            originN = fsSSRHitNormal(opx, res, op);
+            originP = op;
+        }
+    }
+    if (dot(d, originN) < -0.1)
+    {
+        return false;
+    }
+    // </FS:Trish>
+
     // Start just outside the origin pixel. When the trace is blended over frames the start is
     // jittered by up to a pixel more, so the stair steps of a pixel-granular hit become noise
     // the temporal resolve averages away.
@@ -645,6 +774,7 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
     vec3 h = s0;
     vec3 sp = vec3(0.0);
     float pen = 0.0;
+    vec3 hitN = vec3(0.0); // <FS:Trish/> the hit surface's normal, zero when it couldn't be told
     int tunnels = 0;
     int behindPx = 0;
 
@@ -677,6 +807,7 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
 
         // Where the ray first reaches the cell's nearest depth.
         float tz = t;
+        bool fsEnteredInFront = p.z > izNear; // <FS:Trish/> the crossing lies inside this cell
         if (p.z > izNear)
         {
             tz = clamp((izNear - s0.z) / sd.z, t, tExit);
@@ -702,15 +833,81 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
         }
         sp = fsSSRViewPosAt(px, res);
         pen = 1.0 / h.z + sp.z; // ray depth - surface depth
-        if (pen < ssrThickness)
+        // <FS:Trish> The depth buffer holds one flat depth per pixel, so a surface seen at a low
+        // angle (a floor reflected in a window) is a staircase to the march: the ray meets each
+        // pixel either inside it or at its riser, behind it by up to the depth step between two
+        // rows. That penetration rose and fell from one reflecting pixel to the next, and with it
+        // the hit test and the confidence: the reflection came out as stacked horizontal bars
+        // (with jitter and the temporal blend only hiding it as noise where those run; the
+        // reflections on alpha surfaces and water have neither). The penetration is measured
+        // against the surface's own plane instead, which the staircase approximates.
+        //if (pen < ssrThickness)
+        //{
+        //    vec3 n = fsSSRHitNormal(px, res, sp);
+        //    if (dot(n, d) < 0.0 || n == vec3(0.0))
+        //    {
+        //        hit = true;
+        //        break;
+        //    }
+        //}
+        // A ray already behind a surface (behindPx) that enters the next pixel still behind one
+        // never met it: it passes behind, as it did in the pixel before. That pixel was accepted
+        // as a hit whenever the ray was within the thickness of it there, so a ray passing behind
+        // an object hit it again a few pixels on, and a reflection was repeated in a stepped stack
+        // of copies along the ray. Only a crossing inside this pixel, or a riser reached straight
+        // from in front of the surfaces (behindPx 0), is a hit.
+        if (pen < ssrThickness * 4.0 && (fsEnteredInFront || behindPx == 0))
         {
             vec3 n = fsSSRHitNormal(px, res, sp);
-            if (dot(n, d) < 0.0 || n == vec3(0.0))
+            // The pixel the ray came from, and whether it lies on this pixel's plane (a riser of a
+            // surface seen at a low angle) or not (a silhouette: the background lies there)
+            vec2 back = sd.xy / max(max(abs(sd.x), abs(sd.y)), 1e-6);
+            ivec2 q = clamp(ivec2(floor(h.xy - back)), ivec2(0), lastPx);
+            bool sameQ = n != vec3(0.0) && fsSSRSamePlane(q, res, sp, n);
+            // A ray reaching a silhouette from the side, already behind its front, hits the object
+            // only while it is still inside it, and how deep the object is the depth buffer can't
+            // tell. The full thickness there let rays passing behind a pole or a chair leg up to
+            // ssrThickness behind its front take its edge as their hit: neighbouring reflecting
+            // pixels all landed on the same edge pixel, and the object was repeated in a stepped
+            // stack of bars along the reflection. There the thickness is what the ray's depth
+            // changes over the pixel, plus a fiftieth of the distance.
+            float thick = ssrThickness;
+            if (!fsEnteredInFront && !sameQ)
             {
-                hit = true;
-                break;
+                float stepZ = abs(1.0 / h.z - 1.0 / max(s0.z + sd.z * (tz - 1.0 / spanPx), 1e-8));
+                thick = min(ssrThickness, 0.02 * -sp.z + stepZ);
+            }
+            if (n == vec3(0.0))
+            {
+                //if (pen < ssrThickness)
+                if (pen < thick)
+                {
+                    hit = true;
+                    break;
+                }
+            }
+            else if (dot(n, d) < 0.0)
+            {
+                // the ray's view position at tz: 1/z is linear in t, the view position isn't
+                float u = tz * (s0.z + sd.z) / max(s0.z + sd.z * tz, 1e-8);
+                vec3 r = p0 + d * (len * u);
+                float penPlane = max(-dot(r - sp, n), 0.0); // behind the plane, along its normal
+                // Further behind the flat depth than the thickness, only at a riser: the pixel the
+                // ray came from lies on the same plane. A thin object's silhouette, which a ray
+                // passing behind it reaches the same way, has the background there instead.
+                //vec2 back = sd.xy / max(max(abs(sd.x), abs(sd.y)), 1e-6);
+                //ivec2 q = clamp(ivec2(floor(h.xy - back)), ivec2(0), lastPx);
+                //if (pen < ssrThickness || (penPlane < ssrThickness && q != px && fsSSRSamePlane(q, res, sp, n)))
+                if (pen < thick || (penPlane < ssrThickness && q != px && sameQ))
+                {
+                    pen = min(pen, penPlane);
+                    hitN = n;
+                    hit = true;
+                    break;
+                }
             }
         }
+        // </FS:Trish>
         // Behind a thick surface, or on its back face: carry on past this pixel, within the
         // tunnel budget.
         if (behindPx == 0 && ++tunnels > SSR_MAX_TUNNEL)
@@ -731,14 +928,57 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
         return false;
     }
 
-    hitUV = h.xy / res;
-    travelPx = distance(h.xy, s0.xy);
+    // <FS:Trish> Where the ray actually meets the surface's plane, between pixels, rather than the
+    // edge of the pixel the march stopped in: on a surface seen at a low angle every reflecting
+    // pixel in a band took the same row, a flat bar, and the next band the next row. Only near the
+    // stopping pixel, where the plane still describes the surface.
+    //hitUV = h.xy / res;
+    //travelPx = distance(h.xy, s0.xy);
+    vec2 hitPx = h.xy;
+    float dn = dot(d, hitN);
+    if (dn < -1e-4)
+    {
+        float s = dot(sp - p0, hitN) / dn;
+        if (s > 0.0)
+        {
+            vec3 sc = fsSSRScreen(p0 + d * s, res);
+            vec2 off = sc.xy - (vec2(clamp(ivec2(h.xy), ivec2(0), lastPx)) + 0.5);
+            if (sc.z > 0.0 && max(abs(off.x), abs(off.y)) <= 1.5)
+            {
+                hitPx = clamp(sc.xy, vec2(0.5), res - 0.5);
+            }
+        }
+    }
+    hitUV = hitPx / res;
+    //travelPx = distance(hitPx, s0.xy);
+    // </FS:Trish>
+    // <FS:Trish> The cone trace sizes its blur from this: the world distance the ray travelled, in
+    // pixels at the hit's depth (the cone's footprint there is 2 * roughness * that). Its distance
+    // across the screen was used before, which is far too small for a ray running away from the
+    // camera: on a wall seen at a low angle (a canyon side) the reflected ray recedes along the
+    // same screen row, moving a few pixels while travelling metres, so rough rock read a sharp
+    // texel of its own row and the reflection came out as horizontal lines.
+    float hitDepth = max(-sp.z, 1e-3);
+    travelPx = distance(sp, p0) * 0.5 * res.y * abs(projection_matrix[1][1]) / hitDepth;
+    // </FS:Trish>
 
     vec2 e = min(hitUV, 1.0 - hitUV);
     float edge = ssrEdgeFade > 0.0 ? smoothstep(0.0, ssrEdgeFade, min(e.x, e.y)) : 1.0;
     float x = clamp(pen / max(ssrThickness, 1e-3), 0.0, 1.0);
     float thick = 1.0 - x * x;
     confidence = edge * thick * ssrFacingFade(d, p0) * ssrDepthFade(-sp.z);
+    // <FS:Trish> A hit on the starting surface itself: facing the same way and hardly off its plane
+    // for the distance travelled. A mirror never sees its own plane, so this is the ray skimming
+    // its own bumps (see originN); it fades to the probes, smoothly so no hit/miss edge shows.
+    if (originN != vec3(0.0) && hitN != vec3(0.0))
+    {
+        vec3 rel = sp - originP;
+        float dist = length(rel);
+        float rise = abs(dot(rel, originN)) / max(dist, 1e-4);
+        float self_hit = smoothstep(0.7, 0.95, dot(hitN, originN)) * (1.0 - smoothstep(0.05, 0.2, rise));
+        confidence *= 1.0 - self_hit;
+    }
+    // </FS:Trish>
     return true;
 }
 
