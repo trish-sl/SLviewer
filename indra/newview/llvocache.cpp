@@ -28,6 +28,7 @@
 #include "llvocache.h"
 #include "llregionhandle.h"
 #include "llviewercontrol.h"
+#include "llviewertexture.h" // <FS:Trish/> FSObjectRetentionFollowsTextureBudget
 #include "llviewerobjectlist.h"
 #include "lldrawable.h"
 #include "llviewerregion.h"
@@ -559,7 +560,17 @@ void LLVOCacheEntry::updateDebugSettings()
     // </FS:Beq>
     U32 clamped_memory = (U32)llclamp(allocated_mem * KB_to_MB, (F32) low_mem_bound_MB, (F32) high_mem_bound_MB);
     const F32 adjust_range = (F32)(high_mem_bound_MB - low_mem_bound_MB);
-    const F32 adjust_factor = (high_mem_bound_MB - clamped_memory) / adjust_range; // [0, 1]
+    // <FS:Trish> FSObjectRetentionFollowsTextureBudget: retention also follows texture memory pressure.
+    // Every object kept loaded keeps its textures in the texture list, so when the texture set is over its
+    // video memory target (or the bias is up), fewer out-of-view objects are kept and their textures can go.
+    //const F32 adjust_factor = (high_mem_bound_MB - clamped_memory) / adjust_range; // [0, 1]
+    F32 adjust_factor = (high_mem_bound_MB - clamped_memory) / adjust_range; // [0, 1]
+    static LLCachedControl<bool> follow_texture_budget(gSavedSettings, "FSObjectRetentionFollowsTextureBudget", true);
+    if (follow_texture_budget)
+    {
+        adjust_factor *= 1.f - LLViewerTexture::sFSTexturePressure;
+    }
+    // </FS:Trish>
 
     //min radius: all objects within this radius remain loaded in memory
     static LLCachedControl<F32> min_radius(gSavedSettings,"SceneLoadMinRadius");

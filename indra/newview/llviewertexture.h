@@ -296,6 +296,10 @@ public:
     static S32 sVRAMLiveUsedMegabytes;   // DXGI: what this process holds on the GPU, -1 otherwise
     static S32 sVRAMLiveBudgetMegabytes; // DXGI: what the OS grants it, -1 otherwise
     static const char* vramSourceName();
+    // FSObjectRetentionFollowsTextureBudget: how hard textures press on video memory, 0 to 1: the share
+    // over the target, or the bias above 1 as a share of the way to its cap, whichever is larger
+    // (backgrounding not counted). LLVOCacheEntry::updateDebugSettings keeps fewer out-of-view objects by it.
+    static F32 sFSTexturePressure;
     // </FS:Trish>
 
     enum EDebugTexels

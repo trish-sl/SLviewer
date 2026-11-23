@@ -159,6 +159,7 @@ S32 LLViewerTexture::sVRAMLiveFreeMegabytes = -1;
 S32 LLViewerTexture::sVRAMSource = LLViewerTexture::VRAM_SOURCE_ESTIMATE; // FSTextureUseDXGIVRAM
 S32 LLViewerTexture::sVRAMLiveUsedMegabytes = -1;
 S32 LLViewerTexture::sVRAMLiveBudgetMegabytes = -1;
+F32 LLViewerTexture::sFSTexturePressure = 0.f; // FSObjectRetentionFollowsTextureBudget
 
 //static
 const char* LLViewerTexture::vramSourceName()
@@ -1234,6 +1235,16 @@ void LLViewerTexture::updateClass()
     {
         recovery_timer.reset();
         hold_step_timer.reset(); // <FS:Trish/>
+    }
+    // </FS:Trish>
+
+    // <FS:Trish> FSObjectRetentionFollowsTextureBudget: the pressure before the backgrounded bias (5) is
+    // applied, so a minimized viewer doesn't drop its out-of-view objects too
+    {
+        static LLCachedControl<F32> pressure_max_bias(gSavedSettings, "FSTextureMaxDiscardBias", 4.f);
+        const F32 cap = llclamp((F32)pressure_max_bias, 4.f, 6.f);
+        const F32 by_bias = (llclamp(sDesiredDiscardBias, 1.f, cap) - 1.f) / (cap - 1.f);
+        sFSTexturePressure = llclamp(llmax(over_pct, by_bias), 0.f, 1.f);
     }
     // </FS:Trish>
 
