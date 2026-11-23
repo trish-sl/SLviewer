@@ -508,6 +508,10 @@ public:
     bool fsFacelessReleaseDue();
     // </FS:Trish>
     F32 mFSDownscaleTime = -1000.f; // <FS:Trish/> sCurrentTime when it was last queued to shrink (sFSHoldSharpening)
+    // <FS:Trish> FSTextureVisibleFirstMax: on screen at the last priority update, and listed for the visible-first pass
+    bool mFSOnScreen = false;
+    bool mFSInVisibleFirstList = false;
+    // </FS:Trish>
 
     // <FS:Techwolf Lupindo> texture comment decoder
     std::map<std::string,std::string> mComment;

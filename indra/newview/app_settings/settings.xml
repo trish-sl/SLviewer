@@ -32165,6 +32165,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>1</integer>
     </map>
+    <key>FSTextureVisibleFirstMax</key>
+    <map>
+      <key>Comment</key>
+      <string>Textures seen on screen are re-evaluated every frame ahead of the round-robin over every texture (which reaches each one about once a second in a busy region), at most this many a frame within a quarter of the frame's texture time budget, so what the camera looks at is fetched, decoded and uploaded first. 0: the old scan instead, which looked through up to 2048 textures a frame for 32 visible ones that could still improve.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>U32</string>
+      <key>Value</key>
+      <integer>256</integer>
+    </map>
     <key>FSTextureVRAMTargetFraction</key>
     <map>
       <key>Comment</key>

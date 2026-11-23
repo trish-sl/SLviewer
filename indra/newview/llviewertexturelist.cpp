@@ -376,6 +376,14 @@ void LLViewerTextureList::shutdown()
     sTrackFetching = false;
     mFetchingTextures.clear();
     mUrgentUpdates.clear();
+    // <FS:Trish> FSTextureVisibleFirstMax: release the visible-first references
+    for (auto& imagep : mFSVisibleFirstList)
+    {
+        imagep->mFSInVisibleFirstList = false;
+    }
+    mFSVisibleFirstList.clear();
+    mFSVisibleFirstIndex = 0;
+    // </FS:Trish>
     // </FS:Trish>
     // clear out preloads
     mImagePreloads.clear();
@@ -1223,6 +1231,22 @@ void LLViewerTextureList::updateImageDecodePriority(LLViewerFetchedTexture* imag
         const bool fs_only_occluded = fs_pre ? fs_pre->mOnlyOccluded : fs_any_in_frustum && !fs_any_unoccluded;
         // </FS:Trish>
 
+        // <FS:Trish> FSTextureVisibleFirstMax: a texture seen on screen joins the visible-first list, which
+        // updateImagesFetchTextures re-evaluates every frame ahead of the round-robin; it leaves the list
+        // when a visit there finds it off screen
+        imagep->mFSOnScreen = on_screen;
+        {
+            static LLCachedControl<U32> visible_first_max(gSavedSettings, "FSTextureVisibleFirstMax", 256);
+            constexpr size_t VISIBLE_FIRST_LIST_CAP = 8192;
+            if (on_screen && !imagep->mFSInVisibleFirstList && visible_first_max > 0 &&
+                mFSVisibleFirstList.size() < VISIBLE_FIRST_LIST_CAP)
+            {
+                imagep->mFSInVisibleFirstList = true;
+                mFSVisibleFirstList.emplace_back(imagep);
+            }
+        }
+        // </FS:Trish>
+
         // <FS:Trish> FSPerfParallelTexturePriorityVerify: report the serial face pass
         if (fs_out)
         {
@@ -1847,11 +1871,58 @@ F32 LLViewerTextureList::updateImagesFetchTextures(F32 max_time)
     std::unordered_set<LLViewerFetchedTexture*>& urgent_updates = mUrgentUpdates;
     urgent_updates.clear();
     // </FS:Trish>
+    // <FS:Trish> FSTextureVisibleFirstMax: the textures last seen on screen (listed by
+    // updateImageDecodePriority) are re-evaluated every frame ahead of the round-robin, up to this many,
+    // within a quarter of the budget. The scan of up to 2048 map entries for 32 visible ones below used to
+    // do this and found them only one time in a few; it stays as the fallback with the setting at 0.
+    // Textures done here are skipped by the sweep and the refresh lane this frame (urgent_updates).
+    static LLCachedControl<U32> fs_visible_first_max(gSavedSettings, "FSTextureVisibleFirstMax", 256);
+    const bool fs_visible_first = fs_visible_first_max > 0;
+    if (fs_visible_first && run_urgent_lane && !mFSVisibleFirstList.empty())
+    {
+        LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("vtluift - visible first");
+        FS_RECORD_BLOCK_TIME(FTM_FS_TEX_FETCH_LANES); // FSPerfProfileLogInterval
+        U32 budget = llmin((U32)fs_visible_first_max, (U32)mFSVisibleFirstList.size());
+        while (budget-- > 0 && !mFSVisibleFirstList.empty())
+        {
+            if (timer.getElapsedTimeF32() >= max_time * 0.25f)
+            {
+                break;
+            }
+            if (mFSVisibleFirstIndex >= mFSVisibleFirstList.size())
+            {
+                mFSVisibleFirstIndex = 0;
+            }
+            // The list holds a reference; the texture may be deleted from the map meanwhile
+            LLPointer<LLViewerFetchedTexture> imagep = mFSVisibleFirstList[mFSVisibleFirstIndex];
+            if (imagep->getNumRefs() > 2 && !imagep->isDeleted() && imagep->isInImageList())
+            {
+                updateImageDecodePriority(imagep);
+                if (imagep->isInImageList())
+                {
+                    imagep->updateFetch();
+                    urgent_updates.insert(imagep.get());
+                }
+            }
+            if (!imagep->mFSOnScreen || imagep->isDeleted() || !imagep->isInImageList())
+            {
+                // Off screen now, or gone: back to the round-robin
+                imagep->mFSInVisibleFirstList = false;
+                mFSVisibleFirstList[mFSVisibleFirstIndex] = mFSVisibleFirstList.back();
+                mFSVisibleFirstList.pop_back();
+            }
+            else
+            {
+                ++mFSVisibleFirstIndex;
+            }
+        }
+    }
+    // </FS:Trish>
    const U32 scan_count = llmin((U32)mUUIDMap.size(), 2048U);
     auto urgent_iter = mUUIDMap.upper_bound(mLastUrgentUpdateKey);
     //for (U32 scanned = 0; scanned < scan_count && urgent_updates.size() < 32 && !mUUIDMap.empty(); ++scanned)
     { FS_RECORD_BLOCK_TIME(FTM_FS_TEX_FETCH_LANES); // <FS:Trish/> FSPerfProfileLogInterval
-    for (U32 scanned = 0; run_urgent_lane && scanned < scan_count && urgent_updates.size() < 32 && !mUUIDMap.empty(); ++scanned) // <FS:Trish/>
+    for (U32 scanned = 0; !fs_visible_first && run_urgent_lane && scanned < scan_count && urgent_updates.size() < 32 && !mUUIDMap.empty(); ++scanned) // <FS:Trish/> FSTextureVisibleFirstMax 0: the old scan
     {
         if (timer.getElapsedTimeF32() >= max_time * 0.25f)
         {

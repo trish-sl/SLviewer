@@ -273,6 +273,11 @@ private:
     // </FS:Trish>
     LLTextureKey mLastUpdateKey;
     LLTextureKey mLastUrgentUpdateKey;
+    // <FS:Trish> FSTextureVisibleFirstMax: textures last seen on screen, re-evaluated every frame ahead of
+    // the round-robin (the urgent lane walks this instead of scanning the map for visible ones)
+    std::vector<LLPointer<LLViewerFetchedTexture> > mFSVisibleFirstList;
+    size_t mFSVisibleFirstIndex = 0;
+    // </FS:Trish>
     // <FS:Trish> The fetch priority refresh lane walks the fetching set instead of the whole map,
     // and the urgent-lane set is reused instead of allocated every frame
     //LLTextureKey mLastFetchRefreshKey; // <FS:Trish/> round-robin position of the fetch priority refresh
