@@ -41,7 +41,7 @@
     <key>FSColorGradeVibrance</key>
     <real>0.2</real>
     <key>FSDecodedTextureCache</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSFastSelfRez</key>
     <boolean>1</boolean>
     <key>FSImpostorMinInterval</key>
@@ -193,7 +193,7 @@
     <key>FSPerfShadowStaticCacheDemote</key>
     <boolean>1</boolean>
     <key>FSPerfShadowStaticCacheFilter</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSPerfShadowStaticCacheStable</key>
     <boolean>1</boolean>
     <key>FSPerfShadowStaticCacheSunAngle</key>
@@ -228,10 +228,12 @@
     <boolean>0</boolean>
     <key>FSRenderAnamorphicStreaks</key>
     <real>0.04</real>
+    <key>FSRenderAOFullRange</key>
+    <real>0.05</real>
     <key>FSRenderAsyncOcclusionReadback</key>
     <boolean>0</boolean>
     <key>FSRenderAvatarOcclusion</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSRenderAvatarOcclusionDistance</key>
     <real>32.0</real>
     <key>FSRenderAvatarOcclusionMaxAvatars</key>
@@ -293,11 +295,13 @@
     <key>FSRenderColoredShadowsProjectors</key>
     <boolean>1</boolean>
     <key>FSRenderContactShadowLength</key>
-    <real>1.0</real>
+    <real>0.05</real>
     <key>FSRenderContactShadows</key>
     <boolean>0</boolean>
     <key>FSRenderContactShadowStrength</key>
-    <real>1.0</real>
+    <real>0.35</real>
+    <key>FSRenderCreaseAO</key>
+    <boolean>1</boolean>
     <key>FSRenderDeband</key>
     <boolean>1</boolean>
     <key>FSRenderDebandStrength</key>
@@ -396,18 +400,22 @@
     <real>0.15</real>
     <key>FSRenderLighterWhileMoving</key>
     <boolean>0</boolean>
+    <key>FSRenderLocalLightShadows</key>
+    <integer>6</integer>
     <key>FSRenderMergePostPasses</key>
     <boolean>1</boolean>
     <key>FSRenderMicroShadows</key>
     <boolean>1</boolean>
     <key>FSRenderMicroShadowsStrength</key>
     <real>1.0</real>
+    <key>FSRenderMirrorPlanar</key>
+    <boolean>1</boolean>
     <key>FSRenderMoonCorona</key>
     <real>0.1</real>
     <key>FSRenderMoonGlade</key>
     <real>1.0</real>
     <key>FSRenderMovingLODHold</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSRenderMovingProbeHold</key>
     <boolean>1</boolean>
     <key>FSRenderMovingRebuildBudget</key>
@@ -519,11 +527,11 @@
     <key>FSRenderSkinSSSStrength</key>
     <real>1.0</real>
     <key>FSRenderSkinSSSTint</key>
-    <real>1.0</real>
+    <real>0.9</real>
     <key>FSRenderSkinSSSToneMatch</key>
     <real>0.8</real>
     <key>FSRenderSkinSSSTranslucency</key>
-    <real>1.0</real>
+    <real>0.3</real>
     <key>FSRenderSkinTapLOD</key>
     <boolean>1</boolean>
     <key>FSRenderSkinToneRange</key>
@@ -595,6 +603,8 @@
     <key>FSRenderStarExtinction</key>
     <boolean>1</boolean>
     <key>FSRenderSunDiscDetail</key>
+    <boolean>1</boolean>
+    <key>FSRenderSunDiscSpecular</key>
     <boolean>1</boolean>
     <key>FSRenderSunGlints</key>
     <boolean>1</boolean>
@@ -671,7 +681,7 @@
     <key>FSRenderVignetteInTonemap</key>
     <boolean>1</boolean>
     <key>FSRenderVRS</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSRenderVRSPeriphery</key>
     <real>0.0</real>
     <key>FSRenderVRSQuality</key>
@@ -719,7 +729,7 @@
     <key>FSRenderWaterRipplesStrength</key>
     <real>1.0</real>
     <key>FSRenderWaterRippleWaterlineStrength</key>
-    <real>0.6</real>
+    <real>0.4</real>
     <key>FSRenderWaterWindStrength</key>
     <real>1.0</real>
     <key>FSRenderWetShore</key>
@@ -759,7 +769,7 @@
     <key>RenderReflectionProbeMinRefresh</key>
     <real>10.0</real>
     <key>RenderReflectionProbeRefreshFrameInterval</key>
-    <integer>3</integer>
+    <integer>6</integer>
     <key>RenderReflectionProbeSharedShadows</key>
     <boolean>1</boolean>
     <key>RenderResolutionMultiplier</key>

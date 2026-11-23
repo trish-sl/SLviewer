@@ -26,6 +26,8 @@
     <boolean>1</boolean>
     <key>FSPerfShadowMergedBatches</key>
     <boolean>1</boolean>
+    <key>FSRenderAOFullRange</key>
+    <real>0.05</real>
     <key>FSRenderBloom</key>
     <boolean>1</boolean>
     <key>FSRenderBloomLensDirt</key>
@@ -48,6 +50,8 @@
     <boolean>1</boolean>
     <key>FSRenderContactShadowStrength</key>
     <real>0.8</real>
+    <key>FSRenderCreaseAO</key>
+    <boolean>1</boolean>
     <key>FSRenderGTAO</key>
     <boolean>1</boolean>
     <key>FSRenderGTAOIntensity</key>
@@ -72,6 +76,8 @@
     <real>0.25</real>
     <key>FSRenderSpecularAAThreshold</key>
     <real>0.18</real>
+    <key>FSRenderSunDiscSpecular</key>
+    <boolean>1</boolean>
     <key>FSRenderSunRays</key>
     <boolean>1</boolean>
     <key>FSRenderSunRaysResolution</key>

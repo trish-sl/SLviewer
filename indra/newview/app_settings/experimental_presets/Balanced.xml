@@ -44,6 +44,8 @@
     <boolean>1</boolean>
     <key>FSRenderContactShadowStrength</key>
     <real>0.8</real>
+    <key>FSRenderCreaseAO</key>
+    <boolean>1</boolean>
     <key>FSRenderMultiscatter</key>
     <boolean>1</boolean>
     <key>FSRenderProbeBlendSmooth</key>
@@ -64,6 +66,8 @@
     <real>0.25</real>
     <key>FSRenderSpecularAAThreshold</key>
     <real>0.18</real>
+    <key>FSRenderSunDiscSpecular</key>
+    <boolean>1</boolean>
     <key>FSRenderSunRays</key>
     <boolean>1</boolean>
     <key>FSRenderSunRaysResolution</key>

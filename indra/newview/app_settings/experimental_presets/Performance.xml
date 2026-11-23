@@ -11,7 +11,7 @@
     <key>FSAvatarRetryEmptyAppearance</key>
     <boolean>1</boolean>
     <key>FSDecodedTextureCache</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSFastSelfRez</key>
     <boolean>1</boolean>
     <key>FSImpostorMinInterval</key>
@@ -263,7 +263,7 @@
     <key>RenderReflectionProbeMinRefresh</key>
     <real>10.0</real>
     <key>RenderReflectionProbeRefreshFrameInterval</key>
-    <integer>3</integer>
+    <integer>6</integer>
     <key>RenderReflectionProbeSharedShadows</key>
     <boolean>1</boolean>
     <key>RenderRiggedDirectNormals</key>
