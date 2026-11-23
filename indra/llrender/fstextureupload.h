@@ -39,9 +39,12 @@
 // into a persistently mapped GL_PIXEL_UNPACK_BUFFER (expanding RGB to RGBA
 // while copying, so the driver can DMA it without conversion) and issues
 // glTexImage2D from the buffer offset. A fence per upload guards the bytes
-// until the GPU has consumed them. When the ring is full the upload falls
-// back to the old client-memory path rather than waiting, so this can never
-// add a stall.
+// until the GPU has consumed them. When the ring is full a main thread
+// upload falls back to the old client-memory path rather than waiting, so
+// this can never add a stall there; the texture thread (stage()) waits up to
+// a tenth of a second for room first, as its fallback goes through its own
+// GL context and holds the driver's lock while the render thread waits.
+// The ring's size is FSPerfTextureUploadRingMB (setRingSizeMB()).
 //
 // Only for uncompressed 8-bit formats, and only on GL 4.4+ (glBufferStorage).
 //
@@ -62,12 +65,16 @@ namespace FSTextureUpload
         U32 mRingFull = 0;      // eligible levels that fell back because the ring was busy
         U32 mStaged = 0;        // levels the texture thread staged (no GL context used)
         U32 mStageFull = 0;     // levels it couldn't stage because the ring was busy
+        U32 mStageWaited = 0;   // levels it staged after waiting for room
     };
 
     // Call once per frame from the main thread with the setting value.
     // Turning it off releases the ring.
     void setPBOEnabled(bool enabled);
     bool isPBOEnabled();
+    // Main thread, before setPBOEnabled(): the ring's size (0: the default). A ring that exists at
+    // another size is released and made again at this one on the next upload.
+    void setRingSizeMB(U32 mb);
 
     // A level the texture thread copied into the ring, waiting for the main
     // thread to upload it.

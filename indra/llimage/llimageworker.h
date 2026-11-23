@@ -79,6 +79,11 @@ public:
 
     // <FS:Trish> Run decode threads below normal priority, applied by each thread before its next decode
     static void setBackgroundPriority(bool background);
+    // At most this many decodes run at once (0: as many as the pool has threads). Set from the main thread
+    // as video memory fills, so decoded textures don't reach the GPU faster than the texture memory bias
+    // can follow; the pending work keeps its order.
+    static void setMaxRunning(U32 max_running);
+    size_t getWidth() const;
     // </FS:Trish>
 
 private:
@@ -95,6 +100,8 @@ private:
     std::mutex mPendingMutex;
     std::vector<PendingTask> mPending; // heap, highest priority then oldest on top
     U64 mPendingSeq = 0;
+    std::atomic<U32> mRunning{ 0 };     // decodes running now (setMaxRunning)
+    static std::atomic<U32> sMaxRunning;
     // </FS:Trish>
 
     // As of SL-17483, LLImageDecodeThread is no longer itself an

@@ -58,6 +58,7 @@
 #include "llappviewer.h"
 #include "llagent.h" // <FS:Trish/> teleport aware bias hold
 #include "llstartup.h" // <FS:Trish/> the login counts as a teleport for the bias hold
+#include "llimageworker.h" // <FS:Trish/> FSPerfTextureUploadFullRoomMB: decodes in flight
 #include "llagentcamera.h" // <FS:Trish/> FSTextureSharpenRateMB
 #include "fsdiskthread.h" // <FS:Trish/> FSPerfDiskThread
 #include "fslighterwhilemoving.h" // <FS:Trish/> FSRenderMovingTextureBiasHold
@@ -543,6 +544,15 @@ void LLViewerTexture::initClass()
         sInvisiprimTexture2 = LLUUID(TEX_INVISIPRIM2);
     }
 }
+
+// <FS:Trish> FSPerfTextureUploadFullRoomMB: how fast decoded textures may reach the GPU, set by
+// LLViewerTexture::updateClass from the room left above the reserve and read by the texture thread
+// (fs_pace_thread_upload) and the decode pool (LLImageDecodeThread::setMaxRunning)
+namespace FSTextureInflow
+{
+    std::atomic<F32> sScale{ 1.f }; // 1 with plenty of room, down to 1/8 close to the reserve, 0 while paging
+}
+// </FS:Trish>
 
 // <FS:Trish> FSTextureVRAMPagingFloorMB and FSTextureSharpenRateMB, with FSTextureUseLiveVRAM
 namespace
@@ -1377,6 +1387,37 @@ void LLViewerTexture::updateClass()
                                                       fs_paging ? "paging" : "not paging", sDesiredDiscardBias) << LL_ENDL;
             }
             fs_sharpen_deferred = 0;
+        }
+    }
+    // </FS:Trish>
+
+    // <FS:Trish> FSPerfTextureUploadFullRoomMB: decoded textures reach the GPU as fast as the texture thread
+    // uploads them and the decode pool decodes them, and 16 decoders filled 12 GB in the first minute after
+    // login, faster than the free figure (read every 0.25-1 s) and the bias could follow. The inflow follows
+    // the room left above the reserve: the full rate with FSPerfTextureUploadFullRoomMB or more free above
+    // it, an eighth of it with 512 MB or less, and none while the GPU is paging. The decode pool runs
+    // fewer decodes at once in step, so the decoded images don't pile up in memory waiting to upload.
+    {
+        static LLCachedControl<U32> full_room(gSavedSettings, "FSPerfTextureUploadFullRoomMB", 4096);
+        constexpr F32 MIN_SCALE = 0.125f;
+        constexpr F32 NO_ROOM_MB = 512.f;
+        const bool live = fs_live_reserve > 0.f && live_vram_free >= 0;
+        const F32 room = live ? (F32)live_vram_free - fs_live_reserve : sFreeVRAMMegabytes;
+        F32 scale = 1.f;
+        if (fs_paging)
+        {
+            scale = 0.f;
+        }
+        else if ((F32)full_room() > NO_ROOM_MB)
+        {
+            scale = llclamp((room - NO_ROOM_MB) / ((F32)full_room() - NO_ROOM_MB), MIN_SCALE, 1.f);
+        }
+        FSTextureInflow::sScale.store(scale, std::memory_order_relaxed);
+        if (LLImageDecodeThread* decoder = LLAppViewer::getImageDecodeThread())
+        {
+            const U32 width = (U32)decoder->getWidth();
+            const U32 running = fs_paging ? 1U : llmax(2U, (U32)ll_round(width * scale));
+            LLImageDecodeThread::setMaxRunning(llmin(running, llmax(width, 1U)));
         }
     }
     // </FS:Trish>
@@ -2569,8 +2610,30 @@ namespace
     // Texture thread only
     void fs_pace_thread_upload(S64 bytes)
     {
-        const F32 rate = sFSUploadRateBytes.load(std::memory_order_relaxed);
-        if (rate <= 0.f || bytes <= 0)
+        if (bytes <= 0)
+        {
+            return;
+        }
+        // FSPerfTextureUploadFullRoomMB: while the GPU is paging nothing goes up, for up to 2 s at a time,
+        // then at the lowest rate so the queue can't stall for good; close to the reserve the rate scales down
+        F32 scale = FSTextureInflow::sScale.load(std::memory_order_relaxed);
+        if (scale <= 0.f)
+        {
+            LLTimer paging_wait;
+            while (scale <= 0.f && paging_wait.getElapsedTimeF32() < 2.f)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                scale = FSTextureInflow::sScale.load(std::memory_order_relaxed);
+            }
+            if (scale <= 0.f)
+            {
+                scale = 0.125f;
+            }
+        }
+        //const F32 rate = sFSUploadRateBytes.load(std::memory_order_relaxed);
+        //if (rate <= 0.f || bytes <= 0)
+        const F32 rate = sFSUploadRateBytes.load(std::memory_order_relaxed) * scale;
+        if (rate <= 0.f)
         {
             return;
         }

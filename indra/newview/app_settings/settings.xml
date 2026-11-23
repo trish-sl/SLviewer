@@ -28838,7 +28838,7 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSPerfTextureUploadPBO</key>
     <map>
       <key>Comment</key>
-      <string>EXPERIMENTAL. Stream main-thread texture uploads through a 32 MB persistently mapped pixel buffer ring (OpenGL 4.4) so the driver copies them asynchronously instead of inside the frame. Only affects uploads made on the main thread (threaded texture creation off: AMD, Intel, or NVIDIA with RenderGLMultiThreadedTexturesNVIDIA off). Falls back to normal uploads when the ring is busy.</string>
+      <string>EXPERIMENTAL. Stream texture uploads through a persistently mapped pixel buffer ring of FSPerfTextureUploadRingMB (OpenGL 4.4) so the driver copies them asynchronously instead of inside the frame. Main thread uploads fall back to normal uploads when the ring is busy. With the render thread (FSRenderThread) the texture thread stages its uploads in the ring too, waiting up to a tenth of a second for room, and the main thread records them, so only the render thread's GL context touches the driver.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
@@ -28849,13 +28849,35 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSPerfTextureThreadUploadRate</key>
     <map>
       <key>Comment</key>
-      <string>Megabytes per second (with mipmaps) the texture thread uploads at most; up to a tenth of a second of it at once. At login the decoded texture cache can hand over gigabytes within seconds, and uploading them as fast as they come floods the driver and the GPU, which the desktop shares, so the whole PC stutters. The texture thread waits, the main thread doesn't. 0 = no limit.</string>
+      <string>Megabytes per second (with mipmaps) the texture thread uploads at most with FSPerfTextureUploadFullRoomMB or more of video memory free above the reserve; up to a tenth of a second of it at once. With less room the rate scales down to an eighth of this at 512 MB above the reserve, and while the GPU is paging nothing is uploaded (for up to 2 seconds at a time). At login the decoded texture cache can hand over gigabytes within seconds, and uploading them as fast as they come floods the driver and the GPU, which the desktop shares, so the whole PC stutters. The texture thread waits, the main thread doesn't. 0 = no limit (the paging wait still applies).</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
       <string>F32</string>
       <key>Value</key>
       <real>384.0</real>
+    </map>
+    <key>FSPerfTextureUploadFullRoomMB</key>
+    <map>
+      <key>Comment</key>
+      <string>Video memory free above the reserve (FSTextureVRAMReserveMB), in MB, from which decoded textures reach the GPU at full speed: the texture thread uploads at FSPerfTextureThreadUploadRate and every decode thread decodes. With less room both scale down together, to an eighth of the upload rate and two decodes at once by 512 MB above the reserve, and to nothing (one decode) while the GPU is paging. Keeps a burst of loads after login or a teleport from filling video memory faster than the texture memory bias can follow: 16 decode threads put 12 GB on a 16 GB card in the first minute and the driver paged for most of it. 512 or less: always full speed.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>U32</string>
+      <key>Value</key>
+      <integer>4096</integer>
+    </map>
+    <key>FSPerfTextureUploadRingMB</key>
+    <map>
+      <key>Comment</key>
+      <string>Size in MB of the pixel buffer ring texture uploads are staged in (FSPerfTextureUploadPBO), 64 to 512; 0 is the default 192. A level may take up to a quarter of it, so a 2048 texture's 16 MB base level always fits and several can be in flight. With the earlier 32 MB ring the texture thread found it full over 2000 times in the first minute after a login and uploaded through its own GL context instead, which holds the driver's lock while the render thread waits (FS Wait Render Thread stalls of 200-900 ms).</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>U32</string>
+      <key>Value</key>
+      <integer>192</integer>
     </map>
     <key>FSPerfTextureUploadBudgetMB</key>
     <map>

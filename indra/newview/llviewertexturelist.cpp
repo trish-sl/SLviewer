@@ -1457,6 +1457,7 @@ namespace
                                 << " thread_skipped=" << thread_skipped
                                 << " thread_staged=" << pbo.mStaged
                                 << " thread_stage_full=" << pbo.mStageFull
+                                << " thread_stage_waited=" << pbo.mStageWaited
                                 << LL_ENDL;
         }
         log_timer.reset();
@@ -1487,6 +1488,8 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
     static LLCachedControl<bool> fs_upload_pbo(gSavedSettings, "FSPerfTextureUploadPBO", false);
     static LLCachedControl<F32> fs_upload_budget_mb(gSavedSettings, "FSPerfTextureUploadBudgetMB", 0.f);
     static LLCachedControl<bool> fs_upload_diagnostics(gSavedSettings, "TextureFetchPipelineDiagnostics", false);
+    static LLCachedControl<U32> fs_upload_ring_mb(gSavedSettings, "FSPerfTextureUploadRingMB", 192);
+    FSTextureUpload::setRingSizeMB(fs_upload_ring_mb);
     FSTextureUpload::setPBOEnabled(fs_upload_pbo);
     // No budget on the teleport screen: nothing is drawn there, so a long frame costs nothing
     const S64 fs_budget_bytes = (fs_upload_budget_mb > 0.f && !gTeleportDisplay) ? (S64)(fs_upload_budget_mb * 1048576.f) : 0;

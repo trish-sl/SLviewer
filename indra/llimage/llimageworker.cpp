@@ -32,6 +32,8 @@
 #include "llthread.h" // <FS:Trish/>
 
 #include <algorithm> // <FS:Trish/>
+#include <chrono> // <FS:Trish/> setMaxRunning
+#include <thread> // <FS:Trish/> setMaxRunning
 
 /*--------------------------------------------------------------------------*/
 class ImageRequest
@@ -91,6 +93,19 @@ namespace
 void LLImageDecodeThread::setBackgroundPriority(bool background)
 {
     sDecodeInBackground = background;
+}
+
+std::atomic<U32> LLImageDecodeThread::sMaxRunning{ 0 };
+
+//static
+void LLImageDecodeThread::setMaxRunning(U32 max_running)
+{
+    sMaxRunning.store(max_running, std::memory_order_relaxed);
+}
+
+size_t LLImageDecodeThread::getWidth() const
+{
+    return mThreadPool ? mThreadPool->getWidth() : 0;
 }
 // </FS:Trish>
 
@@ -191,6 +206,17 @@ void LLImageDecodeThread::runNext()
 {
     applyDecodeThreadPriority();
 
+    // setMaxRunning: over the limit, this thread goes back to the pool and the item is tried again
+    // shortly; the pending heap keeps its order
+    const U32 max_running = sMaxRunning.load(std::memory_order_relaxed);
+    if (max_running > 0 && mRunning.fetch_add(1, std::memory_order_acq_rel) >= max_running)
+    {
+        mRunning.fetch_sub(1, std::memory_order_acq_rel);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        mThreadPool->getQueue().post([this]() { runNext(); });
+        return;
+    }
+
     auto less_important = [](const PendingTask& a, const PendingTask& b)
     {
         return a.mPriority != b.mPriority ? a.mPriority < b.mPriority : a.mSeq > b.mSeq;
@@ -198,15 +224,21 @@ void LLImageDecodeThread::runNext()
     std::function<void()> task;
     {
         std::lock_guard<std::mutex> lock(mPendingMutex);
-        if (mPending.empty())
+        if (!mPending.empty())
         {
-            return;
+            std::pop_heap(mPending.begin(), mPending.end(), less_important);
+            task = std::move(mPending.back().mTask);
+            mPending.pop_back();
         }
-        std::pop_heap(mPending.begin(), mPending.end(), less_important);
-        task = std::move(mPending.back().mTask);
-        mPending.pop_back();
     }
-    task();
+    if (task)
+    {
+        task();
+    }
+    if (max_running > 0)
+    {
+        mRunning.fetch_sub(1, std::memory_order_acq_rel);
+    }
 }
 // </FS:Trish>
 

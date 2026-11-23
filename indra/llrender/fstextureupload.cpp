@@ -35,20 +35,33 @@
 #include "llthread.h"
 
 #include <atomic>
+#include <chrono>
 #include <deque>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace
 {
-    // 32 MB of host-visible staging memory. The largest level that may use it
-    // is half of that: a 2048x2048 RGBA (or RGB expanded to RGBA) base level.
-    constexpr U32 RING_SIZE = 32u * 1024u * 1024u;
-    constexpr U32 MAX_UPLOAD = RING_SIZE / 2;
+    // Host-visible staging memory, FSPerfTextureUploadRingMB (192 MB; 64 to 512). The largest level
+    // that may use it is a quarter of that, so several 2048x2048 RGBA (or RGB expanded to RGBA) base
+    // levels, 16 MB each, can be in flight. With a 32 MB ring (one such level in flight) the texture
+    // thread found it full 2160 times in the first minute after a login and fell back to uploading
+    // through its own GL context, which holds the driver's lock while the render thread waits.
+    constexpr U32 RING_MIN_MB = 64;
+    constexpr U32 RING_MAX_MB = 512;
+    constexpr U32 RING_DEFAULT_MB = 192;
+    std::atomic<U32> sRingSize{ RING_DEFAULT_MB * 1024u * 1024u };    // wanted; the ring is remade when it changes
+    std::atomic<U32> sRingMade{ 0 };                                    // size of the ring that exists
+    U32 max_upload() { return sRingSize.load(std::memory_order_relaxed) / 4; }
     // Below this the map/fence bookkeeping costs more than the copy it saves.
     constexpr U32 MIN_UPLOAD = 32u * 1024u;
     constexpr U32 OFFSET_ALIGN = 256;
-    constexpr size_t MAX_IN_FLIGHT = 512;
+    constexpr size_t MAX_IN_FLIGHT = 4096;
+    // stage(): how long the texture thread waits for room before giving up (the render thread frees
+    // regions once a frame), and how often it looks
+    constexpr F32 STAGE_WAIT_SECONDS = 0.1f;
+    constexpr S32 STAGE_WAIT_POLL_MS = 2;
 
     enum : U8
     {
@@ -75,6 +88,7 @@ namespace
     FSTextureUpload::Stats sStats;      // main thread
     std::atomic<U32> sStagedCount{ 0 };
     std::atomic<U32> sStageFullCount{ 0 };
+    std::atomic<U32> sStageWaitedCount{ 0 };
 
     // Region bookkeeping, shared by the main thread, the texture thread (stage) and the render
     // thread (fences). Held only for bookkeeping, never across a copy or a GL call.
@@ -135,10 +149,11 @@ namespace
 
         // With the render thread, glMapBufferRange is one synchronous call, once
         const GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+        const U32 ring_size = sRingSize.load(std::memory_order_relaxed);
         glGenBuffers(1, &sBuffer);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, sBuffer);
-        glBufferStorage(GL_PIXEL_UNPACK_BUFFER, RING_SIZE, nullptr, flags);
-        U8* mapped = (U8*)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, RING_SIZE, flags);
+        glBufferStorage(GL_PIXEL_UNPACK_BUFFER, ring_size, nullptr, flags);
+        U8* mapped = (U8*)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, ring_size, flags);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
         if (!mapped)
@@ -154,9 +169,10 @@ namespace
             std::lock_guard<std::mutex> lock(sMutex);
             sHead = 0;
         }
+        sRingMade = ring_size;
         sStreamMode.store(FSGLStream::isRecording(), std::memory_order_release);
         sMapped.store(mapped, std::memory_order_release);
-        LL_INFOS("Texture") << "FSPerfTextureUploadPBO: " << (RING_SIZE >> 20) << " MB upload ring created"
+        LL_INFOS("Texture") << "FSPerfTextureUploadPBO: " << (ring_size >> 20) << " MB upload ring created"
                             << (sStreamMode.load() ? " (render thread)" : "") << LL_ENDL;
         return true;
     }
@@ -202,10 +218,11 @@ namespace
     bool allocate_locked(U32 size, U32& offset, U64& seq)
     {
         bool ok = false;
+        const U32 ring_size = sRingMade.load(std::memory_order_relaxed);
         if (sRegions.empty())
         {
             offset = 0;
-            ok = size <= RING_SIZE;
+            ok = size <= ring_size;
         }
         else if (sRegions.size() < MAX_IN_FLIGHT)
         {
@@ -214,7 +231,7 @@ namespace
             if (!wrapped)
             {
                 // In use: [tail, sHead). Free: [sHead, end) and [0, tail).
-                if (sHead + size <= RING_SIZE)
+                if (sHead + size <= ring_size)
                 {
                     offset = sHead;
                     ok = true;
@@ -380,7 +397,7 @@ namespace
             return false;
         }
         bytes = (U64)width * (U64)height * (expand_rgb ? 4 : src_components);
-        return bytes >= MIN_UPLOAD && bytes <= MAX_UPLOAD;
+        return bytes >= MIN_UPLOAD && bytes <= max_upload();
     }
 
     void copy_rgb_to_rgba(const U8* src, U8* dst, U32 pixel_count)
@@ -507,6 +524,7 @@ namespace FSTextureUpload
             glDeleteBuffers(1, &sBuffer);
         }
         sBuffer = 0;
+        sRingMade.store(0, std::memory_order_relaxed);
         sFailed = false;
         sStreamMode = false;
     }
@@ -579,13 +597,36 @@ namespace FSTextureUpload
         LL_PROFILE_ZONE_NAMED_CATEGORY_TEXTURE("stage upload");
         U32 offset = 0;
         U64 seq = 0;
+        // No room: wait a little for the render thread to free regions (once a frame) before giving
+        // up, as giving up means the texture thread uploads through its own GL context, which holds
+        // the driver's lock while the render thread waits
+        LLTimer wait;
+        bool waited = false;
+        while (true)
         {
-            std::lock_guard<std::mutex> copy_lock(sCopyMutex);
-            if (!sStreamMode.load(std::memory_order_acquire) || !fill(pixels, width, height, expand_rgb, bytes, offset, seq))
+            {
+                std::lock_guard<std::mutex> copy_lock(sCopyMutex);
+                if (!sStreamMode.load(std::memory_order_acquire))
+                {
+                    sStageFullCount.fetch_add(1, std::memory_order_relaxed);
+                    return false;
+                }
+                if (fill(pixels, width, height, expand_rgb, bytes, offset, seq))
+                {
+                    break;
+                }
+            }
+            if (wait.getElapsedTimeF32() >= STAGE_WAIT_SECONDS)
             {
                 sStageFullCount.fetch_add(1, std::memory_order_relaxed);
                 return false;
             }
+            waited = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(STAGE_WAIT_POLL_MS));
+        }
+        if (waited)
+        {
+            sStageWaitedCount.fetch_add(1, std::memory_order_relaxed);
         }
         out.mSeq = seq;
         out.mOffset = offset;
@@ -659,7 +700,19 @@ namespace FSTextureUpload
         Stats out = sStats;
         out.mStaged = sStagedCount.exchange(0, std::memory_order_relaxed);
         out.mStageFull = sStageFullCount.exchange(0, std::memory_order_relaxed);
+        out.mStageWaited = sStageWaitedCount.exchange(0, std::memory_order_relaxed);
         sStats = Stats();
         return out;
+    }
+
+    void setRingSizeMB(U32 mb)
+    {
+        const U32 wanted = (mb == 0 ? RING_DEFAULT_MB : (mb < RING_MIN_MB ? RING_MIN_MB : (mb > RING_MAX_MB ? RING_MAX_MB : mb))) * 1024u * 1024u;
+        sRingSize.store(wanted, std::memory_order_relaxed);
+        if (sMapped.load(std::memory_order_acquire) && sRingMade.load(std::memory_order_relaxed) != wanted)
+        {
+            // Remade at the new size on the next upload
+            releaseGL();
+        }
     }
 }
