@@ -297,7 +297,7 @@ void LLFollowCam::update()
     LLVector3 simulated_pos_agent = gAgent.getPosAgentFromGlobal(mSimulatedPositionGlobal);
     LLVector3 vectorFromCameraToSubject = offsetSubjectPosition - simulated_pos_agent;
     static LLCachedControl<bool> follow_subject_rotation(gSavedSettings, "FollowCamFollowSubjectRotation", false);
-    F32 distanceFromCameraToSubject = vectorFromCameraToSubject.magVec();
+    // F32 distanceFromCameraToSubject = vectorFromCameraToSubject.magVec();
 
     LLVector3 whereFocusWantsToBe = mFocus;
     LLVector3 focus_pt_agent = gAgent.getPosAgentFromGlobal(mSimulatedFocusGlobal);
@@ -427,20 +427,25 @@ void LLFollowCam::update()
             simulated_pos_agent = lerp( simulated_pos_agent, whereCameraPositionWantsToBe, positionPullLerp );
         }
 
-        //--------------------------------------------------------------------
-        // don't let the camera get farther than its official max distance
-        //--------------------------------------------------------------------
-        // <FS:Trish> Fix Followcam zoom being stuck at max distance while in motion
-        const F32 target_camera_distance = llmin(mSimulatedDistance, mMaxCameraDistantFromSubject);
-        const F32 updated_distance_from_camera_to_subject = (offsetSubjectPosition - simulated_pos_agent).magVec();
-        if ( updated_distance_from_camera_to_subject > target_camera_distance )
+        // Keep the simulated camera within the viewer's maximum distance:
+        // - Position lag is expected to let the camera drag beyond the requested
+        // distance while the camera subject moves, so the requested distance is not a limit.
+        // - Zooming in shrinks the limit by the same ratio, so a long lag that holds the
+        // camera at the maximum still lets the user zoom in.
+        // - Rebuild its position from the subject-relative offset so a moving
+        // avatar follows the intended camera geometry rather than the prior
+        // camera position.
+        // - Applied after position lag, which can move the simulated camera beyond
+        //  its distance limit.
+        const F32 zoom_scale = llmin(mSimulatedDistance / mDistance, 1.f);
+        const F32 camera_distance_limit = mMaxCameraDistantFromSubject * zoom_scale;
+        const F32 distance_after_position_lag = (offsetSubjectPosition - simulated_pos_agent).magVec();
+        if ( distance_after_position_lag > camera_distance_limit )
         {
-            // Clamp on the scripted follow-cam offset so we preserve the active pitch instead of flattening to the
-            // current camera-to-subject vector while catching up.
+            const F32 camera_distance_scale = camera_distance_limit / mSimulatedDistance;
             simulated_pos_agent = offsetSubjectPosition -
-                (positionOffsetFromSubject * (target_camera_distance / mSimulatedDistance));
+                (positionOffsetFromSubject * camera_distance_scale);
         }
-        // </FS:Trish>
 
         ////-------------------------------------------------------------------------------------------------
         //// The following method takes mSimulatedPositionGlobal and resets it so that it stays "behind" the subject,
@@ -876,6 +881,11 @@ void LLFollowCamMgr::removeFollowCamParams(const LLUUID& source)
     delete params;
 
     PermissionsTracker::instance().removePermissionsEntry(source, PermissionsTracker::PERM_FOLLOWCAM);
+}
+
+void LLFollowCamMgr::clearActiveFollowCamParams()
+{
+    mParamStack.clear();
 }
 
 bool LLFollowCamMgr::isScriptedCameraSource(const LLUUID& source)

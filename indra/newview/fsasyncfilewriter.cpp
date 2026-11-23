@@ -30,6 +30,7 @@
 #include "fsasyncfilewriter.h"
 
 #include "llfile.h"
+#include "llmutex.h"
 #include "llviewercontrol.h"
 #include "threadpool.h"
 #include "workqueue.h"
@@ -67,21 +68,24 @@ bool post(LL::WorkQueueBase::Work work)
 }
 }
 
-bool FSAsyncFileWriter::append(const std::string& path, std::string text, std::function<void()> on_written)
+bool FSAsyncFileWriter::append(const std::string& path, std::string text, std::function<void()> on_written, LLMutex* exclusive)
 {
-    return post([path, text = std::move(text), on_written = std::move(on_written)]()
+    return post([path, text = std::move(text), on_written = std::move(on_written), exclusive]()
         {
-            if (LLFILE* fp = LLFile::fopen(path, LLFILE_MODE("ab")))
             {
-                if (fwrite(text.data(), 1, text.size(), fp) != text.size())
+                LLMutexLock lock(exclusive); // a null mutex locks nothing
+                if (LLFILE* fp = LLFile::fopen(path, LLFILE_MODE("ab")))
                 {
-                    LL_WARNS() << "Couldn't write all of " << path << LL_ENDL;
+                    if (fwrite(text.data(), 1, text.size(), fp) != text.size())
+                    {
+                        LL_WARNS() << "Couldn't write all of " << path << LL_ENDL;
+                    }
+                    LLFile::close(fp);
                 }
-                LLFile::close(fp);
-            }
-            else
-            {
-                LL_WARNS() << "Couldn't open " << path << " to append to it" << LL_ENDL;
+                else
+                {
+                    LL_WARNS() << "Couldn't open " << path << " to append to it" << LL_ENDL;
+                }
             }
             if (on_written)
             {

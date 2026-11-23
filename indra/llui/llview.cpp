@@ -694,10 +694,10 @@ void LLView::onVisibilityChange ( bool new_visibility )
 
         if(log_visibility_change)
         {
-        if (old_visibility!=new_visibility)
-        {
-            LLViewerEventRecorder::instance().logVisibilityChange( viewp->getPathname(), viewp->getName(), new_visibility,"widget");
-        }
+            if (old_visibility!=new_visibility)
+            {
+                LLViewerEventRecorder::instance().logVisibilityChange( viewp->getPathname(), viewp->getName(), new_visibility,"widget");
+            }
         }
 
         if (old_visibility)

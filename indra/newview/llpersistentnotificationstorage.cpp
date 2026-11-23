@@ -36,6 +36,9 @@
 #include "llscriptfloater.h"
 #include "llviewermessage.h"
 #include "llviewernetwork.h"
+
+#include <algorithm>
+
 LLPersistentNotificationStorage::LLPersistentNotificationStorage():
       LLNotificationStorage("")
     , mLoaded(false)
@@ -53,39 +56,50 @@ void LLPersistentNotificationStorage::saveNotifications()
     LL_PROFILE_ZONE_SCOPED;
 
     auto history_channel = boost::dynamic_pointer_cast<LLPersistentNotificationChannel>(
-        LLNotifications::instance().getChannel("Persistent")
-    );
-    if (!history_channel) return;
-
-    std::vector<LLNotificationPtr> valid_notifications;
-    for (auto it = history_channel->beginHistory(); it != history_channel->endHistory(); ++it)
+        LLNotifications::instance().getChannel("Persistent"));
+    if (!history_channel)
     {
-        LLNotificationPtr notification = *it;
+        return;
+    }
+
+    const S32 max_to_save = llmax(1, gSavedSettings.getS32("MaxPersistentNotifications"));
+    std::vector<LLNotificationPtr> selected_notifications;
+    selected_notifications.reserve(std::min<size_t>(static_cast<size_t>(max_to_save), history_channel->size()));
+
+    for (auto history_it = history_channel->rBeginHistory(), history_end = history_channel->rEndHistory();
+        history_it != history_end;
+        ++history_it)
+    {
+        LLNotificationPtr notification = *history_it;
+
         // After a notification was placed in Persist channel, it can become
-        // responded, expired or canceled - in this case we should not save it.
-        if (!(notification->isRespondedTo() || notification->isCancelled() || notification->isExpired()))
+        // responded, expired or canceled - in this case we should not save it
+        if (notification->isRespondedTo() || notification->isCancelled() || notification->isExpired())
         {
-            valid_notifications.push_back(notification);
+            continue;
+        }
+
+        if (static_cast<S32>(selected_notifications.size()) < max_to_save)
+        {
+            selected_notifications.push_back(notification);
+        }
+        else
+        {
+            LL_WARNS() << "Too many persistent notifications."
+                    << " Saved the " << selected_notifications.size() << " newest notifications;"
+                    << " older notifications were omitted."
+                    << LL_ENDL;
+            break;
         }
     }
 
-    const S32 total_eligible = static_cast<S32>(valid_notifications.size());
-    const S32 max_to_save = llmax(1, gSavedSettings.getS32("MaxPersistentNotifications"));
-
-    // We might need to trim if there are too many notifications
-    // If we do need to trim, prioritize the most recent notifications.
-    S32 start_index = (total_eligible > max_to_save) ? (total_eligible - max_to_save) : 0;
+    // History is saved oldest-to-newest so loadNotifications() retains its existing processing order.
+    std::reverse(selected_notifications.begin(), selected_notifications.end());
 
     LLSD data = LLSD::emptyArray();
-    for (S32 i = start_index; i < total_eligible; ++i)
+    for (const LLNotificationPtr& notification : selected_notifications)
     {
-        data.append(valid_notifications[i]->asLLSD(true));
-    }
-
-    if (total_eligible > max_to_save)
-    {
-        LL_WARNS() << "Too many persistent notifications. Saved " << max_to_save 
-                   << " of " << total_eligible << " persistent notifications." << LL_ENDL;
+        data.append(notification->asLLSD(true));
     }
 
     LLSD output = LLSD::emptyMap();

@@ -45,7 +45,7 @@ LLUrlRegistry::LLUrlRegistry()
 {
 //  mUrlEntry.reserve(20);
 // [RLVa:KB] - Checked: 2010-11-01 (RLVa-1.2.2a) | Added: RLVa-1.2.2a
-    mUrlEntry.reserve(38);
+    mUrlEntry.reserve(39); // <FS:Trish> 38 + upstream's one more entry
 // [/RLVa:KB]
 
     // Urls are matched in the order that they were registered
@@ -102,6 +102,8 @@ LLUrlRegistry::LLUrlRegistry()
     registerUrl(new LLUrlEntryExperienceProfile());
     mUrlEntryKeybinding = new LLUrlEntryKeybinding();
     registerUrl(mUrlEntryKeybinding);
+    mUrlEntryGameController = new LLUrlEntryGameController();
+    registerUrl(mUrlEntryGameController);
     registerUrl(new FSHelpDebugUrlEntrySL()); // <FS:Ansariel> FS Help SLUrl
     // <FS:Ansariel> Wear folder SLUrl
     mUrlEntryWear = new FSUrlEntryWear();
@@ -531,8 +533,16 @@ bool LLUrlRegistry::isUrl(const LLWString &text)
 
 void LLUrlRegistry::setKeybindingHandler(LLKeyBindingToStringHandler* handler)
 {
-    LLUrlEntryKeybinding *entry = (LLUrlEntryKeybinding*)mUrlEntryKeybinding;
-    entry->setHandler(handler);
+    LLUrlEntryKeybinding *keyEntry = (LLUrlEntryKeybinding*)mUrlEntryKeybinding;
+    keyEntry->setHandler(handler);
+    LLUrlEntryGameController *controllerEntry = (LLUrlEntryGameController*)mUrlEntryGameController;
+    controllerEntry->setKeyHandler(handler);
+}
+
+void LLUrlRegistry::setGameControllerHandler(LLGameControllerBindingToStringHandler* handler)
+{
+    LLUrlEntryGameController *controllerEntry = (LLUrlEntryGameController*)mUrlEntryGameController;
+    controllerEntry->setControllerHandler(handler);
 }
 
 bool LLUrlRegistry::containsAgentMention(const std::string& text)

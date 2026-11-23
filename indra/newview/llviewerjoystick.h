@@ -33,6 +33,8 @@
 #include <boost/signals2.hpp>
 // [/RLVa:Trish]
 
+#include <map>
+
 #if LIB_NDOF
 #if LL_DARWIN
 #define TARGET_OS_MAC 1
@@ -83,8 +85,9 @@ public:
     void setNeedsReset(bool reset = true) { mResetFlag = reset; }
     void setCameraNeedsUpdate(bool b)     { mCameraUpdated = b; }
     bool getCameraNeedsUpdate() const     { return mCameraUpdated; }
-    bool getOverrideCamera() { return mOverrideCamera; }
-    void setOverrideCamera(bool val);
+    // Flycam's state now lives on LLAgentCamera (shared with the game-control
+    // flycam); this just forwards.
+    bool getOverrideCamera();
     bool toggleFlycam();
     // [RLVa:Trish]
     static bool isFlycamAllowedByRlv();
@@ -95,6 +98,13 @@ public:
     std::string getDeviceUUIDString(); // converted readable value for settings
     std::string getDescription();
     void saveDeviceIdToSettings();
+
+    static bool is3DConnexionDevice(const std::string& device_name);
+
+    // Summary of 3Dconnexion usage this session, for the viewer stats:
+    // { enabled, devices: [ { name, used, connected }, ... ] }
+    // 'devices' lists every 3Dconnexion device accepted at some point this session.
+    LLSD getSessionStatsAsLLSD() const;
 
 protected:
     void updateEnabled(bool autoenable);
@@ -110,34 +120,49 @@ protected:
     // [RLVa:Trish]
     void onRlvBehaviourToggle(ERlvBehaviour behaviour, ERlvParamType type);
     // [/RLVa:Trish]
+    // Call after a successful ndof_init_first(): marks the driver initialized
+    // only if the device is a 3Dconnexion one.  Returns true if accepted.
+    bool acceptInitializedDevice();
 #if LIB_NDOF
     static NDOF_HotPlugResult HotPlugAddCallback(NDOF_Device *dev);
     static void HotPlugRemovalCallback(NDOF_Device *dev);
 #endif
 
 private:
+    // 3Dconnexion devices accepted this session (product name -> used), for viewer stats.
+    std::map<std::string, bool> mSessionDevices;
+
 // <FS:Zi> FIRE-14344 - Add button preview and allow for more than 6 axes
 //  F32                     mAxes[6];
 //  long                    mBtn[16];
     F32                     mAxes[MAX_JOYSTICK_AXES];
     long                    mBtn[MAX_JOYSTICK_BUTTONS];
 // </FS:Zi>
-    EJoystickDriverState    mDriverState;
-    NDOF_Device             *mNdofDev;
-    bool                    mResetFlag;
-    F32                     mPerfScale;
-    bool                    mCameraUpdated;
-    bool                    mOverrideCamera;
-    U32                     mJoystickRun;
-    boost::signals2::connection mRlvBehaviourConnection; // [RLVa:Trish]
+    EJoystickDriverState    mDriverState { JDS_UNINITIALIZED };
+    NDOF_Device             *mNdofDev { nullptr };
 
     // Windows: _GUID as U8 binary map
     // MacOS: long as an U8 binary map
     // Else: integer 1 for no device/ndof's default device
     LLSD                    mLastDeviceUUID;
 
+    F32                     mPerfScale;
+    U32                     mJoystickRun { 0 };
+    bool                    mResetFlag { false };
+    bool                    mCameraUpdated { true };
+    bool                    mDeviceIs3DConnexion { false };
+    boost::signals2::connection mRlvBehaviourConnection; // [RLVa:Trish]
+
     static F32              sLastDelta[7];
     static F32              sDelta[7];
+
+    // This device's own feathered-delta state feeding
+    // LLAgentCamera::applyNdofFlycamFrameDelta() (which owns the shared flycam
+    // transform/engine, also used by the game-control flycam), kept separate
+    // from sDelta/sLastDelta above (which moveAvatar()/moveObjects() still
+    // use for non-flycam axis handling).
+    F32                     mJoystickFlycamDelta[7] { 0,0,0,0,0,0,0 };
+    F32                     mJoystickFlycamLastDelta[7] { 0,0,0,0,0,0,0 };
 
 // FIRE-14344 - Add button preview and allow for more than 6 axes
 public:

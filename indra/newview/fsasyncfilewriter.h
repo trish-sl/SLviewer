@@ -31,14 +31,17 @@
 #include <functional>
 #include <string>
 
+class LLMutex;
+
 // Opening a file can block for seconds when the disk is busy or a scanner looks at it; chat
 // logs were written that way from the message handlers. Writes queued here run in order on one
 // thread. Each call returns false when the writer isn't available (off, or shutting down): the
 // caller writes the file itself then.
 namespace FSAsyncFileWriter
 {
-    // Appends text. on_written, if any, then runs on the main loop.
-    bool append(const std::string& path, std::string text, std::function<void()> on_written = nullptr);
+    // Appends text. on_written, if any, then runs on the main loop. exclusive, if any, is held
+    // around the open, write and close (the chat log deletion sweep holds it while it deletes).
+    bool append(const std::string& path, std::string text, std::function<void()> on_written = nullptr, LLMutex* exclusive = nullptr);
 
     // Replaces the file with contents (written to a temporary file, then renamed over it).
     bool replace(const std::string& path, std::string contents);

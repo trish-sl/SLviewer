@@ -2331,6 +2331,15 @@ void LLPanelObjectInventory::clearContents()
         }
     }
 
+    if (mFolders)
+    {
+        mFolders->cancelRenaming();
+        if (LLEditMenuHandler::gEditMenuHandler == mFolders)
+        {
+            LLEditMenuHandler::gEditMenuHandler = NULL;
+        }
+    }
+
     if( mScroller )
     {
         // removes mFolders

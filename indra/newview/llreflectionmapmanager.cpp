@@ -1110,7 +1110,10 @@ LLReflectionMap* LLReflectionMapManager::registerSpatialGroup(LLSpatialGroup* gr
 
 LLReflectionMap* LLReflectionMapManager::registerViewerObject(LLViewerObject* vobj)
 {
-    if (!LLPipeline::sReflectionProbesEnabled)
+    // <FS:Beq> [FIRE-35070] Don't register manual probes if we're not using them
+    // if (!LLPipeline::sReflectionProbesEnabled)
+    if (!LLPipeline::sReflectionProbesEnabled || LLPipeline::sReflectionProbeLevel == (S32)LLReflectionMap::ProbeLevel::NONE)
+    // </FS:Beq>
     {
         return nullptr;
     }

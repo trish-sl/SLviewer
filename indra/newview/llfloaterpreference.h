@@ -36,9 +36,13 @@
 #include "llfloater.h"
 #include "llavatarpropertiesprocessor.h"
 #include "llconversationlog.h"
+#include "llgamecontrol.h"
+#include "llkeyconflict.h"
+#include "llscrolllistcell.h"
+#include "llscrolllistctrl.h"
 #include "llsearcheditor.h"
 #include "llsetkeybinddialog.h"
-#include "llkeyconflict.h"
+#include "llspinctrl.h"
 
 #include "llaudioengine.h" // <FS:Ansariel> Output device selection
 
@@ -92,13 +96,15 @@ public:
     void fsKeepCurrentValues(const std::vector<std::string>& names);
     // </FS:Trish>
     // <FS:Zi> FIRE-19539 - Include the alert messages in Prefs>Notifications>Alerts in preference Search.
-    // /*virtual*/ void draw();
+    // virtual void draw() override;
     // </FS:Zi>
-    /*virtual*/ bool postBuild();
-    /*virtual*/ void onOpen(const LLSD& key);
-    /*virtual*/ void onClose(bool app_quitting);
-    /*virtual*/ void changed();
-    /*virtual*/ void changed(const LLUUID& session_id, U32 mask) {};
+    virtual bool postBuild() override;
+    virtual void onOpen(const LLSD& key) override;
+    virtual void onClose(bool app_quitting) override;
+    virtual void changed() override;
+    virtual void changed(const LLUUID& session_id, U32 mask) override {};
+
+    static void refreshInstance();
 
     // static data update, called from message handler
     // <FS:Ansariel> Show email address in preferences (FIRE-1071) and keep for OpenSim
@@ -114,7 +120,7 @@ public:
     // update Show Favorites checkbox
     static void updateShowFavoritesCheckbox(bool val);
 
-    void processProperties( void* pData, EAvatarProcessorType type );
+    void processProperties( void* pData, EAvatarProcessorType type ) override;
     void saveAvatarProperties( void );
     static void saveAvatarPropertiesCoro(const std::string url, bool allow_publish);
     void selectPrivacyPanel();
@@ -242,7 +248,7 @@ public:
     // <FS:Ansariel> Improved graphics preferences
     void disableUnavailableSettings();
     void onCommitWindowedMode();
-    void refresh(); // Refresh enable/disable
+    void refresh() override; // Refresh enable/disable
     // if the quality radio buttons are changed
     void onChangeQuality(const LLSD& data);
     void onClickClearSettings();
@@ -293,6 +299,7 @@ public:
 
     static void refreshSkin(void* data);
     void selectPanel(const LLSD& name);
+    void setPanelVisibility(const LLSD& name, bool visible);
     // <FS:Ansariel> Build fix
     //void saveGraphicsPreset(std::string& preset);
     void saveGraphicsPreset(const std::string& preset);
@@ -337,6 +344,9 @@ private:
     LLScrollListCtrl* mEnabledPopups = nullptr;
     LLScrollListCtrl* mDisabledPopups = nullptr;
     LLButton*       mDeleteTranscriptsBtn = nullptr;
+
+    // Prevent duplicate account-wide deletion requests while the durable sweep runs.
+    bool            mDeleteTranscriptsPending = false;
     LLButton*       mEnablePopupBtn = nullptr;
     LLButton*       mDisablePopupBtn = nullptr;
     LLComboBox*     mTimeFormatCombobox = nullptr;
@@ -363,7 +373,7 @@ class LLPanelPreference : public LLPanel
 {
 public:
     LLPanelPreference();
-    /*virtual*/ bool postBuild();
+    virtual bool postBuild() override;
 
     virtual ~LLPanelPreference();
 
@@ -430,12 +440,12 @@ private:
 class LLPanelPreferenceGraphics : public LLPanelPreference
 {
 public:
-    bool postBuild();
-    void draw();
-    void cancel(const std::vector<std::string> settings_to_skip = {});
-    void saveSettings();
+    bool postBuild() override;
+    void draw() override;
+    void cancel(const std::vector<std::string> settings_to_skip = {}) override;
+    void saveSettings() override;
     void resetDirtyChilds();
-    void setHardwareDefaults();
+    void setHardwareDefaults() override;
     void setPresetText();
 
 protected:
@@ -454,11 +464,13 @@ public:
     LLPanelPreferenceControls();
     virtual ~LLPanelPreferenceControls();
 
-    bool postBuild();
+    bool postBuild() override;
 
-    void apply();
-    void cancel(const std::vector<std::string> settings_to_skip = {});
-    void saveSettings();
+    void refresh() override;
+
+    void apply() override;
+    void cancel(const std::vector<std::string> settings_to_skip = {}) override;
+    void saveSettings() override;
     void resetDirtyChilds();
 
     void onListCommit();
@@ -474,9 +486,12 @@ public:
     void updateAndApply();
 
     // from interface
-    /*virtual*/ bool onSetKeyBind(EMouseClickType click, KEY key, MASK mask, bool all_modes);
-    /*virtual*/ void onDefaultKeyBind(bool all_modes);
-    /*virtual*/ void onCancelKeyBind();
+    bool onSetKeyBind(EMouseClickType click, KEY key, MASK mask, bool all_modes) override;
+    void onDefaultKeyBind(bool all_modes) override;
+    void onCancelKeyBind() override;
+
+    // Cleans content and then adds content from xml files according to current mEditingMode
+    void populateControlTable();
 
 private:
     // reloads settings, discards current changes, updates table
@@ -486,9 +501,6 @@ private:
     bool addControlTableColumns(const std::string &filename);
     bool addControlTableRows(const std::string &filename);
     void addControlTableSeparator();
-
-    // Cleans content and then adds content from xml files according to current mEditingMode
-    void populateControlTable();
 
     // Updates keybindings from storage to table
     void updateTable();
@@ -685,13 +697,13 @@ public:
     void cancel();
 
 protected:
-    bool postBuild();
-    void onOpen(const LLSD& key);
-    void onClose(bool app_quitting);
+    bool postBuild() override;
+    void onOpen(const LLSD& key) override;
+    void onClose(bool app_quitting) override;
     void saveSettings();
     void onBtnOk();
     void onBtnCancel();
-    void onClickCloseBtn(bool app_quitting = false);
+    void onClickCloseBtn(bool app_quitting = false) override;
 
     void onChangeSocksSettings();
 

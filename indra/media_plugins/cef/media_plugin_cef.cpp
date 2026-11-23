@@ -85,6 +85,7 @@ private:
     void onHTTPAuthRequestCallback(const std::string host, const std::string realm); // <FS:Trish/>
     void onCursorChangedCallback(dullahan::ECursorType type);
     const std::vector<std::string> onFileDialog(dullahan::EFileDialogType dialog_type, const std::string dialog_title, const std::string default_file, const std::string dialog_accept_filter, bool& use_default);
+    void onFileDownloadProgressCallback(int percent, bool complete);
     bool onJSDialogCallback(const std::string origin_url, const std::string message_text, const std::string default_prompt_text);
     bool onJSBeforeUnloadCallback();
 
@@ -584,6 +585,16 @@ const std::vector<std::string> MediaPluginCEF::onFileDialog(dullahan::EFileDialo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+void MediaPluginCEF::onFileDownloadProgressCallback(int percent, bool complete)
+{
+    LLPluginMessage message(LLPLUGIN_MESSAGE_CLASS_MEDIA, "file_download_progress");
+    message.setValueS32("percent", percent);
+    message.setValueBoolean("complete", complete);
+    sendMessage(message);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
 bool MediaPluginCEF::onJSDialogCallback(const std::string origin_url, const std::string message_text, const std::string default_prompt_text)
 {
     // return true indicates we suppress the JavaScript alert UI entirely
@@ -827,6 +838,7 @@ void MediaPluginCEF::receiveMessage(const char* message_string)
                 mCEFLib->setOnHTTPAuthCallback(std::bind(&MediaPluginCEF::onHTTPAuthCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 #endif // <FS:Trish/>
                 mCEFLib->setOnFileDialogCallback(std::bind(&MediaPluginCEF::onFileDialog, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+                mCEFLib->setOnFileDownloadProgressCallback(std::bind(&MediaPluginCEF::onFileDownloadProgressCallback, this, std::placeholders::_1, std::placeholders::_2));
                 mCEFLib->setOnCursorChangedCallback(std::bind(&MediaPluginCEF::onCursorChangedCallback, this, std::placeholders::_1));
                 mCEFLib->setOnRequestExitCallback(std::bind(&MediaPluginCEF::onRequestExitCallback, this));
                 mCEFLib->setOnJSDialogCallback(std::bind(&MediaPluginCEF::onJSDialogCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
