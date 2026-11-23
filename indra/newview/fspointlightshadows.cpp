@@ -956,7 +956,7 @@ bool FSPointLightShadows::bind(LLGLSLShader& shader, S32 unit)
     shader.uniform4fv(s_light, MAX_LIGHTS, mUniLight);
     shader.uniform4fv(s_depth, MAX_LIGHTS, mUniDepth);
     shader.uniform4fv(s_atlas, 1, mUniAtlas);
-    shader.uniform1i(s_debug, llmax((S32)debug, 0));
+    shader.uniform1i(s_debug, llclamp((S32)debug, 0, 6));
     return true;
 }
 

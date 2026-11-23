@@ -38,7 +38,7 @@ uniform vec4 fs_lls_depth[FS_LLS_MAX];  // per slot: depth terms A and B (window
 uniform vec4 fs_lls_atlas;              // x: a face's width in the atlas (1/6), y: a slot's height (1/rows),
                                         // z: the faces' projection scale (1 / tan of the half angle), w: texels per face
 uniform int fs_lls_debug;               // FSRenderLocalLightShadowDebug: 1 to 4 tint each mapped light by its slot,
-                                        // 5 to 7 show the lookup's inputs (fsPointShadowMap)
+                                        // 5 and 6 show the lookup's inputs (fsPointShadowMap)
 // The view LLRender gives this draw, the one its surface positions are in. The way from eye space
 // to the faces' (agent) axes and the light's eye space centre are both taken from it, so nothing
 // the C++ uploads can disagree with the positions. (A separately uploaded rotation was copied out
@@ -158,7 +158,7 @@ vec3 fsPointShadowSlotColor(int slot)
 // Debug 5: half metre bands along the agent axes, measured from the map's centre the way the
 // lookup measures (the draw's view, fs_lls_light, pos): they stay fixed to the world as the
 // camera moves when those inputs are right. Debug 6: green where the pass lights from the map's
-// centre, red where it lights from elsewhere (more than 5 cm off). Debug 7: as 5.
+// centre, red where it lights from elsewhere (more than 5 cm off).
 vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
 {
     if (slot < 0 || slot >= FS_LLS_MAX)
