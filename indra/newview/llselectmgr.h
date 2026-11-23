@@ -445,6 +445,7 @@ private:
     list_t mFailedNodesList;
     bool checkNode(LLSelectNode* nodep);
     // </FS:Zi>
+    list_t mRemovedNodes;
 };
 
 typedef LLSafeHandle<LLObjectSelection> LLObjectSelectionHandle;
