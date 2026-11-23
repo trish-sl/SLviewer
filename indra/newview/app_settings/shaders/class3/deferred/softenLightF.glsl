@@ -198,6 +198,7 @@ vec4 fsSSRSharp(vec3 pos, vec3 norm, vec2 ratio)
     float sum_w = 0.0;
     vec4 best = vec4(0);
     float best_score = 1e30;
+    float best_nd = 0.0; // <FS:Trish/> the closest normal among the texels, nd^8
     for (int i = 0; i < 4; ++i)
     {
         ivec2 o = ivec2(i & 1, i >> 1);
@@ -213,6 +214,7 @@ vec4 fsSSRSharp(vec3 pos, vec3 norm, vec2 ratio)
         nd *= nd;
         nd *= nd;
         nd *= nd; // nd^8: reflections change fast with the normal
+        best_nd = max(best_nd, nd); // <FS:Trish/>
 
         vec2 tent = mix(vec2(1.0) - f, f, vec2(o));
         float w = tent.x * tent.y * nd / (1.0 + rel * rel);
@@ -227,6 +229,17 @@ vec4 fsSSRSharp(vec3 pos, vec3 norm, vec2 ratio)
             best = s;
         }
     }
+    // <FS:Trish> On the edge of an object (a plush seen against the wall behind it) all four
+    // texels can be traced from the background, facing another way: the weights only shared
+    // the wall's reflection out among them, and the edge pixel took it, a speckle of something
+    // else along the silhouette. With no texel facing within about 40 degrees of this pixel,
+    // nothing is read and the probes take over. (Depth alone can't tell: on a floor seen at a
+    // low angle the texels are far apart in depth and still the same surface.)
+    if (best_nd < 0.1)
+    {
+        return vec4(0);
+    }
+    // </FS:Trish>
     return sum_w > 1e-4 ? sum / sum_w : best;
 }
 

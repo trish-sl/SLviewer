@@ -47,6 +47,7 @@ uniform sampler2D sceneMap;
 uniform vec4 waterPlane;
 
 float getDepth(vec2 pos_screen);
+vec4 getNorm(vec2 screenpos);
 vec4 getPositionWithDepth(vec2 pos_screen, float depth);
 bool isFarDepth(float d);
 GBufferInfo getGBuffer(vec2 screenpos);
@@ -58,6 +59,29 @@ vec3 ssrCompress(vec3 c);
 #ifdef FS_WET_SHORE
 float fsWetShore(vec3 pos, vec3 norm, vec4 water_plane);
 #endif
+
+// Specular anti-aliasing for the reflection (after Tokuyoshi and Kaplanyan): the roughness a
+// surface has for the trace, widened by how much its shading normal changes from one pixel to the
+// next. Fur, carpet and other busy normal maps, and the curved edge of an object, change it
+// within a pixel; traced as the smooth surface their roughness says they are, every pixel's ray
+// went somewhere else and the reflection sparkled, worst near silhouettes where the Fresnel term
+// is strong. Widened, they read the blurred cone and fade to the probes as the roughness reaches
+// RenderScreenSpaceReflectionMaxRoughness, smoothly from pixel to pixel.
+float fsSSRFilteredRoughness(ivec2 full, vec3 n, float roughness)
+{
+    ivec2 last = ivec2(fs_ssr_full_res) - 1;
+    vec3 l = getNorm((vec2(clamp(full - ivec2(1, 0), ivec2(0), last)) + 0.5) / fs_ssr_full_res).xyz;
+    vec3 r = getNorm((vec2(clamp(full + ivec2(1, 0), ivec2(0), last)) + 0.5) / fs_ssr_full_res).xyz;
+    vec3 b = getNorm((vec2(clamp(full - ivec2(0, 1), ivec2(0), last)) + 0.5) / fs_ssr_full_res).xyz;
+    vec3 t = getNorm((vec2(clamp(full + ivec2(0, 1), ivec2(0), last)) + 0.5) / fs_ssr_full_res).xyz;
+    // the larger step on each axis, so a silhouette on either side counts
+    vec3 dx = (dot(r - n, r - n) > dot(n - l, n - l)) ? r - n : n - l;
+    vec3 dy = (dot(t - n, t - n) > dot(n - b, n - b)) ? t - n : n - b;
+    float variance = 0.25 * (dot(dx, dx) + dot(dy, dy));
+    float kernel = min(2.0 * variance, 0.3);
+    float a = roughness * roughness;
+    return sqrt(sqrt(clamp(a * a + kernel, 0.0, 1.0)));
+}
 
 void main()
 {
@@ -102,6 +126,8 @@ void main()
         gloss = mix(gb.specular.a, max(gb.specular.a, 0.8), wet);
         dir = refl;
     }
+    // the direction stays the surface's own; only the trace's roughness (its cone and its fade) widens
+    gloss = 1.0 - fsSSRFilteredRoughness(full, gb.normal, 1.0 - gloss);
 
     vec4 ssr = vec4(0);
     if (gloss > ssrMinGlossiness())
