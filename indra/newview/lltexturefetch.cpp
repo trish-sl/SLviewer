@@ -736,6 +736,7 @@ private:
     bool                    mHttpActive;                // Active request to http library
     U32                     mHttpReplySize,             // Actual received data size
                             mHttpReplyOffset;           // Actual received data offset
+    U32                     mHttpReplyFullLength;       // <FS:Trish/> The file's total size from the reply's Content-Range, 0 if not given
     bool                    mHttpHasResource;           // Counts against Fetcher's mHttpSemaphore
 
     // State history
@@ -1059,6 +1060,7 @@ LLTextureFetchWorker::LLTextureFetchWorker(LLTextureFetch* fetcher,
       mHttpActive(false),
       mHttpReplySize(0U),
       mHttpReplyOffset(0U),
+      mHttpReplyFullLength(0U), // <FS:Trish/>
       mHttpHasResource(false),
       mCacheReadCount(0U),
       mCacheWriteCount(0U),
@@ -1349,6 +1351,7 @@ void LLTextureFetchWorker::resetFormattedData()
     }
     mHttpReplySize = 0;
     mHttpReplyOffset = 0;
+    mHttpReplyFullLength = 0; // <FS:Trish/>
     mHaveAllData = false;
 }
 
@@ -1555,6 +1558,7 @@ bool LLTextureFetchWorker::doWork(S32 param)
         }
         mHttpReplySize = 0;
         mHttpReplyOffset = 0;
+        mHttpReplyFullLength = 0; // <FS:Trish/>
         mHaveAllData = false;
         // <FS:Trish> Alchemy exact J2C byte ranges
         mFetchFailed = false;
@@ -2343,6 +2347,13 @@ bool LLTextureFetchWorker::doWork(S32 param)
             {
                 mFileSize = total_size;
             }
+            // <FS:Trish> The reply's Content-Range gave the file's real size: keep it, so the cache
+            // entry records how much of the file it holds and is found complete once it holds all of it
+            else if (mHttpReplyFullLength > (U32)total_size)
+            {
+                mFileSize = (S32)mHttpReplyFullLength;
+            }
+            // </FS:Trish>
             else //the file size is unknown.
             {
                 mFileSize = total_size + 1 ; //flag the file is not fully loaded.
@@ -2363,6 +2374,7 @@ bool LLTextureFetchWorker::doWork(S32 param)
             mHttpBufferArray = NULL;
             mHttpReplySize = 0;
             mHttpReplyOffset = 0;
+            mHttpReplyFullLength = 0; // <FS:Trish/>
 
             // <FS:Trish> Alchemy exact J2C byte ranges
             updateLayout();
@@ -3053,6 +3065,7 @@ S32 LLTextureFetchWorker::callbackHttpGet(LLCore::HttpResponse * response,
             body->addRef();
             mHttpBufferArray = body;
 
+            bool reached_end = false; // <FS:Trish/>
             if (partial)
             {
                 unsigned int offset(0), length(0), full_length(0);
@@ -3071,6 +3084,14 @@ S32 LLTextureFetchWorker::callbackHttpGet(LLCore::HttpResponse * response,
                 {
                     mHttpReplySize = length;
                     mHttpReplyOffset = offset;
+                    // <FS:Trish> Content-Range also gives the file's total size (0 for "*" or none).
+                    // A range that runs to it is the end of the file, even when it is exactly what
+                    // was asked for: requests sized to a detail level never come back short, so
+                    // without this the file was never marked complete and every later visit wanting
+                    // more detail than the cache held went back to the network for it.
+                    mHttpReplyFullLength = full_length;
+                    reached_end = full_length > 0 && (U64)offset + (U64)length >= (U64)full_length;
+                    // </FS:Trish>
                 }
             }
 
@@ -3103,6 +3124,12 @@ S32 LLTextureFetchWorker::callbackHttpGet(LLCore::HttpResponse * response,
                 llassert_always(mDecodeHandle == 0);
                 mFormattedImage = NULL; // discard any previous data we had
             }
+            // <FS:Trish> The range reached the end of the file (see above)
+            else if (reached_end)
+            {
+                mHaveAllData = true;
+            }
+            // </FS:Trish>
         }
         else
         {
