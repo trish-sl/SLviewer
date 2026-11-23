@@ -752,7 +752,8 @@ void LLViewerTexture::updateClass()
     // rising, far too much was dropped, then the memory showed up as free all at once and it all
     // loaded back in, over and over. So the target is worked out only when the free figure is
     // read, from what we held at that moment, a drop only counts once it has lasted a few
-    // seconds, and what is taken outside of us is the smallest seen over a longer window.
+    // seconds, and what is taken outside of us is the largest seen over a longer window, not
+    // sampled right after our own freeing (FSTextureVRAMTargetFraction).
     static LLFrameTimer live_vram_timer;
     static S32 live_vram_free = -1;
     static F32 live_vram_untracked = -1.f; // GPU MB in use outside of what we track, measured without pressure
@@ -807,29 +808,9 @@ void LLViewerTexture::updateClass()
                 // only above twice the reserve (about 4 GB free on a 16 GB card). Once textures filled
                 // more than that it was never measured again, so render targets and other programs that
                 // grew later were missing from the target. Clearly above the driver's floor is enough.
-                //if ((F32)live_vram_free > 2.f * reserve && total > (F32)live_vram_free)
-                if ((F32)live_vram_free > reserve + 1024.f && total > (F32)live_vram_free)
-                {
-                    live_untracked_samples.emplace_back(now, llmax(total - (F32)live_vram_free - tracked, 0.f));
-                    while (live_untracked_samples.size() > 1 && now - live_untracked_samples.front().first > UNTRACKED_WINDOW)
-                    {
-                        live_untracked_samples.pop_front();
-                    }
-                    live_vram_untracked = live_untracked_samples.front().second;
-                    for (const auto& sample : live_untracked_samples)
-                    {
-                        live_vram_untracked = llmin(live_vram_untracked, sample.second);
-                    }
-                }
-
-                F32 sample_target = tracked + (F32)live_vram_free - reserve;
-                if (live_vram_untracked >= 0.f)
-                {
-                    sample_target = llmin(sample_target, total - reserve - live_vram_untracked);
-                }
-                // The hold is only for drops that follow our own freeing (what we track went down
-                // since the last read): those are the driver handing memory back late. While we
-                // are loading, a drop in free memory is real and counts at once, or usage ran on
+                // The hold further down is only for drops that follow our own freeing (what we track
+                // went down since the last read): those are the driver handing memory back late. While
+                // we are loading, a drop in free memory is real and counts at once, or usage ran on
                 // to 100% before the target followed and a big batch had to go all at once.
                 static F32 live_last_tracked = -1.f;
                 static F64 live_last_shrink = -1.0e9;
@@ -839,6 +820,42 @@ void LLViewerTexture::updateClass()
                     live_last_shrink = now;
                 }
                 live_last_tracked = tracked;
+                // FSTextureVRAMTargetFraction: what is taken outside of our textures is the largest seen
+                // over the window, so render targets, the desktop and other programs that grew are in the
+                // target at once, not only once the smallest sample has aged out. Not measured right after
+                // our own freeing (the driver hands that memory back late, so for a few seconds it looks
+                // taken by something else), which is what the smallest-of-window used to guard against.
+                //if ((F32)live_vram_free > 2.f * reserve && total > (F32)live_vram_free)
+                if ((F32)live_vram_free > reserve + 1024.f && total > (F32)live_vram_free && now - live_last_shrink > TARGET_DROP_DELAY)
+                {
+                    live_untracked_samples.emplace_back(now, llmax(total - (F32)live_vram_free - tracked, 0.f));
+                    while (live_untracked_samples.size() > 1 && now - live_untracked_samples.front().first > UNTRACKED_WINDOW)
+                    {
+                        live_untracked_samples.pop_front();
+                    }
+                    live_vram_untracked = live_untracked_samples.front().second;
+                    for (const auto& sample : live_untracked_samples)
+                    {
+                        //live_vram_untracked = llmin(live_vram_untracked, sample.second);
+                        live_vram_untracked = llmax(live_vram_untracked, sample.second);
+                    }
+                }
+
+                F32 sample_target = tracked + (F32)live_vram_free - reserve;
+                if (live_vram_untracked >= 0.f)
+                {
+                    sample_target = llmin(sample_target, total - reserve - live_vram_untracked);
+                }
+                // FSTextureVRAMTargetFraction: at most this share of the card. The stock budget counts
+                // every texture byte twice, so on a 16 GB card it stops textures and buffers at about
+                // 6.5 GB; the live target let them reach 12.2 GB, which 16 decode threads filled 25 s
+                // after login, faster than the free figure (read every 0.25-1 s) and the bias could
+                // follow, and the driver paged for 39 s with 300-900 ms frames.
+                static LLCachedControl<F32> target_fraction(gSavedSettings, "FSTextureVRAMTargetFraction", 0.5f);
+                if (target_fraction() > 0.f)
+                {
+                    sample_target = llmin(sample_target, total * llclamp((F32)target_fraction, 0.1f, 1.f));
+                }
                 if (now - live_last_shrink > TARGET_DROP_DELAY)
                 {
                     live_target_samples.clear();
