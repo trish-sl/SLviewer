@@ -127,6 +127,24 @@ bool LLViewerTexture::fsMayDownscale(const LLImageGL* gl)
     }
     return sDesiredDiscardBias >= FS_DOWNSCALE_RECENT_BIAS || !gl || !gl->getBoundRecently();
 }
+
+//static
+bool LLViewerTexture::fsShouldDownscale(S32 current_discard, S32 desired_discard, const LLImageGL* gl)
+{
+    if (current_discard < 0 || current_discard >= desired_discard)
+    {
+        return false;
+    }
+    // A whole level or more too fine: at once, whatever the pressure (one level of hysteresis, as the
+    // Alchemy viewer has, on top of the drop deadband in processTextureStats). At the cap and over
+    // target 9.2 GB of unboosted textures sat at full size because nothing shrank below bias 1.15.
+    if (current_discard < desired_discard - 1)
+    {
+        return sDesiredDiscardBias >= FS_DOWNSCALE_RECENT_BIAS || !gl || !gl->getBoundRecently();
+    }
+    // One level too fine: only while memory is tight
+    return fsMayDownscale(gl);
+}
 // </FS:Trish>
 S32 LLViewerTexture::sSnapshotDiscardBoost = 0; // <FS:Trish/>
 U32 LLViewerTexture::sBiasTexturesUpdated = 0;
@@ -4560,7 +4578,8 @@ void LLViewerLODTexture::processTextureStats()
             // deleted shortly after anyway. With VRAM under target (bias 1) they buy nothing; the
             // bias rises as soon as memory is actually needed, and downscaling resumes then.
             //if (current_discard < mDesiredDiscardLevel && !mForceToSaveRawImage)
-            if (current_discard < mDesiredDiscardLevel && !mForceToSaveRawImage && fsMayDownscale(mGLTexturep))
+            // A whole level or more too fine goes at once; one level only under pressure (fsShouldDownscale)
+            if (!mForceToSaveRawImage && fsShouldDownscale(current_discard, mDesiredDiscardLevel, mGLTexturep))
             // </FS:Trish>
             { // should scale down
                 scaleDown();

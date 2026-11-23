@@ -250,11 +250,14 @@ public:
     static S32 sAuxCount;
     static LLFrameTimer sEvaluationTimer;
     static F32 sDesiredDiscardBias;
-    // <FS:Trish> Downscale only under real memory pressure, and keep textures drawn in the last
-    // few seconds unless it is high: a bias just above 1 used to downscale every texture that left
-    // the screen, which then came back full size and was uploaded again, continuously.
+    // <FS:Trish> A texture a whole level or more finer than wanted is shrunk at once, as the Second
+    // Life viewer does (so memory tracks the scene and the bias has less to do), keeping one drawn in
+    // the last few seconds only while the bias is under 2. One finer than wanted is shrunk only under
+    // real memory pressure: a bias just above 1 used to downscale every texture that left the screen,
+    // which then came back full size and was uploaded again, continuously.
     static bool fsUnderDownscalePressure();
     static bool fsMayDownscale(const LLImageGL* gl);
+    static bool fsShouldDownscale(S32 current_discard, S32 desired_discard, const LLImageGL* gl);
     // Memory is short now (soft zone, over target, low system memory or backgrounded), as
     // opposed to the bias only being held up after it was
     static bool sFSVRAMTight;

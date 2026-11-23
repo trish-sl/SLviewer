@@ -1552,11 +1552,12 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
         imagep->postCreateTexture();
         imagep->mCreatePending = false;
 
-        // <FS:Trish> Downscale only under memory pressure (see LLViewerLODTexture::processTextureStats)
+        // <FS:Trish> A whole level or more too fine goes at once, one level only under memory pressure
+        // (see LLViewerTexture::fsShouldDownscale)
         //if (imagep->hasGLTexture() && imagep->getDiscardLevel() < imagep->getDesiredDiscardLevel() &&
         //   (imagep->getDesiredDiscardLevel() <= MAX_DISCARD_LEVEL))
-        if (imagep->hasGLTexture() && imagep->getDiscardLevel() < imagep->getDesiredDiscardLevel() &&
-           (imagep->getDesiredDiscardLevel() <= MAX_DISCARD_LEVEL) && LLViewerTexture::fsMayDownscale(imagep->getGLTexture()))
+        if (imagep->hasGLTexture() && (imagep->getDesiredDiscardLevel() <= MAX_DISCARD_LEVEL) &&
+            LLViewerTexture::fsShouldDownscale(imagep->getDiscardLevel(), imagep->getDesiredDiscardLevel(), imagep->getGLTexture()))
         // </FS:Trish>
         {
             // NOTE: this may happen if the desired discard reduces while a decode is in progress and does not
@@ -1586,18 +1587,19 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
     }
     // </FS:Trish>
 
-    // <FS:Trish> Downscale only under memory pressure
-    // Entries queued while memory was tight can outlive the pressure. Once VRAM is back under
-    // target, release them without the GPU work -- this queue used to keep forcing at least five
-    // downscales a frame, past the time budget, for thousands of textures that no longer needed it.
+    // <FS:Trish> Entries whose texture no longer needs shrinking (its wanted level came back, or it was
+    // queued one level too fine while memory was tight and the pressure has passed) are released
+    // without the GPU work. The rest stay queued whatever the pressure: a texture a whole level or
+    // more too fine is shrunk so memory tracks the scene (fsShouldDownscale).
     // FSTextureReleaseFaceless: textures queued because they are on no face stay queued.
-    if (!mDownScaleQueue.empty() && !LLViewerTexture::fsUnderDownscalePressure())
+    if (!mDownScaleQueue.empty())
     {
         image_queue_t keep;
         while (!mDownScaleQueue.empty())
         {
             LLViewerFetchedTexture* image = mDownScaleQueue.front();
-            if (image->mFSFacelessRelease && FSTextureRelease::active())
+            const bool faceless = image->mFSFacelessRelease && FSTextureRelease::active();
+            if (faceless || LLViewerTexture::fsShouldDownscale(image->getDiscardLevel(), image->getDesiredDiscardLevel(), image->getGLTexture()))
             {
                 keep.push(image);
             }
@@ -1628,10 +1630,20 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
         // do at least 5 and make sure we don't get too far behind even if it violates
         // the time limit.  If we don't downscale quickly the viewer will hit swap and may
         // freeze.
-        S32 min_count = (S32)mCreateTextureList.size() / 20 + 5;
+        // <FS:Trish> FSTextureDownscalesPerFrame: with memory tight, as before (at least this many past
+        // the time limit, more with a long create list); with room, at most this many a frame within
+        // the time limit, as these are textures shrinking because the scene moved on, not an emergency
+        //S32 min_count = (S32)mCreateTextureList.size() / 20 + 5;
+        static LLCachedControl<U32> fs_downscales_per_frame(gSavedSettings, "FSTextureDownscalesPerFrame", 8);
+        const bool fs_tight = LLViewerTexture::fsUnderDownscalePressure();
+        const S32 fs_per_frame = (S32)llclamp((U32)fs_downscales_per_frame, 1U, 1024U);
+        S32 min_count = fs_tight ? (S32)mCreateTextureList.size() / 20 + llmax(5, fs_per_frame) : 0;
+        S32 fs_left = fs_tight ? S32_MAX : fs_per_frame;
+        // </FS:Trish>
 
         create_timer.reset();
-        while (!mDownScaleQueue.empty())
+        //while (!mDownScaleQueue.empty())
+        while (!mDownScaleQueue.empty() && fs_left-- > 0) // <FS:Trish/> FSTextureDownscalesPerFrame
         {
             LLViewerFetchedTexture* image = mDownScaleQueue.front();
             llassert(image->mDownScalePending);

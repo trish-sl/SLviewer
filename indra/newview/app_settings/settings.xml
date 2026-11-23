@@ -32264,6 +32264,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>16.0</real>
     </map>
+    <key>FSTextureDownscalesPerFrame</key>
+    <map>
+      <key>Comment</key>
+      <string>Textures shrunk on the GPU per frame while video memory has room: a texture a whole level or more finer than the scene needs is shrunk at once, as the Second Life viewer does, so memory tracks the scene instead of waiting for the texture bias (at the bias cap after a login 9 GB of textures sat at full size that nothing needed). Within the frame's texture time budget. While memory is tight at least this many (and 5) go past the budget, more with a long create list, as before. One level too fine is still only shrunk while memory is tight, and a texture drawn in the last seconds is left alone while the bias is under 2. 1-1024.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>U32</string>
+      <key>Value</key>
+      <integer>8</integer>
+    </map>
     <key>FSTextureReleaseFaceless</key>
     <map>
       <key>Comment</key>
