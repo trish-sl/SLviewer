@@ -4554,13 +4554,18 @@ void LLViewerLODTexture::processTextureStats()
         // dropping and refetching the texture. Upgrades are never held back: holding them pinned
         // textures at a reduced level (e.g. half resolution, or mid progressive fetch) forever.
         //discard_level = floorf(discard_level);
+        // FSTextureDiscardRoundNearest (off): the level nearest to the need instead of the next sharper
+        // one, for a texture sized by its pixel area; a texture with a known draw size (UI images,
+        // previews) keeps rounding sharper. The deadband then sits a quarter past the nearest boundary.
         {
+            static LLCachedControl<bool> round_nearest(gSavedSettings, "FSTextureDiscardRoundNearest", false);
+            const bool fs_nearest = round_nearest && !(mKnownDrawWidth && mKnownDrawHeight);
             const F32 wanted = discard_level;
-            discard_level = floorf(wanted);
+            discard_level = fs_nearest ? floorf(wanted + 0.5f) : floorf(wanted);
             const S32 current = getDiscardLevel();
             if (current >= 0 && hasGLTexture())
             {
-                if (discard_level > (F32)current && wanted < (F32)current + 1.25f)
+                if (discard_level > (F32)current && wanted < (F32)current + (fs_nearest ? 0.75f : 1.25f))
                 {
                     discard_level = (F32)current;
                 }
