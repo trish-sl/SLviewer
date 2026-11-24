@@ -2182,11 +2182,11 @@ Copyright (c) 2012, 2014, 2015, 2016 nghttp2 contributors</string>
             <key>archive</key>
             <map>
               <key>hash</key>
-              <string>351f626bdb04166e0f31ba55c68853a88baa334c</string>
+              <string>884b8d0c4b3fc2bc572d0a0af57493907d71dd71</string>
               <key>hash_algorithm</key>
               <string>sha1</string>
               <key>url</key>
-              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish5/openjpeg-2.5.4.45126661135-darwin64-45126661135.tar.zst</string>
+              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish6/openjpeg-2.5.4.45294804479-darwin64-45294804479.tar.zst</string>
             </map>
             <key>name</key>
             <string>darwin64</string>
@@ -2196,11 +2196,11 @@ Copyright (c) 2012, 2014, 2015, 2016 nghttp2 contributors</string>
             <key>archive</key>
             <map>
               <key>hash</key>
-              <string>15f5d6ba0f62f54a242a38530f4e664e54f7213a</string>
+              <string>58b7626c50af16b3252cdf257aba0f6a1bb0e94a</string>
               <key>hash_algorithm</key>
               <string>sha1</string>
               <key>url</key>
-              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish5/openjpeg-2.5.4.45126661135-linux64-45126661135.tar.zst</string>
+              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish6/openjpeg-2.5.4.45294804479-linux64-45294804479.tar.zst</string>
             </map>
             <key>name</key>
             <string>linux64</string>
@@ -2210,11 +2210,11 @@ Copyright (c) 2012, 2014, 2015, 2016 nghttp2 contributors</string>
             <key>archive</key>
             <map>
               <key>hash</key>
-              <string>3981dfaf28c6e90fec58ee51270343115e81a3eb</string>
+              <string>bd4f81653fee5b42e1bce70843979d2c864c5cb6</string>
               <key>hash_algorithm</key>
               <string>sha1</string>
               <key>url</key>
-              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish5/openjpeg-2.5.4.45126661135-windows64-45126661135.tar.zst</string>
+              <string>https://github.com/trish-sl/3p-openjpeg/releases/download/v2.5.4-trish6/openjpeg-2.5.4.45294804479-windows64-45294804479.tar.zst</string>
             </map>
             <key>name</key>
             <string>windows64</string>
@@ -2227,7 +2227,7 @@ Copyright (c) 2012, 2014, 2015, 2016 nghttp2 contributors</string>
         <key>copyright</key>
         <string>Copyright (c) 2002-2007, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium; Copyright (c) 2002-2007, Professor Benoit Macq; Copyright (c) 2001-2003, David Janssens; Copyright (c) 2002-2003, Yannick Verschueren; Copyright (c) 2003-2007, Francois-Olivier Devaux and Antonin Descampe; Copyright (c) 2005, Herve Drolon, FreeImage Team; Copyright (c) 2006-2007, Parvatha Elangovan; Copyright (c) 2008, Jerome Fimes, Communications &amp; Systemes &lt;jerome.fimes@c-s.fr&gt;; Copyright (c) 2010-2011, Kaori Hagihara; Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France; Copyright (c) 2012, CS Systemes d'Information, France;</string>
         <key>version</key>
-        <string>2.5.4.45126661135</string>
+        <string>2.5.4.45294804479</string>
         <key>name</key>
         <string>openjpeg</string>
         <key>description</key>
