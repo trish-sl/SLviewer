@@ -467,11 +467,11 @@
     <key>FSRenderShadowFadeLength</key>
     <real>0.2</real>
     <key>FSRenderShadowFarCascadeInterval</key>
-    <integer>8</integer>
+    <integer>2</integer>
     <key>FSRenderShadowFarCascadeMinCasterScale</key>
     <real>5.0</real>
     <key>FSRenderShadowFarCascadeResolution</key>
-    <real>0.75</real>
+    <real>0.5</real>
     <key>FSRenderShadowFastFilter</key>
     <boolean>1</boolean>
     <key>FSRenderShadowFitDepth</key>
@@ -479,7 +479,7 @@
     <key>FSRenderShadowMaxDistance</key>
     <real>150.0</real>
     <key>FSRenderShadowReduceWhileMoving</key>
-    <boolean>1</boolean>
+    <boolean>0</boolean>
     <key>FSRenderShadowScreenFilter</key>
     <boolean>0</boolean>
     <key>FSRenderShadowScreenFilterTemporal</key>
@@ -513,7 +513,7 @@
     <key>FSRenderSkinOnceBudgetMB</key>
     <integer>192</integer>
     <key>FSRenderSkinOnceMinPasses</key>
-    <real>3.0</real>
+    <real>2.0</real>
     <key>FSRenderSkinSheen</key>
     <boolean>1</boolean>
     <key>FSRenderSkinSheenStrength</key>
@@ -597,9 +597,9 @@
     <key>FSRenderSSRHiZ</key>
     <boolean>1</boolean>
     <key>FSRenderSSRHiZSteps</key>
-    <integer>48</integer>
+    <integer>96</integer>
     <key>FSRenderSSRThickness</key>
-    <real>0.3</real>
+    <real>0.2</real>
     <key>FSRenderStarExtinction</key>
     <boolean>1</boolean>
     <key>FSRenderSunDiscDetail</key>
@@ -769,7 +769,7 @@
     <key>RenderReflectionProbeMinRefresh</key>
     <real>10.0</real>
     <key>RenderReflectionProbeRefreshFrameInterval</key>
-    <integer>6</integer>
+    <integer>8</integer>
     <key>RenderReflectionProbeSharedShadows</key>
     <boolean>1</boolean>
     <key>RenderResolutionMultiplier</key>
