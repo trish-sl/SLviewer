@@ -788,13 +788,14 @@ void AOEngine::enable(bool enable)
         {
             LL_DEBUGS("AOEngine") << "Enabling animation state " << state->mName << LL_ENDL;
 
-            // do not stop underlying sit animations when re-enabling the AO
-            if (mLastOverriddenMotion != ANIM_AGENT_SIT_GROUND &&
-                mLastOverriddenMotion != ANIM_AGENT_SIT_GROUND_CONSTRAINED &&
-                mLastOverriddenMotion != ANIM_AGENT_SIT)
-            {
-                gAgent.sendAnimationRequest(mLastOverriddenMotion, ANIM_REQUEST_STOP);
-            }
+            // The Linden motion is only stopped once there is an override to play instead. It used
+            // to be stopped first, and then nothing started when override() declined: stands not
+            // enabled yet (the AO's sets load before onLoginComplete() turns stands on, so after
+            // every login the region's default stand was stopped and the avatar stood in its
+            // default pose until the avatar finished loading), or a stand in mouselook with
+            // "disable stands in mouselook". override() changes mLastOverriddenMotion, so the
+            // motion to stop is taken from before it.
+            const LLUUID last_overridden = mLastOverriddenMotion;
 
             LLUUID animation = override(mLastMotion, true);
             if (animation.isNull())
@@ -802,13 +803,22 @@ void AOEngine::enable(bool enable)
                 return;
             }
 
+            if (mLastMotion == ANIM_AGENT_STAND && !mEnabledStands)
+            {
+                LL_DEBUGS("AOEngine") << "Last motion was a STAND, but disabled for stands, ignoring." << LL_ENDL;
+                return;
+            }
+
+            // do not stop underlying sit animations when re-enabling the AO
+            if (last_overridden != ANIM_AGENT_SIT_GROUND &&
+                last_overridden != ANIM_AGENT_SIT_GROUND_CONSTRAINED &&
+                last_overridden != ANIM_AGENT_SIT)
+            {
+                gAgent.sendAnimationRequest(last_overridden, ANIM_REQUEST_STOP);
+            }
+
             if (mLastMotion == ANIM_AGENT_STAND)
             {
-                if (!mEnabledStands)
-                {
-                    LL_DEBUGS("AOEngine") << "Last motion was a STAND, but disabled for stands, ignoring." << LL_ENDL;
-                    return;
-                }
                 stopAllStandVariants();
             }
             else if (mLastMotion == ANIM_AGENT_WALK)
