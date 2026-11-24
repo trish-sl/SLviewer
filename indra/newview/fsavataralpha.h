@@ -33,6 +33,9 @@
 
 class LLDrawInfo;
 class LLSpatialGroup;
+class LLTextureEntry;
+class LLViewerObject;
+class LLViewerTexture;
 class LLVOAvatar;
 
 // Hair, lace, sheer clothing and PBR blend on avatars are drawn by the alpha pool (LLDrawPoolAlpha::renderAlpha)
@@ -78,6 +81,14 @@ namespace FSAvatarAlpha
     // is above the pass's minimum alpha (LLDrawInfo::mFSTintAboveMin). Not for particles, HUDs or impostors (the
     // caller's pass decides those).
     bool noDiscardDraw(const LLDrawInfo& params);
+
+    // FSRenderAvatarTintOpaqueAlpha (0: off): whether a face of an attachment whose texture is loaded with no alpha
+    // channel and whose face colour alpha is at least the setting (and below 0.999, where it is opaque anyway) is
+    // to be drawn opaque, in the deferred pass, as if its face colour alpha were 1. Decided where the face's pool
+    // and pass are (LLPipeline::getPoolTypeFromTE's callers, LLVolumeGeometryManager::genDrawInfo and
+    // registerFace); LLVOVolume::setTEColor rebuilds when a colour change crosses the threshold.
+    bool tintOpaque(const LLTextureEntry* te, const LLViewerTexture* tex, const LLViewerObject* vobj);
+    F32 tintOpaqueThreshold(); // the setting clamped to 0.5-0.999, or 0 for off
 }
 
 #endif // FS_AVATARALPHA_H

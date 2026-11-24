@@ -183,7 +183,10 @@ public:
 
     /// @brief Figures out draw pool type from texture entry. Creates pool if necessary.
     static LLDrawPool* getPoolFromTE(const LLTextureEntry* te, LLViewerTexture* te_image);
-    static U32 getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep);
+    // <FS:Trish> fs_tint_opaque: FSRenderAvatarTintOpaqueAlpha, the face colour alpha counts as 1 (FSAvatarAlpha::tintOpaque)
+    //static U32 getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep);
+    static U32 getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep, bool fs_tint_opaque = false);
+    // </FS:Trish>
 
     void         addPool(LLDrawPool *poolp);    // Only to be used by LLDrawPool classes for splitting pools!
     void         removePool( LLDrawPool* poolp );

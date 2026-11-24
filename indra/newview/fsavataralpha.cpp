@@ -34,7 +34,9 @@
 #include "llagentcamera.h"
 #include "lldrawable.h"
 #include "llspatialpartition.h"
+#include "lltextureentry.h"
 #include "llviewercontrol.h"
+#include "llviewerobject.h"
 #include "llviewertexture.h"
 #include "llviewerregion.h"
 #include "llvoavatar.h"
@@ -227,6 +229,25 @@ bool FSAvatarAlpha::noDiscardDraw(const LLDrawInfo& params)
         return true;
     }
     return fs_opaque_texture(params.mTexture.get());
+}
+
+F32 FSAvatarAlpha::tintOpaqueThreshold()
+{
+    static LLCachedControl<F32> threshold(gSavedSettings, "FSRenderAvatarTintOpaqueAlpha", 0.f);
+    return threshold > 0.f ? llclamp((F32)threshold, 0.5f, 0.999f) : 0.f;
+}
+
+bool FSAvatarAlpha::tintOpaque(const LLTextureEntry* te, const LLViewerTexture* tex, const LLViewerObject* vobj)
+{
+    const F32 threshold = tintOpaqueThreshold();
+    if (threshold <= 0.f || !te || !vobj || te->getGLTFRenderMaterial() || !vobj->isAttachment() || vobj->isHUDAttachment())
+    {
+        return false;
+    }
+    const F32 alpha = te->getColor().mV[3];
+    // the components alone, not whether the GL texture exists yet: a face is rebuilt when its texture's component
+    // count becomes known (LLViewerFetchedTexture, dirtyTexture), which may be before the GL texture is created
+    return alpha >= threshold && alpha < 0.999f && tex && tex->getComponents() == 3;
 }
 
 bool FSAvatarAlpha::openZone()

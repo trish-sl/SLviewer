@@ -103,6 +103,7 @@
 #include "fsvolumeprebuild.h" // <FS:Trish/> FSPerfThreadedGeometry
 #include "fsgpuocclusion.h" // <FS:Trish/> FSRenderGPUOcclusionCulling
 #include "fslighterwhilemoving.h" // <FS:Trish/> FSRenderLighterWhileMoving
+#include "fsavataralpha.h" // <FS:Trish/> FSRenderAvatarTintOpaqueAlpha, FSRenderAlphaRiggedNoDiscard
 #include "fsriggedpick.h" // <FS:Trish/> FSPerfFastRiggedPick
 #include "fslodfade.h" // <FS:Trish/> FSRenderFadeLOD
 #include "fspointlightshadows.h" // <FS:Trish/> FSRenderLocalLightShadows: detail of the casters
@@ -2905,7 +2906,13 @@ S32 LLVOVolume::setTEColor(const U8 te, const LLColor4& color)
         // nearly opaque, opaque/maskable). Scripted fades otherwise rebuilt the volume every step,
         // the vertex color update below covers the rest.
         //if (color.mV[3] != old_alpha)
-        auto alpha_class = [](F32 alpha) { return alpha == 0.f ? 0 : alpha < 0.999f ? 1 : alpha < 1.f ? 2 : 3; };
+        //auto alpha_class = [](F32 alpha) { return alpha == 0.f ? 0 : alpha < 0.999f ? 1 : alpha < 1.f ? 2 : 3; };
+        // FSRenderAvatarTintOpaqueAlpha adds a class boundary at its threshold (0.999 while off: no extra class)
+        const F32 fs_tint_opaque = FSAvatarAlpha::tintOpaqueThreshold();
+        auto alpha_class = [fs_tint_opaque](F32 alpha)
+        {
+            return alpha == 0.f ? 0 : (fs_tint_opaque > 0.f && alpha < fs_tint_opaque) ? 1 : alpha < 0.999f ? 2 : alpha < 1.f ? 3 : 4;
+        };
         if (alpha_class(color.mV[3]) != alpha_class(old_alpha))
         // </FS:Trish>
         {
@@ -6212,7 +6219,11 @@ void LLVolumeGeometryManager::registerFace(LLSpatialGroup* group, LLFace* facep,
 
     if (mat)
     {
-        bool is_alpha = (facep->getPoolType() == LLDrawPool::POOL_ALPHA) || (te->getColor().mV[3] < 0.999f);
+        // <FS:Trish> FSRenderAvatarTintOpaqueAlpha: such a face is in a deferred pool, and its tint counts as 1
+        //bool is_alpha = (facep->getPoolType() == LLDrawPool::POOL_ALPHA) || (te->getColor().mV[3] < 0.999f);
+        bool is_alpha = (facep->getPoolType() == LLDrawPool::POOL_ALPHA) ||
+            (te->getColor().mV[3] < 0.999f && !FSAvatarAlpha::tintOpaque(te, facep->getTexture(), facep->getViewerObject()));
+        // </FS:Trish>
         if (type == LLRenderPass::PASS_ALPHA)
         {
             shader_mask = mat->getShaderMask(LLMaterial::DIFFUSE_ALPHA_MODE_BLEND, is_alpha);
@@ -6718,7 +6729,10 @@ void LLVolumeGeometryManager::rebuildGeom(LLSpatialGroup* group)
                     }
 
                     bool force_simple = (facep->getPixelArea() < FORCE_SIMPLE_RENDER_AREA);
-                    U32 type = gPipeline.getPoolTypeFromTE(te, tex);
+                    // <FS:Trish> FSRenderAvatarTintOpaqueAlpha: a nearly opaque tint on an opaque texture of an attachment is drawn opaque
+                    //U32 type = gPipeline.getPoolTypeFromTE(te, tex);
+                    U32 type = gPipeline.getPoolTypeFromTE(te, tex, FSAvatarAlpha::tintOpaque(te, tex, vobj));
+                    // </FS:Trish>
                     if (is_pbr && gltf_mat)
                     {
                         // <FS:Trish> Alpha masked PBR is alpha tested in the PBR pool, sending it to the alpha pool loses batching and glow
@@ -7508,6 +7522,12 @@ U32 LLVolumeGeometryManager::genDrawInfo(LLSpatialGroup* group, U32 mask, LLFace
             }
 
             F32 blinn_phong_alpha = te->getColor().mV[3];
+            // <FS:Trish> FSRenderAvatarTintOpaqueAlpha: as the pool type was chosen (opaque above the threshold)
+            if (blinn_phong_alpha < 0.999f && FSAvatarAlpha::tintOpaque(te, tex, facep->getViewerObject()))
+            {
+                blinn_phong_alpha = 1.f;
+            }
+            // </FS:Trish>
             bool use_legacy_bump = te->getBumpmap() && (te->getBumpmap() < 18) && (!mat || mat->getNormalID().isNull());
             bool blinn_phong_opaque = blinn_phong_alpha >= 0.999f;
             bool blinn_phong_transparent = blinn_phong_alpha < 0.999f;

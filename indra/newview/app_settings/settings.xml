@@ -28540,6 +28540,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>1</integer>
     </map>
+    <key>FSRenderAvatarTintOpaqueAlpha</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. 0 is off. Set to 0.5-0.999: faces of attachments (rigged mesh bodies and clothing included, HUDs not) whose texture has no alpha channel and whose face colour alpha is at least this are drawn opaque in the deferred pass, as if their alpha were 1, instead of blended in the forward alpha pass. Many bodies and clothes are tinted to 0.95 or so without meaning to be see-through, and the forward alpha pass is the costliest place to draw them. Changes the picture: those faces lose their slight transparency, and take deferred lighting, shadows and screen-space effects like opaque surfaces. 0.95 is a sensible start. Changing it rebuilds every object.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>0.0</real>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>

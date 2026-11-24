@@ -2317,7 +2317,10 @@ static bool gltf_blend_has_transparency(const LLGLTFMaterial* mat)
     return mat->mTextureId[LLGLTFMaterial::GLTF_TEXTURE_INFO_BASE_COLOR].notNull();
 }
 
-U32 LLPipeline::getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep)
+// <FS:Trish> FSRenderAvatarTintOpaqueAlpha
+//U32 LLPipeline::getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep)
+U32 LLPipeline::getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* imagep, bool fs_tint_opaque)
+// </FS:Trish>
 {
     if (!te || !imagep)
     {
@@ -2327,7 +2330,8 @@ U32 LLPipeline::getPoolTypeFromTE(const LLTextureEntry* te, LLViewerTexture* ima
     LLMaterial* mat = te->getMaterialParams().get();
     LLGLTFMaterial* gltf_mat = te->getGLTFRenderMaterial();
 
-    bool color_alpha = te->getColor().mV[3] < 0.999f;
+    //bool color_alpha = te->getColor().mV[3] < 0.999f;
+    bool color_alpha = te->getColor().mV[3] < 0.999f && !fs_tint_opaque; // <FS:Trish/> FSRenderAvatarTintOpaqueAlpha
     bool alpha = color_alpha;
     if (imagep)
     {
