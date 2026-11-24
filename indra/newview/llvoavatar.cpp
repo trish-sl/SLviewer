@@ -12741,14 +12741,17 @@ void LLVOAvatar::cullAvatarsByPixelArea()
             if (inst->isSelf())
             {
                 inst->setVisibilityRank(1);
+                inst->mFSRankOutOfView = false; // <FS:Trish/>
             }
             else if (inst->mDrawable.notNull() && inst->mDrawable->isVisible())
             {
                 inst->setVisibilityRank(rank++);
+                inst->mFSRankOutOfView = false; // <FS:Trish/> a real rank, however far past the cut
             }
             else
             {
                 inst->setVisibilityRank(sMaxNonImpostors * 5);
+                inst->mFSRankOutOfView = true; // <FS:Trish/> only a placeholder rank
             }
             inst->mLastCulledPixelArea = inst->getPixelArea();
         }
@@ -13205,15 +13208,25 @@ bool LLVOAvatar::shouldImpostor(const F32 rank_factor)
     constexpr F64 HOLD_SECONDS = 2.0;
     const bool past_cut = mVisibilityRank > sMaxNonImpostors;
     const bool well_past_cut = mVisibilityRank > sMaxNonImpostors + 1;
-    const bool out_of_view = mVisibilityRank >= sMaxNonImpostors * 5;
+    // Out of view is what the last rank sort found, not a rank of sMaxNonImpostors * 5 or more: in a crowd
+    // (14 or more avatars in view with the Low preset's 3 non-impostors) avatars in view get such ranks
+    // too, and taken for out of view they never latched impostor and were drawn in full, every frame.
+    //const bool out_of_view = mVisibilityRank >= sMaxNonImpostors * 5;
+    const bool out_of_view = mFSRankOutOfView;
     // An out of view rank says nothing about the cut, so it doesn't change (or hold) the state. Out of
-    // view nothing is drawn; in view, the rank is stale until the next re-sort (a visibility change
-    // asks for one), as when sitting moves the avatar under the seat and it misses a frame of
-    // visibility. Latching impostor from it drew a visible avatar well inside the cut as an impostor
-    // for the whole hold.
+    // view nothing is drawn; in view, the rank is stale until the next re-sort, as when sitting moves
+    // the avatar under the seat and it misses a frame of visibility. Latching impostor from it drew a
+    // visible avatar well inside the cut as an impostor for the whole hold.
     if (out_of_view)
     {
-        return (mDrawable.notNull() && mDrawable->isVisible()) ? mFSRankImpostor : true;
+        if (mDrawable.notNull() && mDrawable->isVisible())
+        {
+            // Came into view since the last sort: ask for a sort now, or it would be drawn in full (with a
+            // full update every frame) for up to a second, however far past the cut it is
+            sAvatarCullNeedsUpdate = true;
+            return mFSRankImpostor;
+        }
+        return true;
     }
     const bool wanted = mFSRankImpostor ? past_cut : well_past_cut;
     if (wanted != mFSRankImpostor)

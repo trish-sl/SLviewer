@@ -770,6 +770,7 @@ private:
     // <FS:Trish> Rank side of the full/impostor decision, with hysteresis (see shouldImpostor)
     bool        mFSRankImpostor = false;
     F64         mFSRankImpostorChanged = 0.0;
+    bool        mFSRankOutOfView = true; // the last rank sort found it out of view (its rank is only a placeholder)
     // </FS:Trish>
 
     //--------------------------------------------------------------------
