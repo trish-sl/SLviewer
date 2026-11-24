@@ -11855,6 +11855,38 @@ static LLVector3 fs_shadow_matrix_eye(const glm::mat4& m)
     }
     return LLVector3(p.x / p.w, p.y / p.w, p.z / p.w);
 }
+
+// The receiver plane depth gradient of the shadow PCF (shadowUtil.glsl pcfDepthGradient) in closed
+// form: a surface's plane (n, -n . p) in view space goes through transpose(inverse(shadow_matrix[i]))
+// into the map's texture space, where its depth gradient is read off. The six inverses are taken
+// here, once per change of the matrices (bindDeferredShader binds many times a frame), and uploaded
+// as fs_shadow_plane_matrix next to shadow_matrix. mat4 only: GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+// pads a vec3 or mat3 to four floats a column, and uploading those packed has gone wrong before.
+// An unused slot's matrix may be singular: its plane is uploaded as zeros, which the shader reads
+// as edge on (the capped gradient), as the old finite differences gave it.
+static void fs_upload_shadow_plane_matrices(LLGLSLShader& shader, const glm::mat4* shadow_matrix)
+{
+    static LLStaticHashedString s_plane("fs_shadow_plane_matrix");
+    static glm::mat4 s_source[6];
+    static F32 s_planes[16 * 6];
+    static bool s_valid = false;
+    if (!s_valid || memcmp(glm::value_ptr(s_source[0]), glm::value_ptr(shadow_matrix[0]), sizeof(glm::mat4) * 6) != 0)
+    {
+        for (U32 i = 0; i < 6; ++i)
+        {
+            s_source[i] = shadow_matrix[i];
+            const F32 det = glm::determinant(shadow_matrix[i]);
+            glm::mat4 plane(0.f);
+            if (std::isfinite(det) && fabsf(det) > 1.e-30f)
+            {
+                plane = glm::transpose(glm::inverse(shadow_matrix[i]));
+            }
+            memcpy(s_planes + 16 * i, glm::value_ptr(plane), sizeof(F32) * 16);
+        }
+        s_valid = true;
+    }
+    shader.uniformMatrix4fv(s_plane, 6, GL_FALSE, s_planes);
+}
 // </FS:Trish>
 
 void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_target, LLRenderTarget* depth_target)
@@ -11972,6 +12004,7 @@ void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_
     }
 
     shader.uniformMatrix4fv(LLShaderMgr::DEFERRED_SHADOW_MATRIX, 6, false, mat);
+    fs_upload_shadow_plane_matrices(shader, mSunShadowMatrix); // <FS:Trish/> the receiver plane's matrices with them
 
     // <FS:Trish> The two shadowed projectors' positions in view space, for the PCSS spot filter
     // (shadowUtil.glsl), which used to invert a 3 x 3 matrix per pixel to find them
@@ -12578,6 +12611,7 @@ static void fs_render_skin_sss(LLRenderTarget* screen)
             memcpy(mat + 16 * i, glm::value_ptr(gPipeline.mSunShadowMatrix[i]), sizeof(F32) * 16);
         }
         shader.uniformMatrix4fv(LLShaderMgr::DEFERRED_SHADOW_MATRIX, 6, false, mat);
+        fs_upload_shadow_plane_matrices(shader, gPipeline.mSunShadowMatrix); // the receiver plane's matrices with them
         shader.uniform4fv(LLShaderMgr::DEFERRED_SHADOW_CLIP, 1, gPipeline.mSunClipPlanes.mV);
         shader.uniform3fv(LLShaderMgr::DEFERRED_SUN_DIR, 1, gPipeline.mTransformedSunDir.mV);
         shader.uniform3fv(LLShaderMgr::DEFERRED_MOON_DIR, 1, gPipeline.mTransformedMoonDir.mV);
@@ -16998,6 +17032,13 @@ bool LLPipeline::fsBindExtraSpotShadow(LLGLSLShader& shader, U32 slot)
     static LLStaticHashedString s_spot_eye("fs_spot_shadow_eye_extra");
     const LLVector3 eye = fs_shadow_matrix_eye(mFSSpotShadowMatrix[slot]);
     shader.uniform3fv(s_spot_eye, 1, eye.mV);
+    // The receiver plane's matrix (shadowUtil.glsl pcfDepthGradient), as fs_upload_shadow_plane_matrices
+    // gives the first two slots theirs; a projector's matrix is a perspective one, invertible
+    {
+        static LLStaticHashedString s_spot_plane("fs_spot_shadow_plane_matrix");
+        const glm::mat4 plane = glm::transpose(glm::inverse(mFSSpotShadowMatrix[slot]));
+        shader.uniformMatrix4fv(s_spot_plane, 1, GL_FALSE, glm::value_ptr(plane));
+    }
     return true;
 }
 

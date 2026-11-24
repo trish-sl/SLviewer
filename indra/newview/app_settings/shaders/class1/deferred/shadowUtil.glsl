@@ -44,6 +44,10 @@ uniform vec3 moon_dir;
 uniform vec2 shadow_res;
 uniform vec2 proj_shadow_res;
 uniform mat4 shadow_matrix[6];
+// <FS:Trish> transpose(inverse(shadow_matrix[i])) (LLPipeline::bindDeferredShader): takes a plane's
+// coefficients from view space into the map's texture space, for the receiver plane depth gradient
+uniform mat4 fs_shadow_plane_matrix[6];
+// </FS:Trish>
 uniform vec4 shadow_clip;
 uniform float shadow_bias;
 uniform float shadow_offset;
@@ -106,32 +110,58 @@ float fsShadowCascadeBand()
 // itself between the taps (acne on walls under a low sun). Replaces the altitude term of the bias
 // (RenderShadowBiasError), which only widened a constant bias with height and detached shadows from
 // their casters in skyboxes. From Vulkanstorm, by Anne Skydancer.
-#define PCF_RPDB_STEP 0.05      // metres
+// <FS:Trish> In closed form. A projective map takes a plane to a plane, so in the map's texture
+// space the receiver's depth is linear in uv and its gradient is that plane's: with
+// pl = transpose(inverse(m)) * (norm, -norm . pos) the plane's coefficients there
+// (fs_shadow_plane_matrix, pm, inverted on the CPU), dz/du = -pl.x / pl.z and dz/dv = -pl.y / pl.z.
+// The two tangent steps found three points of the same plane, for two matrix products, two
+// divides, two normalizes and a 2 x 2 solve more; the projected point c isn't needed. The same
+// for the orthographic and the warped cascades. The normal's length cancels in the ratio. Edge on
+// to the light (pl.z 0, the old determinant 0) still gives 1e4, which the caps (PCF_RPDB_MAX,
+// PCSS_GRAD_MAX) take care of; an unused slot's matrix (no finite plane) is read the same way.
+//#define PCF_RPDB_STEP 0.05      // metres
 #define PCF_RPDB_MAX  0.004     // cap per tap, shadow depth units
-vec2 pcfDepthGradient(mat4 m, vec3 pos, vec3 norm, vec3 c)
+//vec2 pcfDepthGradient(mat4 m, vec3 pos, vec3 norm, vec3 c)
+//{
+//    if (dot(norm, norm) < 1.0e-8)
+//    {
+//        return vec2(0.0);
+//    }
+//    vec3 n = normalize(norm);
+//    vec3 t1 = normalize(cross(n, abs(n.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0)));
+//    vec3 t2 = cross(n, t1);
+//    vec4 a = m * vec4(pos + t1 * PCF_RPDB_STEP, 1.0);
+//    vec4 b = m * vec4(pos + t2 * PCF_RPDB_STEP, 1.0);
+//    vec3 d1 = a.xyz / a.w - c;
+//    vec3 d2 = b.xyz / b.w - c;
+//    float det = d1.x * d2.y - d1.y * d2.x;
+//    if (abs(det) < 1.0e-14)
+//    {
+//        return vec2(1.0e4);
+//    }
+//    return abs(vec2(d1.z * d2.y - d1.y * d2.z, d1.x * d2.z - d1.z * d2.x) / det);
+//}
+vec2 pcfDepthGradient(mat4 pm, vec3 pos, vec3 norm)
 {
     if (dot(norm, norm) < 1.0e-8)
     {
         return vec2(0.0);
     }
-    vec3 n = normalize(norm);
-    vec3 t1 = normalize(cross(n, abs(n.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0)));
-    vec3 t2 = cross(n, t1);
-    vec4 a = m * vec4(pos + t1 * PCF_RPDB_STEP, 1.0);
-    vec4 b = m * vec4(pos + t2 * PCF_RPDB_STEP, 1.0);
-    vec3 d1 = a.xyz / a.w - c;
-    vec3 d2 = b.xyz / b.w - c;
-    float det = d1.x * d2.y - d1.y * d2.x;
-    if (abs(det) < 1.0e-14)
+    vec4 pl = pm * vec4(norm, -dot(norm, pos));
+    float pz = abs(pl.z);
+    if (!(pz >= 1.0e-12)) // also not a number
     {
         return vec2(1.0e4);
     }
-    return abs(vec2(d1.z * d2.y - d1.y * d2.z, d1.x * d2.z - d1.z * d2.x) / det);
+    return abs(pl.xy / pl.z);
 }
+// </FS:Trish>
 
-// <FS:Trish> FSRenderShadowBiasMetric: bias_m, the cascade's fs_shadow_bias_metres
+// <FS:Trish> FSRenderShadowBiasMetric: bias_m, the cascade's fs_shadow_bias_metres; pm: the cascade's
+// fs_shadow_plane_matrix (pcfDepthGradient)
 //float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, vec2 pos_screen, vec3 light_dir, mat4 m, vec3 pos)
-float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, vec2 pos_screen, vec3 light_dir, mat4 m, vec3 pos, float bias_m)
+//float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, vec2 pos_screen, vec3 light_dir, mat4 m, vec3 pos, float bias_m)
+float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, vec2 pos_screen, vec3 light_dir, mat4 m, vec3 pos, float bias_m, mat4 pm)
 // </FS:Trish>
 {
 #if defined(SUN_SHADOW)
@@ -142,7 +172,8 @@ float pcfShadow(sampler2DShadow shadowMap, vec3 norm, vec4 stc, float bias_mul, 
     {
         return texture(shadowMap, stc.xyz + vec3(0.0, 0.0, offset * 2.0));
     }
-    vec2 grad = pcfDepthGradient(m, pos, norm, stc.xyz);
+    //vec2 grad = pcfDepthGradient(m, pos, norm, stc.xyz);
+    vec2 grad = pcfDepthGradient(pm, pos, norm); // <FS:Trish/> in closed form, from the plane matrix
     // <FS:Trish> FSRenderShadowBiasMetric
     //stc.z += offset * 2.0;
     stc.z += fs_z_offset;
@@ -307,9 +338,14 @@ float pcssNoise(vec2 frag)
 //    vec2 g = vec2(d1.z * d2.y - d1.y * d2.z, d1.x * d2.z - d1.z * d2.x) / det;
 //    return clamp(g, vec2(-PCSS_GRAD_MAX), vec2(PCSS_GRAD_MAX));
 //}
-vec2 pcssDepthGradient(mat4 m, vec3 pos, vec3 norm, vec3 c)
+// pm: the map's fs_shadow_plane_matrix (pcfDepthGradient, in closed form now)
+//vec2 pcssDepthGradient(mat4 m, vec3 pos, vec3 norm, vec3 c)
+//{
+//    return min(pcfDepthGradient(m, pos, norm, c), vec2(PCSS_GRAD_MAX));
+//}
+vec2 pcssDepthGradient(mat4 pm, vec3 pos, vec3 norm)
 {
-    return min(pcfDepthGradient(m, pos, norm, c), vec2(PCSS_GRAD_MAX));
+    return min(pcfDepthGradient(pm, pos, norm), vec2(PCSS_GRAD_MAX));
 }
 // </FS:Trish>
 
@@ -346,14 +382,18 @@ float pcssPCF(sampler2DShadow shadowMap, vec3 c, vec2 grad, vec2 extent, vec2 ro
 
 // Fixed radius rotated PCF (stage 1): cascades 2-3, and everything without PCSS_SHADOW_FETCH.
 // stc: projected, not yet divided; z_bias: the constant bias added to the reference depth.
-float pcssPoissonPCF(sampler2DShadow shadowMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float z_bias, vec2 res)
+// <FS:Trish> pm: the map's fs_shadow_plane_matrix, all the gradient needs of the matrix now
+//float pcssPoissonPCF(sampler2DShadow shadowMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float z_bias, vec2 res)
+float pcssPoissonPCF(sampler2DShadow shadowMap, mat4 pm, vec4 stc, vec3 pos, vec3 norm, float z_bias, vec2 res)
+// </FS:Trish>
 {
     if (stc.w <= 0.0)
     {
         return 1.0; // behind the projector: the divide would mirror the map
     }
     stc.xyz /= stc.w;
-    vec2 grad = abs(pcssDepthGradient(m, pos, norm, stc.xyz));
+    //vec2 grad = abs(pcssDepthGradient(m, pos, norm, stc.xyz));
+    vec2 grad = abs(pcssDepthGradient(pm, pos, norm)); // <FS:Trish/>
     stc.z += z_bias;
 
     vec2 texel = 1.0 / res;
@@ -490,11 +530,14 @@ float fsScreenPixels(float metres, vec3 pos)
 // takes that width as its diameter, which gives a disc light's edge profile.
 // <FS:Trish> FSRenderShadowBiasMetric: bias_m, the cascade's fs_shadow_bias_metres
 //float pcssSunContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, vec3 light_dir, float d_max)
-float pcssSunContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, vec3 light_dir, float d_max, float bias_m)
+// pm: the cascade's fs_shadow_plane_matrix (pcssDepthGradient)
+//float pcssSunContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, vec3 light_dir, float d_max, float bias_m)
+float pcssSunContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, vec3 light_dir, float d_max, float bias_m, mat4 pm)
 // </FS:Trish>
 {
     vec3 c = stc.xyz / stc.w;
-    vec2 grad = abs(pcssDepthGradient(m, pos, norm, c));
+    //vec2 grad = abs(pcssDepthGradient(m, pos, norm, c));
+    vec2 grad = abs(pcssDepthGradient(pm, pos, norm)); // <FS:Trish/>
     // <FS:Trish> FSRenderShadowBiasMetric
     //float z_bias = shadow_bias * 2.0;
     float z_bias = fsShadowBiasDepth(bias_m, shadow_bias * 2.0, m, stc, light_dir);
@@ -551,7 +594,9 @@ vec3 pcssProjectorEye(mat4 m)
 // <FS:Trish> eye: the projector's position in view space (pcssProjectorEye of m), from the CPU,
 // which knows it: a 3 x 3 inverse per pixel per projector before
 //float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale)
-float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale, vec3 eye)
+// pm: the map's fs_shadow_plane_matrix (pcssDepthGradient)
+//float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale, vec3 eye)
+float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale, vec3 eye, mat4 pm)
 // </FS:Trish>
 {
     // <FS:Trish> Outside the projector's map, see fsOutsideSpotMap
@@ -566,7 +611,8 @@ float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 
     // </FS:Trish>
     vec3 c = stc.xyz / stc.w;
     float d_r = stc.w;                       // linear distance along the projector's axis
-    vec2 grad = abs(pcssDepthGradient(m, pos, norm, c));
+    //vec2 grad = abs(pcssDepthGradient(m, pos, norm, c));
+    vec2 grad = abs(pcssDepthGradient(pm, pos, norm)); // <FS:Trish/>
     float z_bias = spot_shadow_bias * bias_scale;
     vec2 texel = 1.0 / proj_shadow_res;
     float r_max = PCSS_PCF_RADIUS_MAX * pcssResScale(proj_shadow_res);
@@ -607,7 +653,8 @@ float pcssShadow(sampler2DShadow shadowMap, int index, vec4 stc, vec3 pos, vec3 
     // <FS:Trish> FSRenderShadowBiasMetric
     //return pcssPoissonPCF(shadowMap, shadow_matrix[index], stc, pos, norm, shadow_bias * 2.0, vec2(textureSize(shadowMap, 0)));
     float z_bias = fsShadowBiasDepth(fs_shadow_bias_metres[index], shadow_bias * 2.0, shadow_matrix[index], stc, fsShadowLightDir());
-    return pcssPoissonPCF(shadowMap, shadow_matrix[index], stc, pos, norm, z_bias, vec2(textureSize(shadowMap, 0)));
+    //return pcssPoissonPCF(shadowMap, shadow_matrix[index], stc, pos, norm, z_bias, vec2(textureSize(shadowMap, 0)));
+    return pcssPoissonPCF(shadowMap, fs_shadow_plane_matrix[index], stc, pos, norm, z_bias, vec2(textureSize(shadowMap, 0)));
     // </FS:Trish>
 }
 
@@ -620,7 +667,8 @@ float pcssSpotShadow(sampler2DShadow shadowMap, int index, vec4 stc, vec3 pos, v
         return 1.0;
     }
     // </FS:Trish>
-    return pcssPoissonPCF(shadowMap, shadow_matrix[index], stc, pos, norm, spot_shadow_bias * bias_scale, proj_shadow_res);
+    //return pcssPoissonPCF(shadowMap, shadow_matrix[index], stc, pos, norm, spot_shadow_bias * bias_scale, proj_shadow_res);
+    return pcssPoissonPCF(shadowMap, fs_shadow_plane_matrix[index], stc, pos, norm, spot_shadow_bias * bias_scale, proj_shadow_res); // <FS:Trish/>
 }
 // </Vulkanstorm>
 #endif
@@ -688,7 +736,8 @@ float sampleDirectionalShadow(vec3 pos, vec3 norm, vec2 pos_screen)
 #if defined(PCSS_SHADOW)
                 float contrib = pcssShadow(shadowMap3, 3, lpos, spos.xyz, norm)*w;
 #else
-                float contrib = pcfShadow(shadowMap3, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[3], spos.xyz, fs_shadow_bias_metres[3])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcfShadow(shadowMap3, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[3], spos.xyz, fs_shadow_bias_metres[3])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcfShadow(shadowMap3, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[3], spos.xyz, fs_shadow_bias_metres[3], fs_shadow_plane_matrix[3])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #endif
                 //if (contrib > 0)
                 {
@@ -723,7 +772,8 @@ float sampleDirectionalShadow(vec3 pos, vec3 norm, vec2 pos_screen)
 #if defined(PCSS_SHADOW)
                 float contrib = pcssShadow(shadowMap2, 2, lpos, spos.xyz, norm)*w;
 #else
-                float contrib = pcfShadow(shadowMap2, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[2], spos.xyz, fs_shadow_bias_metres[2])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcfShadow(shadowMap2, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[2], spos.xyz, fs_shadow_bias_metres[2])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcfShadow(shadowMap2, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[2], spos.xyz, fs_shadow_bias_metres[2], fs_shadow_plane_matrix[2])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #endif
                 //if (contrib > 0)
                 {
@@ -747,14 +797,16 @@ float sampleDirectionalShadow(vec3 pos, vec3 norm, vec2 pos_screen)
             if (w != 0.0)
             {
 #if defined(PCSS_SHADOW) && defined(PCSS_SHADOW_FETCH)
-                float contrib = pcssSunContactShadow(shadowMap1, shadowDepth1, shadow_matrix[1], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST1, fs_shadow_bias_metres[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcssSunContactShadow(shadowMap1, shadowDepth1, shadow_matrix[1], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST1, fs_shadow_bias_metres[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcssSunContactShadow(shadowMap1, shadowDepth1, shadow_matrix[1], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST1, fs_shadow_bias_metres[1], fs_shadow_plane_matrix[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #if defined(FS_SHADOW_SCREEN_FILTER)
                 fs_pen_sum += fs_pcss_radius_px * w; // <FS:Trish/>
 #endif
 #elif defined(PCSS_SHADOW)
                 float contrib = pcssShadow(shadowMap1, 1, lpos, spos.xyz, norm)*w;
 #else
-                float contrib = pcfShadow(shadowMap1, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[1], spos.xyz, fs_shadow_bias_metres[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcfShadow(shadowMap1, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[1], spos.xyz, fs_shadow_bias_metres[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcfShadow(shadowMap1, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[1], spos.xyz, fs_shadow_bias_metres[1], fs_shadow_plane_matrix[1])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #endif
                 //if (contrib > 0)
                 {
@@ -777,14 +829,16 @@ float sampleDirectionalShadow(vec3 pos, vec3 norm, vec2 pos_screen)
             if (w != 0.0)
             {
 #if defined(PCSS_SHADOW) && defined(PCSS_SHADOW_FETCH)
-                float contrib = pcssSunContactShadow(shadowMap0, shadowDepth0, shadow_matrix[0], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST0, fs_shadow_bias_metres[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcssSunContactShadow(shadowMap0, shadowDepth0, shadow_matrix[0], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST0, fs_shadow_bias_metres[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcssSunContactShadow(shadowMap0, shadowDepth0, shadow_matrix[0], lpos, spos.xyz, norm, light_dir, PCSS_BLOCKER_DIST0, fs_shadow_bias_metres[0], fs_shadow_plane_matrix[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #if defined(FS_SHADOW_SCREEN_FILTER)
                 fs_pen_sum += fs_pcss_radius_px * w; // <FS:Trish/>
 #endif
 #elif defined(PCSS_SHADOW)
                 float contrib = pcssShadow(shadowMap0, 0, lpos, spos.xyz, norm)*w;
 #else
-                float contrib = pcfShadow(shadowMap0, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[0], spos.xyz, fs_shadow_bias_metres[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                //float contrib = pcfShadow(shadowMap0, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[0], spos.xyz, fs_shadow_bias_metres[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric
+                float contrib = pcfShadow(shadowMap0, norm, lpos, 1.0, pos_screen, light_dir, shadow_matrix[0], spos.xyz, fs_shadow_bias_metres[0], fs_shadow_plane_matrix[0])*w; // <FS:Trish/> FSRenderShadowBiasMetric, the plane matrix
 #endif
                 //if (contrib > 0)
                 {
@@ -922,7 +976,8 @@ float sampleSpotShadow(vec3 pos, vec3 norm, int index, vec2 pos_screen)
 #if defined(PCSS_SHADOW) && defined(PCSS_SHADOW_FETCH)
         // <FS:Trish> The projector's position from a uniform
         //shadow = pcssSpotContactShadow(shadowMap4, shadowDepth4, shadow_matrix[4], lpos, spos.xyz, norm, 0.8);
-        shadow = pcssSpotContactShadow(shadowMap4, shadowDepth4, shadow_matrix[4], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[0]);
+        //shadow = pcssSpotContactShadow(shadowMap4, shadowDepth4, shadow_matrix[4], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[0]);
+        shadow = pcssSpotContactShadow(shadowMap4, shadowDepth4, shadow_matrix[4], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[0], fs_shadow_plane_matrix[4]);
         // </FS:Trish>
 #elif defined(PCSS_SHADOW)
         shadow = pcssSpotShadow(shadowMap4, 4, lpos, spos.xyz, norm, 0.8);
@@ -940,7 +995,8 @@ float sampleSpotShadow(vec3 pos, vec3 norm, int index, vec2 pos_screen)
 #if defined(PCSS_SHADOW) && defined(PCSS_SHADOW_FETCH)
         // <FS:Trish> The projector's position from a uniform
         //shadow = pcssSpotContactShadow(shadowMap5, shadowDepth5, shadow_matrix[5], lpos, spos.xyz, norm, 0.8);
-        shadow = pcssSpotContactShadow(shadowMap5, shadowDepth5, shadow_matrix[5], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[1]);
+        //shadow = pcssSpotContactShadow(shadowMap5, shadowDepth5, shadow_matrix[5], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[1]);
+        shadow = pcssSpotContactShadow(shadowMap5, shadowDepth5, shadow_matrix[5], lpos, spos.xyz, norm, 0.8, fs_spot_shadow_eye[1], fs_shadow_plane_matrix[5]);
         // </FS:Trish>
 #elif defined(PCSS_SHADOW)
         shadow = pcssSpotShadow(shadowMap5, 5, lpos, spos.xyz, norm, 0.8);
