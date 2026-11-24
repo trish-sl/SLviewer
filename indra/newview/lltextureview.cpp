@@ -601,8 +601,11 @@ void LLGLTexMemBar::draw()
     //                discard_bias,
     //                cache_usage,
     //                cache_max_usage);
-    std::string vram_text = llformat("VRAM %s: %d/%d MB", LLViewerTexture::vramSourceName(),
-                                     (S32)LLViewerTexture::sVRAMUsedMegabytes, (S32)LLViewerTexture::sVRAMTargetMegabytes);
+    // The target is a share of the card (FSTextureVRAMTargetFraction), so the card's own size is shown
+    // next to it: "11417" alone read as the size of a 12 GB card on a 16 GB one
+    const S32 card_mb = gGLManager.mVRAMDetected > 0 ? (S32)gGLManager.mVRAMDetected : (S32)gGLManager.mVRAM;
+    std::string vram_text = llformat("VRAM %s: %d/%d MB target of %d MB card", LLViewerTexture::vramSourceName(),
+                                     (S32)LLViewerTexture::sVRAMUsedMegabytes, (S32)LLViewerTexture::sVRAMTargetMegabytes, card_mb);
     if (LLViewerTexture::sVRAMSource == LLViewerTexture::VRAM_SOURCE_DXGI)
     {
         vram_text += llformat(" (proc %d/%d)", LLViewerTexture::sVRAMLiveUsedMegabytes, LLViewerTexture::sVRAMLiveBudgetMegabytes);
