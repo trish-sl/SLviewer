@@ -60,6 +60,13 @@ public:
 
     // LLPipeline::releaseGLBuffers(): frees the GL objects.
     static void releaseGL();
+
+    // FSRenderVRSRiggedAlpha: LLDrawPoolAlpha::renderAlpha, around a rigged colour pass of the main view. True
+    // when the pass is now shaded at one invocation per 2x2 pixels (a uniform rate image, independent of
+    // FSRenderVRS and its adaptive image); endRiggedAlpha then restores full rate. Never nested in the G-buffer
+    // pass, never for HUDs, impostors, probes, mirrors or snapshots.
+    static bool beginRiggedAlpha();
+    static void endRiggedAlpha();
 };
 
 #endif // FS_VRS_H

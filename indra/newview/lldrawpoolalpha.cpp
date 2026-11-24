@@ -58,6 +58,7 @@
 #include "fsgpudrivenalpha.h" // <FS:Trish/> FSPerfGPUDrivenAlpha
 #include "fsparticlerender.h" // <FS:Trish/> particle draws: cheap lighting, early-out, GPU timings
 #include "fsavataralpha.h" // <FS:Trish/> FSRenderCheapAvatarAlpha
+#include "fsvrs.h" // <FS:Trish/> FSRenderVRSRiggedAlpha
 #include "fssoftparticles.h" // <FS:Trish/> FSRenderSoftParticles
 #include "fstaa.h" // <FS:Trish/> FSRenderTAA: "Highlight Transparent" after the resolve
 #include <optional> // <FS:Trish/>
@@ -1181,6 +1182,21 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
     {
         fs_rigged_zone.emplace("alpha avatars");
     }
+    // </FS:Trish>
+
+    // <FS:Trish> FSRenderVRSRiggedAlpha (fsvrs.cpp): a rigged colour pass of the main view shaded at 2x2, full
+    // rate again when this scope ends
+    struct FSVRSRiggedScope
+    {
+        bool mOn;
+        ~FSVRSRiggedScope()
+        {
+            if (mOn)
+            {
+                FSVRS::endRiggedAlpha();
+            }
+        }
+    } fs_vrs_rigged{ rigged && !depth_only && FSVRS::beginRiggedAlpha() };
     // </FS:Trish>
 
     // <FS:Trish> Soft particles: whether this pass can fade them (main view, no rigged or depth only pass)

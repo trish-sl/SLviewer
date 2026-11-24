@@ -73,6 +73,7 @@
 #include <atomic>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 
 extern bool gCubeSnapshot;
 extern bool gSnapshot;
@@ -237,6 +238,59 @@ namespace
     std::vector<U8> sStatsRates;    // written by the GL thread before STATS_READY
 
     bool sAllocated = false;        // anything above needs releasing
+
+    // FSRenderVRSRiggedAlpha: a second rate image, every texel 0, bound with a palette whose every entry is
+    // 2x2, so the rigged alpha pass is shaded at 2x2 everywhere
+    GLuint sRiggedTex = 0;
+    U32 sRiggedTilesX = 0;
+    U32 sRiggedTilesY = 0;
+    bool sRiggedActive = false;
+    const GLenum RIGGED_PALETTE[PALETTE_SIZE] = {
+        GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV, GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV,
+        GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV, GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV,
+        GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV, GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV,
+        GL_SHADING_RATE_1_INVOCATION_PER_2X2_PIXELS_NV,
+    };
+
+    bool rigged_enabled()
+    {
+        static LLCachedControl<bool> vrs_rigged(gSavedSettings, "FSRenderVRSRiggedAlpha", false);
+        return vrs_rigged && gGLManager.mHasNVShadingRateImage && gGLManager.mHasDSA;
+    }
+
+    void release_rigged_image()
+    {
+        if (sRiggedTex)
+        {
+            glDeleteTextures(1, &sRiggedTex);
+            sRiggedTex = 0;
+        }
+        sRiggedTilesX = sRiggedTilesY = 0;
+    }
+
+    bool ensure_rigged_image(U32 tiles_x, U32 tiles_y)
+    {
+        if (sRiggedTex && sRiggedTilesX == tiles_x && sRiggedTilesY == tiles_y)
+        {
+            return true;
+        }
+        release_rigged_image();
+        sAllocated = true;
+        if (!tiles_x || !tiles_y)
+        {
+            return false;
+        }
+        // an immutable R8UI texture, as the adaptive image; all zeros, which the palette maps to 2x2
+        glCreateTextures(GL_TEXTURE_2D, 1, &sRiggedTex);
+        glTextureStorage2D(sRiggedTex, 1, GL_R8UI, tiles_x, tiles_y);
+        glTextureParameteri(sRiggedTex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(sRiggedTex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        std::vector<U8> zeros((size_t)tiles_x * tiles_y, 0);
+        glTextureSubImage2D(sRiggedTex, 0, 0, 0, tiles_x, tiles_y, GL_RED_INTEGER, GL_UNSIGNED_BYTE, zeros.data());
+        sRiggedTilesX = tiles_x;
+        sRiggedTilesY = tiles_y;
+        return true;
+    }
 
     F64 now_seconds()
     {
@@ -538,13 +592,15 @@ namespace
 
     void release_all()
     {
-        if (sActive)
+        if (sActive || sRiggedActive)
         {
             glDisable(GL_SHADING_RATE_IMAGE_NV);
             fs_glBindShadingRateImageNV(0);
             sActive = false;
+            sRiggedActive = false;
         }
         release_image();
+        release_rigged_image();
         sGBufferTimer.release();
         sBuildTimer.release();
         FSGLStream::recordCall(&gl_stats_release, 0);
@@ -569,7 +625,7 @@ void FSVRS::beginGBuffer(bool for_snapshot)
 {
     if (!enabled())
     {
-        if (sAllocated)
+        if (sAllocated && !rigged_enabled()) // the rigged alpha image stays while that is on
         {
             release_all();
         }
@@ -738,6 +794,49 @@ void FSVRS::releaseGL()
     }
 }
 
+// static
+bool FSVRS::beginRiggedAlpha()
+{
+    if (!rigged_enabled())
+    {
+        if (sRiggedTex)
+        {
+            release_rigged_image();
+        }
+        return false;
+    }
+    if (sActive || sRiggedActive || sInGBuffer || !main_view(false) || LLPipeline::sRenderingHUDs || LLPipeline::sImpostorRender ||
+        LLPipeline::sReflectionRender || LLPipeline::sShadowRender || !gPipeline.mRT || !query_caps())
+    {
+        return false;
+    }
+    // the alpha passes draw into the screen target: tiles enough to cover it
+    const LLRenderTarget& screen = gPipeline.mRT->screen;
+    const U32 tiles_x = (screen.getWidth() + sTexelW - 1) / sTexelW;
+    const U32 tiles_y = (screen.getHeight() + sTexelH - 1) / sTexelH;
+    if (!ensure_rigged_image(tiles_x, tiles_y))
+    {
+        return false;
+    }
+    fs_glBindShadingRateImageNV(sRiggedTex);
+    fs_glShadingRateImagePaletteNV(0, 0, PALETTE_SIZE, RIGGED_PALETTE);
+    glEnable(GL_SHADING_RATE_IMAGE_NV);
+    sRiggedActive = true;
+    return true;
+}
+
+// static
+void FSVRS::endRiggedAlpha()
+{
+    if (!sRiggedActive)
+    {
+        return;
+    }
+    glDisable(GL_SHADING_RATE_IMAGE_NV);
+    fs_glBindShadingRateImageNV(0);
+    sRiggedActive = false;
+}
+
 #else // !LL_GL_FUNC_POINTER: the extension is never available
 
 // static
@@ -757,6 +856,17 @@ void FSVRS::buildRateImage(LLRenderTarget* color, LLRenderTarget* depth)
 
 // static
 void FSVRS::releaseGL()
+{
+}
+
+// static
+bool FSVRS::beginRiggedAlpha()
+{
+    return false;
+}
+
+// static
+void FSVRS::endRiggedAlpha()
 {
 }
 
