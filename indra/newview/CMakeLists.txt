@@ -131,6 +131,7 @@ set(viewer_SOURCE_FILES
     fsfavoritecontacts.cpp
     fsfavoritegroups.cpp
     fsfoginterior.cpp
+    fsgamecontrolhold.cpp
     fsgddarena.cpp
     fsgddcommon.cpp
     fsgpudrivenalpha.cpp
@@ -1092,6 +1093,7 @@ set(viewer_HEADER_FILES
     fsfavoritecontacts.h
     fsfavoritegroups.h
     fsfoginterior.h
+    fsgamecontrolhold.h
     fsgddarena.h
     fsgddcommon.h
     fsgpudrivenalpha.h

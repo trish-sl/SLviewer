@@ -140,7 +140,7 @@
              bottom="-1">
                 <panel
                  follows="left|top"
-                 height="1119"
+                 height="1166"
                  layout="topleft"
                  left="0"
                  name="experimental_general_settings"
@@ -228,6 +228,44 @@
                      top="132"
                      width="475" />
                     <!-- </FS:Trish> -->
+                    <!-- <FS:Trish> Game control: hold to perform action -->
+                    <check_box
+                     control_name="FSGameControlHoldToAct"
+                     follows="left|top"
+                     height="20"
+                     label="Game controller: hold buttons to sit, stand, fly or speak"
+                     layout="topleft"
+                     left="15"
+                     name="game_control_hold_to_act"
+                     tool_tip="With a game controller, the buttons for sit/stand, fly and speak (the microphone) have to be held down for a moment before they act, so a stray press does nothing. A ring around the mouse cursor fills while the button is held; let go before it is full to cancel. Movement, camera and flycam controls, the keyboard and the mouse are not affected. Debug setting FSGameControlHoldActions chooses which button actions have to be held."
+                     top="155"
+                     width="475" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="35"
+                     name="game_control_hold_seconds_label"
+                     top="181"
+                     width="285">
+                        Hold time (seconds)
+                    </text>
+                    <spinner
+                     control_name="FSGameControlHoldSeconds"
+                     decimal_digits="1"
+                     enabled_control="FSGameControlHoldToAct"
+                     follows="left|top"
+                     height="20"
+                     increment="0.1"
+                     layout="topleft"
+                     left="330"
+                     max_val="3"
+                     min_val="0.2"
+                     name="game_control_hold_seconds"
+                     tool_tip="How long a game controller button has to be held before its action happens (0.2 to 3 seconds)"
+                     top="178"
+                     width="100" />
+                    <!-- </FS:Trish> -->
                     <text
                      follows="left|top"
                      font="SansSerifBold"
@@ -235,7 +273,7 @@
                      layout="topleft"
                      left="15"
                      name="network_heading"
-                     top="174"
+                     top="221"
                      width="475">
                         Region and network
                     </text>
@@ -248,7 +286,7 @@
                      left="15"
                      name="render_neighbor_adjacent_only"
                      tool_tip="Only connect to the current and adjacent regions, plus the teleport target, to limit neighbor loading"
-                     top="197"
+                     top="244"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalReleaseNonAdjacentRegions"
@@ -260,7 +298,7 @@
                      left="30"
                      name="release_non_adjacent_regions"
                      tool_tip="EXPERIMENTAL. Releases a neighbor region once it has been non-adjacent for 5 seconds, by closing that region's connection only. Requires 'Only connect to adjacent regions'. Logged under FSRegionRelease."
-                     top="220"
+                     top="267"
                      width="460" />
                     <check_box
                      control_name="FSFetchOfflineIMsWhileOnline"
@@ -271,7 +309,7 @@
                      left="15"
                      name="fetch_offline_ims"
                      tool_tip="Periodically request offline instant messages while online"
-                     top="243"
+                     top="290"
                      width="475" />
                     <text
                      follows="left|top"
@@ -279,7 +317,7 @@
                      layout="topleft"
                      left="35"
                      name="offline_im_interval_label"
-                     top="269"
+                     top="316"
                      width="285">
                         Offline message fetch interval (seconds)
                     </text>
@@ -295,7 +333,7 @@
                      max_val="3600"
                      min_val="0"
                      name="offline_im_interval"
-                     top="266"
+                     top="313"
                      width="100" />
                     <text
                      follows="left|top"
@@ -303,7 +341,7 @@
                      layout="topleft"
                      left="35"
                      name="avatar_refresh_interval_label"
-                     top="295"
+                     top="342"
                      width="285">
                         Nearby avatar refresh interval (seconds)
                     </text>
@@ -318,7 +356,7 @@
                      max_val="3600"
                      min_val="0"
                      name="avatar_refresh_interval"
-                     top="292"
+                     top="339"
                      width="100" />
                     <text
                      follows="left|top"
@@ -326,7 +364,7 @@
                      layout="topleft"
                      left="35"
                      name="dc_threshold_label"
-                     top="321"
+                     top="368"
                      width="285">
                         Disconnect recovery threshold (seconds)
                     </text>
@@ -341,7 +379,7 @@
                      max_val="3600"
                      min_val="0"
                      name="dc_threshold"
-                     top="318"
+                     top="365"
                      width="100" />
                     <text
                      follows="left|top"
@@ -350,7 +388,7 @@
                      layout="topleft"
                      left="15"
                      name="popouts_heading"
-                     top="361"
+                     top="408"
                      width="475">
                         Experimental desktop windows
                     </text>
@@ -363,7 +401,7 @@
                      left="15"
                      name="experimental_popout_chat"
                      tool_tip="Windows prototype: move the whole Conversations floater into a desktop window"
-                     top="384"
+                     top="431"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutInventory"
@@ -374,7 +412,7 @@
                      left="15"
                      name="experimental_popout_inventory"
                      tool_tip="Windows prototype: move Inventory into a desktop window"
-                     top="407"
+                     top="454"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutMap"
@@ -385,7 +423,7 @@
                      left="15"
                      name="experimental_popout_map"
                      tool_tip="Windows prototype: move the world map into a desktop window"
-                     top="430"
+                     top="477"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutNearby"
@@ -396,7 +434,7 @@
                      left="15"
                      name="experimental_popout_nearby"
                      tool_tip="Windows prototype: move Nearby People (Radar) into a desktop window"
-                     top="453"
+                     top="500"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutAreaSearch"
@@ -407,7 +445,7 @@
                      left="15"
                      name="experimental_popout_area_search"
                      tool_tip="Windows prototype: move Area Search into a desktop window"
-                     top="476"
+                     top="523"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutPreferences"
@@ -418,7 +456,7 @@
                      left="15"
                      name="experimental_popout_preferences"
                      tool_tip="Windows prototype: move Preferences into a desktop window"
-                     top="499"
+                     top="546"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutSettings"
@@ -429,7 +467,7 @@
                      left="15"
                      name="experimental_popout_settings"
                      tool_tip="Windows prototype: move Debug Settings into a desktop window"
-                     top="522"
+                     top="569"
                      width="475" />
                     <check_box
                      control_name="FSExperimentalPopoutNotifications"
@@ -440,7 +478,7 @@
                      left="15"
                      name="experimental_popout_notifications"
                      tool_tip="Windows prototype: move the Notification Well into a desktop window"
-                     top="545"
+                     top="592"
                      width="475" />
                     <text
                      follows="left|top"
@@ -449,7 +487,7 @@
                      layout="topleft"
                      left="15"
                      name="hide_ui_heading"
-                     top="587"
+                     top="634"
                      width="475">
                         User interface
                     </text>
@@ -462,7 +500,7 @@
                      left="15"
                      name="hide_ui_fully"
                      tool_tip="EXPERIMENTAL. View &gt; Show User Interface (Alt+Shift+U) hides everything for clean screenshots and recordings, without asking first. Showing the interface again restores what was visible before."
-                     top="609"
+                     top="656"
                      width="475" />
                     <check_box
                      control_name="FSNameTagPillStyle"
@@ -473,7 +511,7 @@
                      left="15"
                      name="FSNameTagPillStyle"
                      tool_tip="Draw avatar name tags as a compact pill with round ends instead of the larger bubble. Chat bubbles keep their look."
-                     top="632"
+                     top="679"
                      width="475" />
                     <check_box
                      control_name="FSNameTagProfilePictures"
@@ -485,7 +523,7 @@
                      left="35"
                      name="FSNameTagProfilePictures"
                      tool_tip="Show each avatar&apos;s profile picture in a circle filling the left end of their pill name tag. Pictures are asked for once per session, two a second."
-                     top="655"
+                     top="702"
                      width="455" />
                     <text
                      follows="left|top"
@@ -493,7 +531,7 @@
                      layout="topleft"
                      left="55"
                      name="fs_nametag_picture_only_label"
-                     top="681"
+                     top="728"
                      width="265">
                         Only the picture beyond (metres, 0 never)
                     </text>
@@ -510,7 +548,7 @@
                      min_val="0"
                      name="fs_nametag_picture_only"
                      tool_tip="Name tags of avatars farther away than this show only their profile picture, in a small circle. Closer ones show the full tag. 0: always the full tag."
-                     top="678"
+                     top="725"
                      width="100" />
                     <check_box
                      control_name="FSNameTagChatRangeRing"
@@ -522,7 +560,7 @@
                      left="35"
                      name="FSNameTagChatRangeRing"
                      tool_tip="On name tags without a profile picture, a small dot shows the chat range: green within whisper range, yellow within chat range, red within shout range."
-                     top="704"
+                     top="751"
                      width="455" />
                     <check_box
                      control_name="FSNameTagScaleWithDistance"
@@ -534,7 +572,7 @@
                      left="35"
                      name="FSNameTagScaleWithDistance"
                      tool_tip="Pill name tags shrink with distance: full size within 5 m, about 70 percent at 10 m, half at 20 m, never smaller than the size below."
-                     top="727"
+                     top="774"
                      width="455" />
                     <text
                      follows="left|top"
@@ -542,7 +580,7 @@
                      layout="topleft"
                      left="55"
                      name="fs_nametag_min_scale_label"
-                     top="753"
+                     top="800"
                      width="265">
                         Size far away (share of full size)
                     </text>
@@ -558,7 +596,7 @@
                      max_val="1"
                      min_val="0.3"
                      name="fs_nametag_min_scale"
-                     top="750"
+                     top="797"
                      width="100" />
                     <check_box
                      control_name="FSNameTagIgnoreAlpha"
@@ -569,7 +607,7 @@
                      left="15"
                      name="FSNameTagIgnoreAlpha"
                      tool_tip="Hair, layered clothing and other alpha in front of a name tag or floating text no longer cut it away. Walls and other solid objects still hide it."
-                     top="776"
+                     top="823"
                      width="475" />
                     <text
                      follows="left|top"
@@ -578,7 +616,7 @@
                      layout="topleft"
                      left="15"
                      name="rlva_heading"
-                     top="818"
+                     top="865"
                      width="475">
                         RLVa
                     </text>
@@ -591,7 +629,7 @@
                      left="15"
                      name="rlva_experimental_login_privacy"
                      tool_tip="Temporarily hide the world, names, location, maps, and nearby avatars during login; restrictions not resent by attachments are released after loading or a safety timeout"
-                     top="842"
+                     top="889"
                      width="475" />
                     <check_box
                      control_name="FSRLVaProfileCommands"
@@ -602,7 +640,7 @@
                      left="15"
                      name="rlva_profile_commands"
                      tool_tip="Profile RLVa commands, from the i-doll fork by Amalthea Skydancer. While this is off they are refused as disabled; restrictions already set can still be lifted.&#10;&#10;@editprofile=n : can't edit your profile text and images&#10;@editpicks=n : can't create, edit or delete picks&#10;@editdisplayname=n : can't change your display name&#10;@editpfp=n : can't change your profile picture&#10;@setprofileimage:&lt;texture UUID&gt;=force : sets your profile picture&#10;@blockedimmsg:&lt;text&gt;=force : sets the reply sent when RLV blocks you from answering an IM (@blockedimmsg=force clears it)&#10;&#10;Other Firestorm-only RLVa commands in this viewer (always available):&#10;@showareasearch=n : blocks Area Search&#10;@showfavwear=n : blocks Wearable Favorites&#10;@showlookat=n : hides LookAt crosshairs&#10;@sendlookat=n : sends your real LookAt target even with private LookAt on&#10;@showcontacts=n : hides the friends list and friends' online status&#10;@showsearch=n : blocks Search and greys out its toolbar button&#10;@worldsounds=n, @soundothers=n, @soundself=n : mute object sounds, other avatars' sounds, your own sounds. Add :&lt;UUID&gt;=add to keep one source audible; @worldsounds and @soundothers also take :&lt;metres&gt;=n to keep nearby sounds audible"
-                     top="865"
+                     top="912"
                      width="170" />
                     <text
                      follows="left|top"
@@ -613,7 +651,7 @@
                      name="rlva_profile_commands_help"
                      text_color="EmphasisColor"
                      tool_tip="Profile RLVa commands, from the i-doll fork by Amalthea Skydancer. While this is off they are refused as disabled; restrictions already set can still be lifted.&#10;&#10;@editprofile=n : can't edit your profile text and images&#10;@editpicks=n : can't create, edit or delete picks&#10;@editdisplayname=n : can't change your display name&#10;@editpfp=n : can't change your profile picture&#10;@setprofileimage:&lt;texture UUID&gt;=force : sets your profile picture&#10;@blockedimmsg:&lt;text&gt;=force : sets the reply sent when RLV blocks you from answering an IM (@blockedimmsg=force clears it)&#10;&#10;Other Firestorm-only RLVa commands in this viewer (always available):&#10;@showareasearch=n : blocks Area Search&#10;@showfavwear=n : blocks Wearable Favorites&#10;@showlookat=n : hides LookAt crosshairs&#10;@sendlookat=n : sends your real LookAt target even with private LookAt on&#10;@showcontacts=n : hides the friends list and friends' online status&#10;@showsearch=n : blocks Search and greys out its toolbar button&#10;@worldsounds=n, @soundothers=n, @soundself=n : mute object sounds, other avatars' sounds, your own sounds. Add :&lt;UUID&gt;=add to keep one source audible; @worldsounds and @soundothers also take :&lt;metres&gt;=n to keep nearby sounds audible"
-                     top="867"
+                     top="914"
                      width="30">
                         (?)
                     </text>
@@ -624,7 +662,7 @@
                      layout="topleft"
                      left="15"
                      name="developer_heading"
-                     top="907"
+                     top="954"
                      width="475">
                         Developer tools
                     </text>
@@ -637,7 +675,7 @@
                      left="15"
                      name="external_websocket_sync_enable"
                      tool_tip="Enable the WebSocket JSONRPC server used for external script editing"
-                     top="930"
+                     top="977"
                      width="475" />
                     <check_box
                      control_name="ExternalWebsocketSyncLocal"
@@ -648,7 +686,7 @@
                      left="15"
                      name="external_websocket_sync_local"
                      tool_tip="Make the external script editing JSONRPC server listen only for local connections"
-                     top="953"
+                     top="1000"
                      width="475" />
                     <check_box
                      control_name="ExternalWebsocketForwardDebug"
@@ -659,7 +697,7 @@
                      left="15"
                      name="external_websocket_forward_debug"
                      tool_tip="Forward messages and runtime errors for a script to the external JSONRPC client"
-                     top="976"
+                     top="1023"
                      width="475" />
                     <text
                      follows="left|top"
@@ -667,7 +705,7 @@
                      layout="topleft"
                      left="35"
                      name="external_websocket_port_label"
-                     top="1002"
+                     top="1049"
                      width="285">
                         External script editing port
                     </text>
@@ -683,7 +721,7 @@
                      max_val="65535"
                      min_val="1"
                      name="external_websocket_port"
-                     top="999"
+                     top="1046"
                      width="100" />
                     <text
                      follows="left|top"
@@ -691,7 +729,7 @@
                      layout="topleft"
                      left="35"
                      name="mass_object_edit_workers_label"
-                     top="1028"
+                     top="1075"
                      width="285">
                         Mass Object Edit inventory workers
                     </text>
@@ -706,7 +744,7 @@
                      max_val="32"
                      min_val="1"
                      name="mass_object_edit_workers"
-                     top="1025"
+                     top="1072"
                      width="100" />
                     <check_box
                      control_name="FSBuildClientUndo"
@@ -717,7 +755,7 @@
                      left="15"
                      name="fs_fsbuildclientundo"
                      tool_tip="Keep an undo history of build tool moves, rotations and resizes. Ctrl+Z/Ctrl+Y step through it, even after deselecting; the simulator's own undo is used when it is empty."
-                     top="1051"
+                     top="1098"
                      width="475" />
                     <text
                      follows="left|top"
@@ -726,7 +764,7 @@
                      left="35"
                      name="fs_fschathistorylinesshown_label"
                      tool_tip="How many of the most recent chat log lines a conversation or nearby chat shows when it opens. 0: all the viewer recalls (about 200), as standard."
-                     top="1079"
+                     top="1126"
                      width="285">
                         Chat history lines shown on open
                     </text>
@@ -742,7 +780,7 @@
                      min_val="0"
                      name="fs_fschathistorylinesshown"
                      tool_tip="How many of the most recent chat log lines a conversation or nearby chat shows when it opens. 0: all the viewer recalls (about 200), as standard."
-                     top="1077"
+                     top="1124"
                      width="100" />
                 </panel>
             </scroll_container>

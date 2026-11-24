@@ -240,6 +240,7 @@
 #include "fspanellogin.h"
 #include "fsdynamicresolution.h" // <FS:Trish/> Dynamic resolution
 #include "fsphotoshadows.h" // <FS:Trish/> FSRenderPhotoShadows
+#include "fsgamecontrolhold.h" // <FS:Trish/> Game control: hold to perform action
 
 #include "lltracerecording.h"
 
@@ -3402,6 +3403,11 @@ void LLViewerWindow::draw()
             top_ctrl->draw();
             LLUI::popMatrix();
         }
+
+        // <FS:Trish> Game control: hold to perform action. The fill ring at the
+        // cursor while a controller button is held, over the rest of the UI.
+        FSGameControlHold::draw();
+        // </FS:Trish>
 
 
         if( gShowOverlayTitle && !mOverlayTitle.empty() )

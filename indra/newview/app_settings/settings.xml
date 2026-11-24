@@ -112,6 +112,39 @@
     <key>Value</key>
     <integer>1</integer>
   </map>
+  <key>FSGameControlHoldToAct</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller: a button bound to one of the actions in FSGameControlHoldActions (by default sit/stand, fly and speak) has to be held down for FSGameControlHoldSeconds before the action happens, so a stray press can no longer sit you down, stand you up, make you take off or land, or open your microphone. A ring around the mouse cursor fills while the button is held; letting go before it is full cancels, and holding on after it fires does not repeat it. Movement, camera and flycam controls, the keyboard and the mouse are not affected. Off: these buttons act the moment they are pressed, as before.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>Boolean</string>
+    <key>Value</key>
+    <integer>1</integer>
+  </map>
+  <key>FSGameControlHoldSeconds</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller, with FSGameControlHoldToAct: how long, in seconds, a button bound to a hold action has to be held before the action happens. Clamped to 0.2..3.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>F32</string>
+    <key>Value</key>
+    <real>1.0</real>
+  </map>
+  <key>FSGameControlHoldActions</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller, with FSGameControlHoldToAct: comma separated list of the button actions that have to be held. Names: sit (the Toggle sit button, which sits down and stands up; stand works too), fly (Toggle fly), speak (Toggle speak, the microphone), flycam (Toggle flycam), mouselook (Toggle mouselook), cursor (Toggle mouse cursor), escape (ESC) and run (the left stick button's always-run toggle). Unknown names are ignored. Movement, turning, looking, zoom, jump, crouch, simulated mouse clicks and flycam motion are never held back.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>String</string>
+    <key>Value</key>
+    <string>sit,fly,speak</string>
+  </map>
   <key>FSGameControlSlowBelow</key>
   <map>
     <key>Comment</key>

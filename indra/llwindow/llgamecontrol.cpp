@@ -2523,10 +2523,20 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
             continue;
         }
         auto mit = misc_button_bridge.find(label);
-        if (mit != misc_button_bridge.end() && (pressed_edges & (1U << btn)))
+        // <FS:Trish> Game control: hold to perform action. Also report the held state.
+        //if (mit != misc_button_bridge.end() && (pressed_edges & (1U << btn)))
+        //{
+        //    result.mMiscActionBits |= mit->second;
+        //}
+        if (mit != misc_button_bridge.end())
         {
-            result.mMiscActionBits |= mit->second;
+            result.mMiscActionHeldBits |= mit->second;
+            if (pressed_edges & (1U << btn))
+            {
+                result.mMiscActionBits |= mit->second;
+            }
         }
+        // </FS:Trish>
     }
 
     result.mIsRunning = mIsAnalogRunning;
@@ -2546,9 +2556,14 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
     if (mLookupMode != LLGameControl::CONTROL_MODE_FLYCAM
         && !mLookupCursorOverFlycam
         && mButtonActionLabels[LLGameControl::BUTTON_LEFT_STICK].empty()
-        && (pressed_edges & (1U << LLGameControl::BUTTON_LEFT_STICK)))
+        && (g_innerState.mButtons & (1U << LLGameControl::BUTTON_LEFT_STICK)))
     {
-        result.mMiscActionBits |= LLGameControl::AVATAR_ACTION_TOGGLE_RUN;
+        // Held state too, for the hold to perform action gate (FSGameControlHoldToAct)
+        result.mMiscActionHeldBits |= LLGameControl::AVATAR_ACTION_TOGGLE_RUN;
+        if (pressed_edges & (1U << LLGameControl::BUTTON_LEFT_STICK))
+        {
+            result.mMiscActionBits |= LLGameControl::AVATAR_ACTION_TOGGLE_RUN;
+        }
     }
     // </FS:Trish>
 

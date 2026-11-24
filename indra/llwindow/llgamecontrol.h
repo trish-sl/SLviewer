@@ -630,6 +630,14 @@ public:
         // LLAgent::applyExternalActions() for the slow/walk/run speed tiers.
         F32 mMoveMagnitude { 0.f };
         // </FS:Trish>
+
+        // <FS:Trish> Game control: hold to perform action. Level-triggered
+        // counterpart of mMiscActionBits: the AvatarMiscAction bits whose bound
+        // button is held down this frame (set every frame it is held, not only on
+        // the press). LLAgent uses it to fire a hold-gated action once its button
+        // has been held long enough (FSGameControlHoldToAct).
+        U32 mMiscActionHeldBits { 0 };
+        // </FS:Trish>
     };
 
     // Keyboard presses produce action_flags which can be translated into State

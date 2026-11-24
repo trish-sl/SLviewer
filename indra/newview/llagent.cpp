@@ -120,6 +120,7 @@
 #include "llpresetsmanager.h"
 #include "NACLantispam.h"
 #include "aoengine.h"
+#include "fsgamecontrolhold.h" // <FS:Trish/> Game control: hold to perform action
 
 using namespace LLAvatarAppearanceDefines;
 
@@ -6288,7 +6289,13 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
     // by LLGameControllerManager::computeAgentActions() (set only on the
     // frame the bound button transitions from not-pressed to pressed), so no
     // further debouncing is needed here -- just react to the bit directly.
-    const U32 misc_actions = actions.mMiscActionBits;
+    // <FS:Trish> Game control: hold to perform action. Actions listed in
+    // FSGameControlHoldActions (sit/stand, fly and speak by default) fire once their button has
+    // been held for FSGameControlHoldSeconds instead of on the press; the rest
+    // pass through unchanged, and so does everything with FSGameControlHoldToAct off.
+    //const U32 misc_actions = actions.mMiscActionBits;
+    const U32 misc_actions = FSGameControlHold::filter(actions.mMiscActionBits, actions.mMiscActionHeldBits);
+    // </FS:Trish>
 
     if (misc_actions & LLGameControl::AVATAR_ACTION_TOGGLE_FLY)
     {

@@ -79,6 +79,7 @@
 #include "llviewercamera.h"
 #include "llviewermedia.h" // <FS:Trish/> FSRenderUICap
 #include "llprogressview.h" // <FS:Trish/> FSRenderUICap
+#include "fsgamecontrolhold.h" // <FS:Trish/> Game control: hold to perform action
 #include "llviewercontrol.h"
 #include "llviewernetwork.h"
 #include "llviewerobjectlist.h"
@@ -2154,6 +2155,11 @@ namespace
         // A tool holding the mouse (drag-select rectangle and other tool overlays); orbiting the
         // camera draws nothing in 2D and stays capped
         if (captor && !dynamic_cast<LLView*>(captor) && LLToolMgr::getInstance()->getCurrentTool() != LLToolCamera::getInstance())
+        {
+            return true;
+        }
+        // The game controller hold ring at the cursor fills every frame
+        if (FSGameControlHold::isHolding())
         {
             return true;
         }
