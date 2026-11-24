@@ -65,12 +65,42 @@ namespace
         "face colour alpha", "glow", "PBR blend", "texture not loaded"
     };
 
+    // The texture's alpha, as far as it is known
+    enum TextureAlpha
+    {
+        TXA_OPAQUE,      // no alpha channel, or none of its alpha is below full
+        TXA_MASK,        // on/off
+        TXA_SOFT,        // real partial alpha
+        TXA_UNKNOWN      // not loaded yet
+    };
+
+    TextureAlpha texture_alpha(const LLFace* face)
+    {
+        LLViewerTexture* tex = face->getTexture();
+        if (!tex || !tex->hasGLTexture() || tex->getDiscardLevel() < 0)
+        {
+            return TXA_UNKNOWN;
+        }
+        if (tex->getComponents() != 4 && tex->getComponents() != 2)
+        {
+            return TXA_OPAQUE;
+        }
+        return tex->getIsAlphaMask() ? TXA_MASK : TXA_SOFT;
+    }
+
+    // The texture is looked at before the tint: a tinted face whose texture has soft alpha blends for the
+    // texture's sake whatever its tint, so the tint classes hold only the faces the tint alone sends to blend
     AlphaClass classify(const LLFace* face)
     {
         const LLTextureEntry* te = face->getTextureEntry();
         if (te && te->getGLTFRenderMaterial())
         {
             return AC_PBR;
+        }
+        const TextureAlpha ta = texture_alpha(face);
+        if (ta == TXA_SOFT)
+        {
+            return AC_SOFT_TEXTURE;
         }
         if (te && te->getColor().mV[3] < 1.f)
         {
@@ -80,18 +110,13 @@ namespace
         {
             return AC_GLOW;
         }
-        LLViewerTexture* tex = face->getTexture();
-        if (!tex || !tex->hasGLTexture() || tex->getDiscardLevel() < 0)
+        if (ta == TXA_UNKNOWN)
         {
             return AC_NO_TEXTURE;
         }
-        if (tex->getComponents() != 4 && tex->getComponents() != 2)
+        if (ta == TXA_OPAQUE)
         {
             return AC_OPAQUE_TEXTURE;
-        }
-        if (!tex->getIsAlphaMask())
-        {
-            return AC_SOFT_TEXTURE;
         }
         LLMaterial* mat = te ? te->getMaterialParams().get() : nullptr;
         if (mat && mat->getDiffuseAlphaMode() == LLMaterial::DIFFUSE_ALPHA_MODE_BLEND)
@@ -99,6 +124,24 @@ namespace
             return AC_MASK_BLEND_MAT;
         }
         return AC_MASK_TEXTURE;
+    }
+
+    // Histogram of the face colour alpha of the tinted rigged alpha faces (any texture): which threshold of
+    // FSRenderAvatarTintOpaqueAlpha would take how much out of the blend pass
+    enum TintBucket
+    {
+        TB_NEAR_OPAQUE,     // [0.95, 0.999)
+        TB_HALF,            // [0.5, 0.95)
+        TB_SHEER,           // (0, 0.5)
+        TB_COUNT
+    };
+    const char* const TINT_BUCKET_NAMES[TB_COUNT] = { "0.95 to 0.999", "0.5 to 0.95", "under 0.5" };
+    // split by the texture: opaque, or with an alpha channel (on/off or soft) or not loaded yet
+    const char* const TINT_TEXTURE_NAMES[2] = { "opaque texture", "alpha texture or not loaded" };
+
+    S32 tint_bucket(F32 alpha)
+    {
+        return alpha >= 0.95f ? TB_NEAR_OPAQUE : alpha >= 0.5f ? TB_HALF : TB_SHEER;
     }
 
     struct Row
@@ -116,6 +159,8 @@ namespace
         U32 mUnriggedAlphaTris = 0;
         S32 mHiddenFaces = 0;               // face colour alpha 0: not drawn, counted apart
         U32 mHiddenTris = 0;
+        S32 mTintFaces[TB_COUNT][2] = {};   // rigged alpha faces with a face colour alpha below 1, by bucket and texture
+        U32 mTintTris[TB_COUNT][2] = {};
 
         U32 maskableTris() const
         {
@@ -163,6 +208,13 @@ namespace
                         const AlphaClass c = classify(face);
                         ++row.mClassFaces[c];
                         row.mClassTris[c] += tris;
+                        const F32 tint = te ? te->getColor().mV[3] : 1.f;
+                        if (c != AC_PBR && tint < 1.f)
+                        {
+                            const S32 opaque_tex = texture_alpha(face) == TXA_OPAQUE ? 0 : 1;
+                            ++row.mTintFaces[tint_bucket(tint)][opaque_tex];
+                            row.mTintTris[tint_bucket(tint)][opaque_tex] += tris;
+                        }
                     }
                     else
                     {
@@ -243,6 +295,14 @@ namespace
                 drawn_sum.mUnriggedAlphaTris += row.mUnriggedAlphaTris;
                 drawn_sum.mHiddenFaces += row.mHiddenFaces;
                 drawn_sum.mHiddenTris += row.mHiddenTris;
+                for (S32 b = 0; b < TB_COUNT; ++b)
+                {
+                    for (S32 t = 0; t < 2; ++t)
+                    {
+                        drawn_sum.mTintFaces[b][t] += row.mTintFaces[b][t];
+                        drawn_sum.mTintTris[b][t] += row.mTintTris[b][t];
+                    }
+                }
             }
         }
 
@@ -281,6 +341,27 @@ namespace
                                      << (drawn_alpha_tris ? maskable * 100 / drawn_alpha_tris : 0)
                                      << "%). Hidden (face colour alpha 0, not drawn, left out above): " << drawn_sum.mHiddenFaces
                                      << " faces " << (drawn_sum.mHiddenTris + 500) / 1000 << "k triangles" << LL_ENDL;
+
+            // Which FSRenderAvatarTintOpaqueAlpha threshold would take how much out of the blend pass: the
+            // tinted rigged faces by their face colour alpha, those with an opaque texture apart (only those can
+            // be drawn opaque in the deferred pass; a texture with alpha has to blend whatever the tint)
+            std::string tints;
+            for (S32 b = 0; b < TB_COUNT; ++b)
+            {
+                for (S32 t = 0; t < 2; ++t)
+                {
+                    if (drawn_sum.mTintFaces[b][t] > 0)
+                    {
+                        tints += llformat("%s%s, %s: %d faces %uk triangles", tints.empty() ? "" : "; ", TINT_BUCKET_NAMES[b],
+                                          TINT_TEXTURE_NAMES[t], drawn_sum.mTintFaces[b][t], (drawn_sum.mTintTris[b][t] + 500) / 1000);
+                    }
+                }
+            }
+            if (!tints.empty())
+            {
+                LL_INFOS("FSAvatarCost") << "Tinted rigged alpha faces of the avatars drawn in full, by face colour alpha: " << tints
+                                         << LL_ENDL;
+            }
         }
     }
 }

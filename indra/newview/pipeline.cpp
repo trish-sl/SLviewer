@@ -14517,6 +14517,13 @@ void LLPipeline::renderShadow(const glm::mat4& view, const glm::mat4& proj, LLCa
         LL_PROFILE_ZONE_NAMED_CATEGORY_PIPELINE("shadow simple"); //LL_RECORD_BLOCK_TIME(FTM_SHADOW_SIMPLE);
         FS_RECORD_BLOCK_TIME(FTM_FS_SHADOW_OPAQUE); // <FS:Trish/>
         LL_PROFILE_GPU_ZONE("shadow simple");
+        // <FS:Trish> the rigged casters apart: zone "shadow rigged" of the FSGPUTimings log, inside "shadow simple"
+        std::optional<LLFSGPUZone::Scope> fs_rigged_zone;
+        if (rigged)
+        {
+            fs_rigged_zone.emplace("shadow rigged");
+        }
+        // </FS:Trish>
         gGL.getTexUnit(0)->disable();
 
         // <FS:Trish> FSPerfShadowMergedBatches: all static opaque pass types in one merged list

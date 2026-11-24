@@ -132,6 +132,7 @@
 #include <memory>
 #include <sstream>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -1823,6 +1824,12 @@ namespace
     {
         LL_PROFILE_ZONE_NAMED_CATEGORY_DRAWPOOL("gdd pbr execute");
         LL_PROFILE_GPU_ZONE("gdd pbr");
+        // the rigged pass apart: zone "gbuffer rigged" of the FSGPUTimings log, inside the pass's zone
+        std::optional<LLFSGPUZone::Scope> rigged_zone;
+        if (sRiggedPass)
+        {
+            rigged_zone.emplace("gbuffer rigged");
+        }
 
         sIndirectBuffer.upload(GL_DRAW_INDIRECT_BUFFER, sCommands.data(), sCommands.size() * sizeof(FSGDDDrawCommand));
         sRecordBuffer.upload(GL_ARRAY_BUFFER, sRecords.data(), sRecords.size() * sizeof(Record));
@@ -2024,6 +2031,11 @@ namespace
             return;
         }
         sRiggedPass = replay.mRigged;
+        std::optional<LLFSGPUZone::Scope> rigged_zone;
+        if (sRiggedPass)
+        {
+            rigged_zone.emplace("gbuffer rigged");
+        }
         sPassArena = sRiggedPass ? &sRiggedArena : &sArena;
         const U32 base = sRiggedPass ? FS_GDD_PBR_RIGGED : 0;
         sReplayPass = occ;

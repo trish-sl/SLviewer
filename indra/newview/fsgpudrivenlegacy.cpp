@@ -113,6 +113,7 @@
 #include "pipeline.h"
 
 #include <cstring>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
@@ -1038,6 +1039,12 @@ namespace
     {
         LL_PROFILE_ZONE_NAMED_CATEGORY_DRAWPOOL("gdd legacy execute");
         LL_PROFILE_GPU_ZONE("gdd legacy");
+        // the rigged pass apart: zone "gbuffer rigged" of the FSGPUTimings log, inside the pass's zone
+        std::optional<LLFSGPUZone::Scope> rigged_zone;
+        if (sRiggedPass)
+        {
+            rigged_zone.emplace("gbuffer rigged");
+        }
         const PassInfo& pass = pass_of(slot);
 
         // a kept pass used again (FSPerfGPUDrivenBuildCache) has its commands, records and texture lists up already
@@ -1187,6 +1194,11 @@ namespace
             return;
         }
         sRiggedPass = slot_rigged(slot);
+        std::optional<LLFSGPUZone::Scope> rigged_zone;
+        if (sRiggedPass)
+        {
+            rigged_zone.emplace("gbuffer rigged");
+        }
         sPassArena = sRiggedPass ? &sRiggedArena : &sArena;
         sReplayPass = occ;
         sIndirectOverride = FSGPUOcclusion::replayCommands(occ);
