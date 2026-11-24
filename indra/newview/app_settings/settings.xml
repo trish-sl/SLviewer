@@ -14505,7 +14505,11 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Type</key>
       <string>Boolean</string>
       <key>Value</key>
-      <integer>0</integer>
+      <!-- <FS:Trish> On by default: the direction form is the exact one (M d, what the point subtraction gives
+           in real arithmetic without its cancellation), and two mat3 products against two composed mat4s -->
+      <!--<integer>0</integer>-->
+      <integer>1</integer>
+      <!-- </FS:Trish> -->
     </map>
     <key>RenderRiggedPreciseMath</key>
     <map>
