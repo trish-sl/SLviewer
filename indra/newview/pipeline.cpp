@@ -3715,11 +3715,15 @@ void LLPipeline::updateGeom(F32 max_dtime)
             over_budget = update_timer.getElapsedTimeF32() > max_dtime ||
                           (fs_loop_cap_s > 0.f && fs_loop_timer.getElapsedTimeF32() > fs_loop_cap_s);
         }
-        // FSRenderMovingRebuildBudget: what only moves (child prims moving against their root, scale changes,
-        // snaps) and animated children don't wait for the cap: they would lag or jump until the camera stops
+        // What only moves (child prims moving against their root, scale changes, snaps) never waits: it is
+        // cheap, and a group rebuilt before it would take the object's old transform. Animated children
+        // don't wait for the FSRenderMovingRebuildBudget cap: they would lag or jump until the camera stops
+        //if (over_budget && drawablep && !drawablep->isDead() && !fs_is_priority_drawable_rebuild(drawablep) &&
+        //    !(fs_loop_cap_s > 0.f && (drawablep->isState(LLDrawable::ANIMATED_CHILD) ||
+        //                              (drawablep->isState(LLDrawable::REBUILD_POSITION) && !drawablep->isState(LLDrawable::REBUILD_VOLUME)))))
         if (over_budget && drawablep && !drawablep->isDead() && !fs_is_priority_drawable_rebuild(drawablep) &&
-            !(fs_loop_cap_s > 0.f && (drawablep->isState(LLDrawable::ANIMATED_CHILD) ||
-                                      (drawablep->isState(LLDrawable::REBUILD_POSITION) && !drawablep->isState(LLDrawable::REBUILD_VOLUME)))))
+            !(drawablep->isState(LLDrawable::REBUILD_POSITION) && !drawablep->isState(LLDrawable::REBUILD_VOLUME)) &&
+            !(fs_loop_cap_s > 0.f && drawablep->isState(LLDrawable::ANIMATED_CHILD)))
         {
             keep = true;
         }

@@ -6977,7 +6977,14 @@ void LLVolumeGeometryManager::rebuildGeom(LLSpatialGroup* group)
         for (LLSpatialGroup::element_iter drawable_iter = group->getDataBegin(); drawable_iter != group->getDataEnd(); ++drawable_iter)
         {
             LLDrawable* drawablep = (LLDrawable*)(*drawable_iter)->getDrawable();
-            if(drawablep)
+            // <FS:Trish> A drawable still queued for its own update (LLPipeline::updateGeom lets some wait
+            // while the camera moves fast) keeps its rebuild state: its faces were filled from the object's
+            // old transform, and the state is what makes the mesh rebuild its update asks for refill them.
+            // Cleared here, the update found nothing to refill and parts of linksets stayed missing or out
+            // of place until something else rebuilt their group.
+            //if(drawablep)
+            if (drawablep && !drawablep->isState(LLDrawable::IN_REBUILD_Q))
+            // </FS:Trish>
             {
                 drawablep->clearState(LLDrawable::REBUILD_ALL);
             }
