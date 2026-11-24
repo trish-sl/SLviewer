@@ -6244,7 +6244,7 @@
                      layout="topleft"
                      left="15"
                      name="fs_fsrenderlocallightshadowresolution_label"
-                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory: 6 MB per light at 512, 24 MB at 1024."
+                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory per light, with the copy kept for static casters: 12 MB at 512, 48 MB at 1024, 192 MB at 2048; each face also takes longer to redraw, so 2048 is for photos or few lights."
                      top="1836"
                      width="310">
                         Shadow map size per face
@@ -6258,10 +6258,10 @@
                      increment="128"
                      layout="topleft"
                      left="330"
-                     max_val="1024"
+                     max_val="2048"
                      min_val="128"
                      name="fs_fsrenderlocallightshadowresolution"
-                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory: 6 MB per light at 512, 24 MB at 1024."
+                     tool_tip="EXPERIMENTAL. Texels across each of the six faces of a light's shadow map. 512 gives edges about 2 cm wide at 5 m from the light. Memory per light, with the copy kept for static casters: 12 MB at 512, 48 MB at 1024, 192 MB at 2048; each face also takes longer to redraw, so 2048 is for photos or few lights."
                      top="1834"
                      width="100" />
                     <text

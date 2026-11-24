@@ -218,7 +218,7 @@ bool FSPointLightShadows::ensureStaticAtlas()
 bool FSPointLightShadows::ensureAtlas(U32 rows)
 {
     static LLCachedControl<S32> resolution(gSavedSettings, "FSRenderLocalLightShadowResolution", 512);
-    U32 res = (U32)llclamp((S32)resolution, 128, 1024);
+    U32 res = (U32)llclamp((S32)resolution, 128, 2048);
     const U32 max_size = (U32)llmax(gGLManager.mGLMaxTextureSize, 1024);
     while (res > 128 && (res * FACES > max_size || res * rows > max_size))
     {

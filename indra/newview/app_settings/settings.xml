@@ -28756,7 +28756,7 @@ Change of this parameter will affect the layout of buttons in notification toast
     <key>FSRenderLocalLightShadowResolution</key>
     <map>
       <key>Comment</key>
-      <string>EXPERIMENTAL. Texels across each of the six faces of a local light shadow map, 128-1024. 512 keeps edges about 2 cm wide at 5 m from the light; memory is 6 x this squared x 4 bytes per light (6 MB per light at 512).</string>
+      <string>EXPERIMENTAL. Texels across each of the six faces of a local light shadow map, 128-2048. 512 keeps edges about 2 cm wide at 5 m from the light; memory is 6 x this squared x 4 bytes per light, twice that once static casters are kept (12 MB per light at 512, 48 MB at 1024, 192 MB at 2048). Each face also costs this squared to redraw, so 2048 is for photos or few lights.</string>
       <key>Persist</key>
       <integer>1</integer>
       <key>Type</key>
