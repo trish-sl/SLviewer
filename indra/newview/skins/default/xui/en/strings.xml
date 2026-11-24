@@ -2810,6 +2810,7 @@ name="Command_360_Capture_Label">360° Snapshot</string>
   <string name="Command_AvatarAlign_Label">Avatar alignment</string>
   <string name="Command_ScriptRepos_Label">Script Repositories</string>
   <string name="Command_FaceNearest_Label">Face nearest avatar</string>
+  <string name="Command_CameraBookmarks_Label">Camera bookmarks</string> <!-- <FS:Trish/> -->
 
   <string name="Command_360_Capture_Tooltip">Capture a 360° equirectangular image</string>
   <string name="Command_AboutLand_Tooltip">Information about the land you're visiting</string>
@@ -2872,6 +2873,7 @@ name="Command_360_Capture_Label">360° Snapshot</string>
   <string name="Command_AvatarAlign_Tooltip">Align your avatar to a cardinal direction or face the nearest avatar</string>
   <string name="Command_ScriptRepos_Tooltip">Sync scripts from Git repositories (GitHub, GitLab, Gitea/Forgejo, Bitbucket) or zip links into your inventory and your objects in this region</string>
   <string name="Command_FaceNearest_Tooltip">Turn to face the nearest avatar within 20m</string>
+  <string name="Command_CameraBookmarks_Tooltip">Save camera views and go back to them, or play them as a tour</string> <!-- <FS:Trish/> -->
   <!-- [/FS:Chanayane] -->
   <string name="Command_Group_Titles_Tooltip">Change active group tag</string>
   <string name="Command_Wearable_Favorites_Tooltip">Open the list of favorite wearables</string>
