@@ -3080,7 +3080,10 @@
       <key>Type</key>
       <string>Boolean</string>
       <key>Value</key>
-      <integer>1</integer>
+      <!-- <FS:Trish> Off by default: Buy L$ opens the classic XUI floater with the LindeX quote, as before the L$ packs page -->
+      <!-- <integer>1</integer> -->
+      <integer>0</integer>
+      <!-- </FS:Trish> -->
     </map>
     <key>BuyCurrencyPacksURL</key>
     <map>
