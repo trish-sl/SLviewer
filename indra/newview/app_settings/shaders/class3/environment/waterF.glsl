@@ -122,6 +122,7 @@ void sampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inout 
 
 
 vec3 getPositionWithNDC(vec3 ndc);
+float fsPositionZWithNDC(vec3 ndc); // <FS:Trish/> deferredUtil.glsl: its z alone
 float ndcZFromScreenDepth(float d); // <FS:Trish/> FSRenderReverseZ
 
 #ifdef FS_WATER_FOAM
@@ -282,14 +283,17 @@ void main()
 #ifdef TRANSPARENT_WATER
     float depth = texture(depthMap, distort).r;
 
-    // <FS:Trish> FSRenderReverseZ: the NDC depth under either depth convention
+    // <FS:Trish> FSRenderReverseZ: the NDC depth under either depth convention. Only the depth of
+    // this first lookup is used (the shoreline fade below), so only the z and w rows are taken
     //vec3 refPos = getPositionWithNDC(vec3(distort*2.0-vec2(1.0), depth*2.0-1.0));
-    vec3 refPos = getPositionWithNDC(vec3(distort*2.0-vec2(1.0), ndcZFromScreenDepth(depth)));
+    //vec3 refPos = getPositionWithNDC(vec3(distort*2.0-vec2(1.0), ndcZFromScreenDepth(depth)));
+    float refPosZ = fsPositionZWithNDC(vec3(distort*2.0-vec2(1.0), ndcZFromScreenDepth(depth)));
     // </FS:Trish>
 
     // Calculate some distance fade in the water to better assist with refraction blending and reducing the refraction texture's "disconnect".
 #ifdef SHORELINE_FADE
-    fade = max(0,min(1, (pos.z - refPos.z) / 10));
+    //fade = max(0,min(1, (pos.z - refPos.z) / 10));
+    fade = max(0,min(1, (pos.z - refPosZ) / 10)); // <FS:Trish/>
 #else
     fade = 1;
 #endif
@@ -299,7 +303,7 @@ void main()
 
     // <FS:Trish> FSRenderReverseZ: the NDC depth under either depth convention
     //refPos = getPositionWithNDC(vec3(distort2 * 2.0 - vec2(1.0), depth * 2.0 - 1.0));
-    refPos = getPositionWithNDC(vec3(distort2 * 2.0 - vec2(1.0), ndcZFromScreenDepth(depth)));
+    vec3 refPos = getPositionWithNDC(vec3(distort2 * 2.0 - vec2(1.0), ndcZFromScreenDepth(depth)));
     // </FS:Trish>
 
     // <FS:Trish> Where the distorted lookup lands on something in front of the water (an object

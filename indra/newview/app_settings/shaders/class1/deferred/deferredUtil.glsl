@@ -439,6 +439,17 @@ vec3 getPositionWithNDC(vec3 ndc)
     return pos.xyz / pos.w;
 }
 
+// <FS:Trish> getPositionWithNDC(ndc).z alone: the z and w rows of the product, for a caller that
+// wants only the depth (the water's shoreline fade)
+float fsPositionZWithNDC(vec3 ndc)
+{
+    vec4 h = vec4(ndc, 1.0);
+    float z = dot(vec4(inv_proj[0][2], inv_proj[1][2], inv_proj[2][2], inv_proj[3][2]), h);
+    float w = dot(vec4(inv_proj[0][3], inv_proj[1][3], inv_proj[2][3], inv_proj[3][3]), h);
+    return z / w;
+}
+// </FS:Trish>
+
 vec4 getPositionWithDepth(vec2 pos_screen, float depth)
 {
     vec2 sc = getScreenCoordinate(pos_screen);

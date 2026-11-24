@@ -31,11 +31,19 @@ void main()
         vec3 t = texture(diffuseRect, tc).rgb;
         vec3 ring1 = vec3(0.0);
         vec3 ring2 = vec3(0.0);
+        // The directions as constants: every 60 degrees from 0, and every 60 from 30, rather than
+        // twelve sines and cosines per pixel
+        const vec2 fs_dir1[6] = vec2[6](vec2( 1.0,  0.0), vec2( 0.5,  0.8660254), vec2(-0.5,  0.8660254),
+                                        vec2(-1.0,  0.0), vec2(-0.5, -0.8660254), vec2( 0.5, -0.8660254));
+        const vec2 fs_dir2[6] = vec2[6](vec2( 0.8660254,  0.5), vec2( 0.0,  1.0), vec2(-0.8660254,  0.5),
+                                        vec2(-0.8660254, -0.5), vec2( 0.0, -1.0), vec2( 0.8660254, -0.5));
         for (int i = 0; i < 6; ++i)
         {
-            float a = float(i) * 1.0471976; // 60 degrees
-            vec2 d1 = vec2(cos(a), sin(a));
-            vec2 d2 = vec2(cos(a + 0.5235988), sin(a + 0.5235988));
+            //float a = float(i) * 1.0471976; // 60 degrees
+            //vec2 d1 = vec2(cos(a), sin(a));
+            //vec2 d2 = vec2(cos(a + 0.5235988), sin(a + 0.5235988));
+            vec2 d1 = fs_dir1[i];
+            vec2 d2 = fs_dir2[i];
             ring1 += texture(diffuseRect, tc + d1 * R1 * src_texel).rgb;
             ring2 += texture(diffuseRect, tc + d2 * R2 * src_texel).rgb;
         }

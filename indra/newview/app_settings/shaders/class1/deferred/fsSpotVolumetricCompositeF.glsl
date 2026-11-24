@@ -25,7 +25,9 @@ vec4 getPositionWithDepth(vec2 pos_screen, float depth);
 #ifdef FS_BICUBIC
 // FSRenderBicubicUpsample: the 4x4 texels around the point, weighted by a cubic B-spline instead of
 // the 3x3 Gaussian, whose window jumped by a texel as the reduced grid moved under the pixels
-float fsBSplineWeight(vec2 d); // fsBicubicF.glsl
+// The weight is separable (fsBSplineWeight(d) = fsBSpline(d.x) * fsBSpline(d.y)), so each axis's
+// four weights are taken once, from the same clamped texel coordinates the taps use
+float fsBSpline(float x); // fsBicubicF.glsl
 #define FS_UP_LAST 2
 #else
 #define FS_UP_LAST 1
@@ -49,6 +51,15 @@ void main()
     float weight_sum = 0.0;
     vec3 best_value = vec3(0.0);
     float best_rel = 1.0e20;
+#ifdef FS_BICUBIC
+    float wx[4];
+    float wy[4];
+    for (int k = 0; k < 4; ++k)
+    {
+        wx[k] = fsBSpline(float(clamp(base.x + k - 1, 0, size.x - 1)) - low_pos.x);
+        wy[k] = fsBSpline(float(clamp(base.y + k - 1, 0, size.y - 1)) - low_pos.y);
+    }
+#endif
     for (int y = -1; y <= FS_UP_LAST; ++y)
     {
         for (int x = -1; x <= FS_UP_LAST; ++x)
@@ -59,7 +70,8 @@ void main()
             // Relative distance difference, so the same tolerance works near and far
             float rel = abs(tap.a - center_dist) / max(center_dist, 0.1);
 #ifdef FS_BICUBIC
-            float w = fsBSplineWeight(d) * exp(-10.0 * rel);
+            //float w = fsBSplineWeight(d) * exp(-10.0 * rel);
+            float w = (wx[x + 1] * wy[y + 1]) * exp(-10.0 * rel);
 #else
             float w = exp(-0.5 * dot(d, d) - 10.0 * rel);
 #endif
