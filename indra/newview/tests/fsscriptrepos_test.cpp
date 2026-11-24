@@ -9,6 +9,8 @@
 
 #include "../fsscriptrepos.h"
 
+#include "fsyspath.h"
+
 #include "minizip-ng/mz.h"
 #include "minizip-ng/mz_strm.h"
 #include "minizip-ng/mz_strm_mem.h"
@@ -16,6 +18,8 @@
 #include "minizip-ng/mz_zip_rw.h"
 
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 
 using namespace FSScriptRepos;
 
@@ -54,6 +58,34 @@ namespace
     {
         return classify(path, text, {}, false);
     }
+
+    // A folder of files under the system's temporary folder, removed with the object
+    struct TempFolder
+    {
+        std::filesystem::path root;
+
+        TempFolder()
+        {
+            root = std::filesystem::temp_directory_path() / ("fsscriptrepos_test_" + LLUUID::generateNewID().asString());
+            std::filesystem::create_directories(root);
+        }
+        ~TempFolder()
+        {
+            std::error_code ec;
+            std::filesystem::remove_all(root, ec);
+        }
+        void write(const std::string& relative, const std::string& data)
+        {
+            const std::filesystem::path file = root / fsyspath(relative);
+            std::filesystem::create_directories(file.parent_path());
+            std::ofstream out(file, std::ios::binary);
+            out.write(data.data(), data.size());
+        }
+        std::string path() const
+        {
+            return fsyspath(root).string();
+        }
+    };
 }
 
 namespace tut
@@ -436,5 +468,97 @@ namespace tut
             error));
         ensure_equals(files[0].first, "a.lsl");
         ensure_equals(files[1].first, "d/b.lsl");
+    }
+
+    // local folders: parsing, keys and the state file
+    template<> template<> void fsscriptrepos_object::test<17>()
+    {
+        RepoRef r;
+#if LL_WINDOWS
+        ensure("drive path", parseRepoRef("C:/Work/Scripts/", "", r));
+        ensure_equals(r.path, "C:\\Work\\Scripts");
+        ensure_equals(r.owner, "Work");
+        RepoRef same;
+        ensure("other spelling", parseRepoRef("c:\\work\\.\\scripts", "", same));
+        ensure_equals(r.key(), same.key());     // Windows ignores case
+        ensure("drive root refused", !parseRepoRef("C:\\", "", r));
+        ensure("posix root is not absolute here", !parseRepoRef("/scripts", "", r));
+#else
+        ensure("root path", parseRepoRef("/home/me/Scripts/", "", r));
+        ensure_equals(r.path, "/home/me/Scripts");
+        ensure_equals(r.owner, "me");
+        RepoRef same;
+        ensure("other spelling", parseRepoRef("/home/me/./Scripts", "", same));
+        ensure_equals(r.key(), same.key());
+        ensure("root refused", !parseRepoRef("/", "", r));
+#endif
+        ensure("local kind", r.provider == Provider::LOCAL);
+        ensure_equals(r.repo, "Scripts");
+        ensure_equals(r.display(), r.path);
+        ensure("no branch", r.ref.empty());
+
+        const Provider local = Provider::LOCAL;
+        ensure("forced local needs a path", !parseRepoRef("o/r", "", &local, r));
+        ensure("forced local refuses links", !parseRepoRef("https://example.com/a.zip", "", &local, r));
+        ensure("relative refused", !parseRepoRef("scripts", "", &local, r));
+        ensure("empty refused", !parseLocalFolder("", r));
+
+        RepoState a;
+#if LL_WINDOWS
+        ensure("state", parseRepoRef("D:\\lsl\\pack", "", a.ref));
+#else
+        ensure("state", parseRepoRef("/srv/lsl/pack", "", a.ref));
+#endif
+        a.commit = "md5:4567";
+        std::vector<RepoState> back = fromLLSD(toLLSD({ a }));
+        ensure_equals(back.size(), 1U);
+        ensure("local back", back[0].ref.provider == Provider::LOCAL);
+        ensure_equals(back[0].ref.path, a.ref.path);
+        ensure_equals(back[0].ref.key(), a.ref.key());
+        ensure_equals(back[0].commit, "md5:4567");
+
+        // A local entry without a path is dropped, the others kept
+        LLSD list = toLLSD({ a });
+        list[0].erase("path");
+        ensure("no path dropped", fromLLSD(list).empty());
+    }
+
+    // readFolder: files below the folder, hidden folders left out, hidden files listed unread, a stable version
+    template<> template<> void fsscriptrepos_object::test<18>()
+    {
+        TempFolder folder;
+        folder.write("a.lsl", "x");
+        folder.write("sub/deeper/b.luau", "y");
+        folder.write(".gitignore", "*.o");
+        folder.write(".git/objects/c.lsl", "z");
+
+        std::vector<std::pair<std::string, std::string>> files;
+        std::vector<std::string> unsafe;
+        std::string error;
+        ensure("read", readFolder(folder.path(), files, unsafe, error));
+        ensure_equals(files.size(), 3U);
+        ensure_equals(files[0].first, ".gitignore");
+        ensure("hidden file unread", files[0].second.empty());
+        ensure_equals(files[1].first, "a.lsl");
+        ensure_equals(files[1].second, "x");
+        ensure_equals(files[2].first, "sub/deeper/b.luau");
+        ensure_equals(files[2].second, "y");
+        ensure("nothing unsafe", unsafe.empty());
+        ensure("hidden file skipped", classify(files[0].first, files[0].second, {}, false).kind == Kind::SKIPPED);
+
+        const std::string version = filesVersion(files);
+        ensure("version form", version.compare(0, 4, "md5:") == 0);
+        std::vector<std::pair<std::string, std::string>> again;
+        ensure("read again", readFolder(folder.path(), again, unsafe, error));
+        ensure_equals(filesVersion(again), version);
+        folder.write("a.lsl", "changed");
+        again.clear();
+        ensure("read changed", readFolder(folder.path(), again, unsafe, error));
+        ensure("version changed", filesVersion(again) != version);
+
+        files.clear();
+        ensure("missing folder", !readFolder(folder.path() + "_missing", files, unsafe, error));
+        ensure("missing error", !error.empty());
+        ensure("empty path", !readFolder("", files, unsafe, error));
     }
 }

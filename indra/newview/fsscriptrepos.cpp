@@ -1,13 +1,14 @@
 /**
  * @file fsscriptrepos.cpp
- * @brief Script repositories: repository references (GitHub, GitLab, Gitea/Forgejo, Bitbucket, zip links), zip
- *        reading, file rules and sync decisions.
+ * @brief Script repositories: repository references (GitHub, GitLab, Gitea/Forgejo, Bitbucket, zip links, local
+ *        folders), zip and folder reading, file rules and sync decisions.
  */
 
 #include "llviewerprecompiledheaders.h"
 
 #include "fsscriptrepos.h"
 
+#include "fsyspath.h"
 #include "llmd5.h"
 #include "llstring.h"
 
@@ -15,6 +16,10 @@
 #include "minizip-ng/mz_strm.h"
 #include "minizip-ng/mz_zip.h"
 #include "minizip-ng/mz_zip_rw.h"
+
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
 
 namespace FSScriptRepos
 {
@@ -139,13 +144,15 @@ std::string providerName(Provider provider)
     case Provider::GITEA: return "gitea";
     case Provider::BITBUCKET: return "bitbucket";
     case Provider::ZIP: return "zip";
+    case Provider::LOCAL: return "local";
     default: return "github";
     }
 }
 
 bool providerFromName(const std::string& name, Provider& out)
 {
-    for (Provider provider : { Provider::GITHUB, Provider::GITLAB, Provider::GITEA, Provider::BITBUCKET, Provider::ZIP })
+    for (Provider provider : { Provider::GITHUB, Provider::GITLAB, Provider::GITEA, Provider::BITBUCKET, Provider::ZIP,
+                               Provider::LOCAL })
     {
         if (providerName(provider) == name)
         {
@@ -162,14 +169,83 @@ std::string RepoRef::display() const
     {
         return url.substr(0, url.find_first_of("?#"));
     }
+    if (provider == Provider::LOCAL)
+    {
+        return path;
+    }
     return (host == "github.com" ? std::string() : host + "/") + owner + "/" + repo;
 }
 
 std::string RepoRef::key() const
 {
+    if (provider == Provider::LOCAL)
+    {
+        std::string out = path;
+#if LL_WINDOWS || LL_DARWIN
+        LLStringUtil::toLower(out);     // these file systems ignore case
+#endif
+        return providerName(provider) + " " + out;
+    }
     std::string out = providerName(provider) + " " + (provider == Provider::ZIP ? url : host + "/" + owner + "/" + repo);
     LLStringUtil::toLower(out);     // hosts and (on every one of these hosts) owner and repository names ignore case
     return out + " " + ref;
+}
+
+// Text meant as a path on this computer: a drive ("C:\" or "C:/"), a UNC share ("\\server\share") or a root ("/")
+static bool isAbsolutePathText(const std::string& s)
+{
+    if (s.size() >= 3 && isalpha(static_cast<unsigned char>(s[0])) && s[1] == ':' && (s[2] == '\\' || s[2] == '/'))
+    {
+        return true;
+    }
+    if (s.size() >= 2 && s[0] == '\\' && s[1] == '\\')
+    {
+        return true;
+    }
+    return !s.empty() && s[0] == '/';
+}
+
+bool parseLocalFolder(const std::string& text, RepoRef& out)
+{
+    std::string s = text;
+    LLStringUtil::trim(s);
+    if (s.empty() || s.size() > 1000 || !isAbsolutePathText(s))
+    {
+        return false;
+    }
+    for (char c : s)
+    {
+        if (static_cast<unsigned char>(c) < 0x20)
+        {
+            return false;
+        }
+    }
+
+    // One form for the same folder however it was typed ("C:/a/../b/", "C:\b"): the key and the display agree
+    std::filesystem::path normalized = fsyspath(s).lexically_normal();
+    normalized.make_preferred();
+    if (normalized.filename().empty())
+    {
+        normalized = normalized.parent_path();  // a trailing separator
+    }
+    if (!normalized.is_absolute() || normalized.filename().empty() || normalized.filename() == ".." ||
+        normalized.filename() == ".")
+    {
+        return false;   // relative to something, or a root
+    }
+    const std::string name = fsyspath(normalized.filename()).string();
+    const std::filesystem::path parent = normalized.parent_path();
+    const std::string parent_name = parent.filename().empty() ? fsyspath(parent.root_name()).string() :
+                                                                fsyspath(parent.filename()).string();
+
+    out.provider = Provider::LOCAL;
+    out.host.clear();
+    out.owner = parent_name.empty() ? std::string("root") : parent_name;
+    out.repo = name;
+    out.ref.clear();
+    out.url.clear();
+    out.path = fsyspath(normalized).string();
+    return true;
 }
 
 bool isValidHost(const std::string& host)
@@ -366,6 +442,15 @@ bool parseRepoRef(const std::string& text, const std::string& branch, const Prov
     std::string ref_override = branch;
     LLStringUtil::trim(ref_override);
 
+    // A folder on this computer: an absolute path, no branch
+    if ((!forced || *forced == Provider::LOCAL) && isAbsolutePathText(s))
+    {
+        return parseLocalFolder(s, out);
+    }
+    if (forced && *forced == Provider::LOCAL)
+    {
+        return false;
+    }
     // A link to a zip file: any host, nothing else to read from it
     if ((!forced || *forced == Provider::ZIP) && parseZipLink(s, out))
     {
@@ -445,6 +530,7 @@ bool parseRepoRef(const std::string& text, const std::string& branch, const Prov
     out.repo = repo;
     out.ref = ref;
     out.url.clear();
+    out.path.clear();
     return true;
 }
 
@@ -779,6 +865,126 @@ bool readZip(const std::string& buffer, std::vector<std::pair<std::string, std::
     return ok;
 }
 
+bool readFolder(const std::string& dir, std::vector<std::pair<std::string, std::string>>& files,
+    std::vector<std::string>& unsafe_paths, std::string& error)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path root = fsyspath(dir);
+    if (dir.empty() || !fs::is_directory(root, ec))
+    {
+        error = "The folder was not found.";
+        return false;
+    }
+
+    size_t entries = 0;
+    size_t total = 0;
+    fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec);
+    const fs::recursive_directory_iterator end;
+    while (!ec && it != end)
+    {
+        const fs::directory_entry entry = *it;
+        const std::string name = fsyspath(entry.path().filename()).string();
+        const bool hidden = !name.empty() && name[0] == '.';
+
+        // A link could lead anywhere on the disk: never followed, whether to a file or a folder (a junction too)
+        if (entry.is_symlink(ec))
+        {
+            it.disable_recursion_pending();
+            it.increment(ec);
+            continue;
+        }
+        if (entry.is_directory(ec))
+        {
+            if (hidden)
+            {
+                it.disable_recursion_pending(); // .git and the like: not entered, not listed
+            }
+            it.increment(ec);
+            continue;
+        }
+        if (!entry.is_regular_file(ec))
+        {
+            it.increment(ec);
+            continue;
+        }
+        if (++entries > MAX_ZIP_ENTRIES)
+        {
+            error = "The folder has over 10,000 files.";
+            return false;
+        }
+
+        std::string path;
+        for (const fs::path& part : entry.path().lexically_relative(root))
+        {
+            path += (path.empty() ? "" : "/") + fsyspath(part).string();
+        }
+        if (!isSafeZipPath(path))
+        {
+            unsafe_paths.push_back(path);
+            it.increment(ec);
+            continue;
+        }
+
+        // A hidden file is listed (classify says why it is skipped) but not read
+        std::string data;
+        if (!hidden)
+        {
+            std::error_code size_ec;
+            const uintmax_t size = entry.file_size(size_ec);
+            if (size_ec)
+            {
+                error = "Could not read " + path + ".";
+                return false;
+            }
+            if (size > MAX_ZIP_BYTES - total)
+            {
+                error = "The folder is over 50 MB.";
+                return false;
+            }
+            total += static_cast<size_t>(size);
+            data.resize(static_cast<size_t>(size));
+            std::ifstream in(entry.path(), std::ios::binary);
+            if (!in.is_open() || (size && !in.read(data.data(), static_cast<std::streamsize>(size))))
+            {
+                error = "Could not read " + path + ".";
+                return false;
+            }
+        }
+        files.emplace_back(std::move(path), std::move(data));
+        it.increment(ec);
+    }
+    if (ec)
+    {
+        error = "The folder could not be read.";
+        return false;
+    }
+
+    // The disk's order is arbitrary: sorted, so the listing and the version are stable
+    std::sort(files.begin(), files.end(),
+        [](const std::pair<std::string, std::string>& a, const std::pair<std::string, std::string>& b)
+        {
+            return a.first < b.first;
+        });
+    return true;
+}
+
+std::string filesVersion(const std::vector<std::pair<std::string, std::string>>& files)
+{
+    LLMD5 md5;
+    for (const auto& file : files)
+    {
+        md5.update(file.first);
+        md5.update(std::string(1, '\0'));
+        md5.update(md5Hex(file.second));
+        md5.update(std::string(1, '\n'));
+    }
+    md5.finalize();
+    char hex[33];
+    md5.hex_digest(hex);
+    return "md5:" + std::string(hex);
+}
+
 LLSD toLLSD(const std::vector<RepoState>& repos)
 {
     LLSD out = LLSD::emptyArray();
@@ -793,6 +999,10 @@ LLSD toLLSD(const std::vector<RepoState>& repos)
         if (repo.ref.provider == Provider::ZIP)
         {
             r["url"] = repo.ref.url;
+        }
+        if (repo.ref.provider == Provider::LOCAL)
+        {
+            r["path"] = repo.ref.path;
         }
         r["commit"] = repo.commit;
         r["synced"] = repo.synced;
@@ -835,6 +1045,13 @@ std::vector<RepoState> fromLLSD(const LLSD& sd)
         if (provider == Provider::ZIP)
         {
             if (!parseZipLink(r["url"].asString(), repo.ref))
+            {
+                continue;
+            }
+        }
+        else if (provider == Provider::LOCAL)
+        {
+            if (!parseLocalFolder(r["path"].asString(), repo.ref))
             {
                 continue;
             }

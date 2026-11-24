@@ -1,6 +1,7 @@
 /**
  * @file fsscriptreposfetch.cpp
- * @brief Script repositories: requests to GitHub, GitLab, Gitea/Forgejo, Bitbucket and zip links, and the tokens.
+ * @brief Script repositories: requests to GitHub, GitLab, Gitea/Forgejo, Bitbucket and zip links, the reading of
+ *        local folders, and the tokens.
  */
 
 #include "llviewerprecompiledheaders.h"
@@ -9,10 +10,13 @@
 
 #include "llbase64.h"
 #include "llcorehttputil.h"
+#include "lleventcoro.h"
+#include "llevents.h"
 #include "llhttpconstants.h"
 #include "llsdjson.h"
 #include "llsecapi.h"
 #include "lluri.h"
+#include "workqueue.h"
 
 #include <curl/curl.h>
 
@@ -26,6 +30,7 @@ namespace
     const std::string TOKEN_TYPE("git_token");
     const std::string GITHUB_API("https://api.github.com/");
     constexpr unsigned int TRANSFER_TIMEOUT = 300;
+    constexpr F32 FOLDER_TIMEOUT = 600.f;   // a folder read is bounded by the file limits; this only guards a lost reply
     constexpr int MAX_REDIRECTS = 3;
     constexpr size_t MAX_API_BYTES = 2 * 1024 * 1024;
 
@@ -315,7 +320,7 @@ namespace
 
 std::string tokenHost(const RepoRef& ref)
 {
-    return ref.provider == Provider::ZIP ? std::string() : ref.host;
+    return ref.provider == Provider::ZIP || ref.provider == Provider::LOCAL ? std::string() : ref.host;
 }
 
 std::string loadToken(const std::string& host)
@@ -373,6 +378,13 @@ FetchResult fetchCommit(const RepoRef& ref)
     if (ref.provider == Provider::ZIP)
     {
         return zipLinkVersion(ref);
+    }
+    if (ref.provider == Provider::LOCAL)
+    {
+        // Nothing cheaper than reading it tells whether a folder changed
+        FetchResult out;
+        out.ok = true;
+        return out;
     }
 
     FetchResult out;
@@ -471,6 +483,9 @@ FetchResult fetchArchive(const RepoRef& ref, const std::string& commit)
         url = ref.url;
         accept = "application/zip, */*";
         break;
+    case Provider::LOCAL:
+        out.error = "A folder is read, not downloaded.";
+        return out;
     }
     if (ref.provider != Provider::ZIP && !isCommitHash(commit))
     {
@@ -497,6 +512,67 @@ FetchResult fetchArchive(const RepoRef& ref, const std::string& commit)
     }
     out.ok = true;
     out.body = std::move(response.body);
+    return out;
+}
+
+FetchResult fetchFolder(const RepoRef& ref, std::vector<std::pair<std::string, std::string>>& files,
+    std::vector<std::string>& unsafe_paths)
+{
+    struct Read
+    {
+        bool ok{ false };
+        std::string error;
+        std::vector<std::pair<std::string, std::string>> files;
+        std::vector<std::string> unsafe_paths;
+    };
+    FetchResult out;
+    if (ref.provider != Provider::LOCAL)
+    {
+        out.error = "Not a folder.";
+        return out;
+    }
+
+    // The read holds its own result: the coroutine may be gone (window closed, logout) when the worker finishes
+    auto read = std::make_shared<Read>();
+    const std::string dir = ref.path;
+    // An own mail drop: a late reply must not wake a later wait
+    LLEventMailDrop pump("ScriptReposFolder-" + LLUUID::generateNewID().asString(), true);
+    const std::string pump_name = pump.getName();
+    auto work = [read, dir, pump_name]()
+    {
+        read->ok = readFolder(dir, read->files, read->unsafe_paths, read->error);
+        LL::WorkQueue::postToMainLoop([pump_name]()
+        {
+            LLEventPumps::instance().post(pump_name, LLSDMap("done", LLSD::Boolean(true)));
+        });
+    };
+
+    LL::WorkQueue::ptr_t queue = LL::WorkQueue::getInstance("General");
+    if (queue && queue->post(work))
+    {
+        LLSD reply = llcoro::suspendUntilEventOnWithTimeout(pump, FOLDER_TIMEOUT, LLSDMap("timeout", LLSD::Boolean(true)));
+        if (reply.has("timeout"))
+        {
+            out.error = "The folder took too long to read.";
+            return out;
+        }
+    }
+    else
+    {
+        // No worker pool (shutting down): read here
+        read->ok = readFolder(dir, read->files, read->unsafe_paths, read->error);
+    }
+
+    LL_INFOS("ScriptRepos") << "READ " << dir << " -> " << (read->ok ? "ok" : read->error) << LL_ENDL;
+    if (!read->ok)
+    {
+        out.error = read->error;
+        return out;
+    }
+    files = std::move(read->files);
+    unsafe_paths = std::move(read->unsafe_paths);
+    out.ok = true;
+    out.commit = filesVersion(files);
     return out;
 }
 }

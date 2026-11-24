@@ -1,7 +1,7 @@
 /**
  * @file fsfloaterscriptrepos.cpp
- * @brief Script Repositories window: syncs Git repositories (GitHub, GitLab, Gitea/Forgejo, Bitbucket) and zip links
- *        into the Scripts folder and updates same-named
+ * @brief Script Repositories window: syncs Git repositories (GitHub, GitLab, Gitea/Forgejo, Bitbucket), zip links
+ *        and local folders into the Scripts folder and updates same-named
  *        scripts in the user's objects in the region.
  */
 
@@ -18,6 +18,7 @@
 #include "llcombobox.h"
 #include "llcoros.h"
 #include "lldir.h"
+#include "lldirpicker.h"
 #include "lleventcoro.h"
 #include "llevents.h"
 #include "llfile.h"
@@ -80,7 +81,8 @@ namespace
 
     std::string shortCommit(const std::string& commit)
     {
-        // A zip link's version is its ETag, date or content hash ("etag:...", "md5:..."): nothing to show
+        // A zip link's version is its ETag, date or content hash ("etag:...", "md5:..."), a folder's a content hash:
+        // nothing to show
         return commit.find(':') != std::string::npos ? std::string("latest") : commit.substr(0, 7);
     }
 
@@ -312,6 +314,7 @@ bool FSFloaterScriptRepos::postBuild()
     mProgress = getChild<LLProgressBar>("progress");
 
     childSetAction("add", [this](LLUICtrl*, const LLSD&) { onAdd(); });
+    childSetAction("browse", [this](LLUICtrl*, const LLSD&) { onBrowse(); });
     childSetAction("remove", [this](LLUICtrl*, const LLSD&) { onRemove(); });
     childSetAction("forget", [this](LLUICtrl*, const LLSD&) { onForget(); });
     childSetAction("check", [this](LLUICtrl*, const LLSD&) { onCheck(); });
@@ -419,6 +422,7 @@ void FSFloaterScriptRepos::refreshRepos()
         row["columns"][0]["value"] = state.ref.display();
         row["columns"][1]["column"] = "branch";
         row["columns"][1]["value"] = state.ref.provider == Provider::ZIP ? getString("zip_link") :
+            state.ref.provider == Provider::LOCAL ? getString("local_folder") :
             state.ref.ref.empty() ? getString("default_branch") : state.ref.ref;
         row["columns"][2]["column"] = "synced";
         row["columns"][2]["value"] = state.commit.empty() && state.files.empty() ? getString("never_synced") :
@@ -445,7 +449,7 @@ void FSFloaterScriptRepos::refreshToken()
     mTokenEdit->clear();
     if (mTokenHost.empty())
     {
-        mTokenEdit->setLabel(getString("token_zip"));
+        mTokenEdit->setLabel(getString(ref && ref->provider == Provider::LOCAL ? "token_local" : "token_zip"));
     }
     else
     {
@@ -464,14 +468,14 @@ void FSFloaterScriptRepos::refreshToken()
 void FSFloaterScriptRepos::setBusy(bool busy)
 {
     mBusy = busy;
-    for (const char* name : { "add", "remove", "forget", "check", "check_region", "repo_edit", "branch_edit",
+    for (const char* name : { "add", "browse", "remove", "forget", "check", "check_region", "repo_edit", "branch_edit",
                               "kind", "ignore_edit", "token_edit", "images", "prefix_edit" })
     {
         getChildView(name)->setEnabled(!busy);
     }
     if (!busy && mTokenHost.empty())
     {
-        // A zip link has no token
+        // A zip link or a folder has no token
         mTokenEdit->setEnabled(false);
         getChildView("forget")->setEnabled(false);
     }
@@ -542,8 +546,15 @@ void FSFloaterScriptRepos::onAdd()
         // A repository link on a host whose kind is not known by its name: ask for the kind
         const Provider gitea = Provider::GITEA;
         RepoRef probe;
-        setStatus(getString(!forced && parseRepoRef(mRepoEdit->getText(), mBranchEdit->getText(), &gitea, probe) ?
-            "unknown_host" : "bad_repo"));
+        setStatus(getString(forced && chosen == Provider::LOCAL ? "bad_folder" :
+            !forced && parseRepoRef(mRepoEdit->getText(), mBranchEdit->getText(), &gitea, probe) ? "unknown_host" :
+            "bad_repo"));
+        return;
+    }
+    if (ref.provider == Provider::LOCAL && !LLFile::isdir(ref.path))
+    {
+        // A typo is told now; a folder that goes missing later is an error on its row at the next check
+        setStatus(getString("folder_missing"));
         return;
     }
     for (const Repo& repo : mRepos)
@@ -567,6 +578,41 @@ void FSFloaterScriptRepos::onAdd()
     refreshToken();
     setStatus(std::string());
     setBusy(false);
+}
+
+void FSFloaterScriptRepos::onBrowse()
+{
+    if (mBusy)
+    {
+        return;
+    }
+    // Starts in the folder typed, when there is one
+    std::string proposed = mRepoEdit->getText();
+    LLStringUtil::trim(proposed);
+    if (!LLFile::isdir(proposed))
+    {
+        proposed.clear();
+    }
+    // The picker answers from the main loop (LLDirPickerThread::clearDead); the window may be closed by then
+    LLHandle<LLFloater> handle = getHandle();
+    (new LLDirPickerThread([handle](const std::vector<std::string>& folders, std::string) mutable
+    {
+        if (FSFloaterScriptRepos* floater = self(handle))
+        {
+            floater->onFolderPicked(folders);
+        }
+    }, proposed))->getFile();
+}
+
+void FSFloaterScriptRepos::onFolderPicked(const std::vector<std::string>& folders)
+{
+    if (folders.empty() || folders.front().empty())
+    {
+        return;
+    }
+    mRepoEdit->setText(folders.front());
+    mKind->setValue("local");
+    onAdd();
 }
 
 void FSFloaterScriptRepos::onRemove()
@@ -876,28 +922,49 @@ bool FSFloaterScriptRepos::fetchRepo(LLHandle<LLFloater> handle, size_t index, b
         return true;    // nothing changed since the last sync: no download
     }
 
-    FetchResult zip = fetchArchive(ref, commit.commit);
-    if (!(floater = self(handle)) || floater->mCancel)
-    {
-        return false;
-    }
-    if (!zip.ok)
-    {
-        error = zip.error;
-        return false;
-    }
-    floater->mRepos[index].fetched_commit = zip.commit;
-    if (commit.commit.empty() && unchanged_since_sync(zip.commit))
-    {
-        return true;    // a zip link with the same content as at the last sync
-    }
-
     std::vector<std::pair<std::string, std::string>> files;
     std::vector<std::string> unsafe;
-    // shortcut: unpacked on the main thread (coroutine); fine for script repos, move to a worker if 50 MB repos stall
-    if (!readZip(zip.body, files, unsafe, error))
+    if (ref.provider == Provider::LOCAL)
     {
-        return false;
+        // Read from disk on a worker thread; the version is a hash of what was read
+        FetchResult folder = fetchFolder(ref, files, unsafe);
+        if (!(floater = self(handle)) || floater->mCancel)
+        {
+            return false;
+        }
+        if (!folder.ok)
+        {
+            error = folder.error;
+            return false;
+        }
+        floater->mRepos[index].fetched_commit = folder.commit;
+        if (unchanged_since_sync(folder.commit))
+        {
+            return true;    // the same files as at the last sync
+        }
+    }
+    else
+    {
+        FetchResult zip = fetchArchive(ref, commit.commit);
+        if (!(floater = self(handle)) || floater->mCancel)
+        {
+            return false;
+        }
+        if (!zip.ok)
+        {
+            error = zip.error;
+            return false;
+        }
+        floater->mRepos[index].fetched_commit = zip.commit;
+        if (commit.commit.empty() && unchanged_since_sync(zip.commit))
+        {
+            return true;    // a zip link with the same content as at the last sync
+        }
+        // shortcut: unpacked on the main thread (coroutine); fine for script repos, move to a worker if 50 MB repos stall
+        if (!readZip(zip.body, files, unsafe, error))
+        {
+            return false;
+        }
     }
 
     Repo& loaded = floater->mRepos[index];

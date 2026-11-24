@@ -14,11 +14,15 @@
     <string name="never_synced">never synced</string>
     <string name="default_branch">(default branch)</string>
     <string name="zip_link">(zip link)</string>
+    <string name="local_folder">(local folder)</string>
     <string name="token_none">Optional, for private repositories on [HOST]</string>
     <string name="token_none_bitbucket">Optional: username:app password for [HOST]</string>
     <string name="token_saved">Saved for [HOST] (type to replace)</string>
     <string name="token_zip">Zip links are read without a token</string>
-    <string name="bad_repo">Type owner/repo (GitHub), a repository link, or an https link to a zip file.</string>
+    <string name="token_local">Local folders are read without a token</string>
+    <string name="bad_repo">Type owner/repo (GitHub), a repository link, an https link to a zip file, or the full path of a folder on this computer.</string>
+    <string name="bad_folder">Type the full path of a folder on this computer, or pick it with Browse.</string>
+    <string name="folder_missing">That folder was not found.</string>
     <string name="unknown_host">The kind of server is not known from its name: choose it in the list next to the link.</string>
     <string name="duplicate_repo">That repository is already listed.</string>
     <string name="no_inventory">The inventory is not loaded yet.</string>
@@ -45,7 +49,7 @@
     <string name="kind_notecard">notecard</string>
     <string name="kind_image">image</string>
     <string name="note_no_lua">this region has no Lua</string>
-    <string name="note_unsafe">unsafe path in the download</string>
+    <string name="note_unsafe">unsafe path</string>
     <string name="note_not_compiled">saved, does not compile: [ERROR]</string>
     <string name="note_create_failed">could not create the item</string>
     <string name="note_upload_failed">could not save: [ERROR]</string>
@@ -99,13 +103,22 @@
     </scroll_list>
     <line_editor
      name="repo_edit"
-     label="owner/repo, a repository link, or a zip link"
-     tool_tip="GitHub: owner/repo or a github.com link. GitLab, Gitea/Forgejo (such as Codeberg) and Bitbucket: the repository's link. Anything else: an https link to a zip file."
+     label="owner/repo, a repository link, a zip link, or a folder path"
+     tool_tip="GitHub: owner/repo or a github.com link. GitLab, Gitea/Forgejo (such as Codeberg) and Bitbucket: the repository's link. An https link to a zip file. Or the full path of a folder on this computer (Browse picks one): its files are read from disk, hidden folders such as .git left out."
      layout="topleft"
      follows="left|right|top"
      left="8"
-     right="-368"
+     right="-440"
      top="96"
+     height="22" />
+    <button
+     name="browse"
+     label="Browse..."
+     tool_tip="Pick a folder on this computer to sync from."
+     layout="topleft"
+     follows="right|top"
+     left_pad="4"
+     width="68"
      height="22" />
     <combo_box
      name="kind"
@@ -121,6 +134,7 @@
         <combo_box.item label="Gitea / Forgejo" name="gitea" value="gitea" />
         <combo_box.item label="Bitbucket" name="bitbucket" value="bitbucket" />
         <combo_box.item label="Zip link" name="zip" value="zip" />
+        <combo_box.item label="Local folder" name="local" value="local" />
     </combo_box>
     <line_editor
      name="branch_edit"
@@ -215,7 +229,7 @@
     <button
      name="check"
      label="Check for changes"
-     tool_tip="Compares the repositories and zip links with the Scripts folder. Changes nothing."
+     tool_tip="Compares the repositories, zip links and folders with the Scripts folder. Changes nothing."
      layout="topleft"
      follows="left|top"
      left="8"
