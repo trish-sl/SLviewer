@@ -126,6 +126,10 @@ public:
     // shadows (a fitting's low detail model letting light out) as the camera moves.
     F32 lodDistance(const LLVector3& center, F32 radius, F32 distance) const;
 
+    // FSRenderLocalLightShadowAvatarDistance (LLPipeline::fsShadowSkipsAvatar): while one of the faces is being
+    // drawn, true and the agent space position it is drawn from
+    bool renderingLight(LLVector3& center) const;
+
     // FSRenderLocalLightShadowDebug 2 and up: the atlas drawn into the lower left of dst, one row
     // per slot, six faces across, nearer casters brighter
     void drawDebugAtlas(LLRenderTarget* dst, LLVertexBuffer* screen_tri);
@@ -183,6 +187,7 @@ private:
     LLVector3 mLodCenter[MAX_LIGHTS];
     F32 mLodReach[MAX_LIGHTS] = {};
     U32 mLodCount = 0;
+    S32 mRenderingSlot = -1;                // the slot whose face renderFace is drawing, -1 outside
 
     // What the light programs sample in this light pass
     bool mShading = false;

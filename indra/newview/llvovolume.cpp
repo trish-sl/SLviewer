@@ -2022,6 +2022,14 @@ bool LLVOVolume::calcLOD()
         {
             return false;
         }
+        // <FS:Trish> FSRenderLocalLightShadowRiggedLOD: as the non-rigged branch below, at least the detail seen from a
+        // light with a shadow map whose reach the avatar is in, so its shadows don't change with the camera's distance
+        static LLCachedControl<bool> fs_rigged_light_lod(gSavedSettings, "FSRenderLocalLightShadowRiggedLOD", false);
+        if (fs_rigged_light_lod)
+        {
+            distance = gFSPointLightShadows.lodDistance(avatar->getPositionAgent(), radius, distance);
+        }
+        // </FS:Trish>
     }
     else
     {

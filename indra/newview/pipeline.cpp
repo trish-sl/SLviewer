@@ -21858,6 +21858,21 @@ bool LLPipeline::isBeyondAvatarShadowDistance(const LLVOAvatar* avatar)
 //static
 bool LLPipeline::fsShadowSkipsAvatar(const LLVOAvatar* avatar)
 {
+    // FSRenderLocalLightShadowAvatarDistance: while a local light's shadow map face is drawn, other avatars
+    // farther than that from the light cast nothing into it (checked at the same places as the cascades)
+    if (sShadowRender && avatar && !avatar->isSelf())
+    {
+        static LLCachedControl<F32> lls_avatar_distance(gSavedSettings, "FSRenderLocalLightShadowAvatarDistance", 0.f);
+        LLVector3 light_center;
+        if (lls_avatar_distance > 0.f && gFSPointLightShadows.renderingLight(light_center))
+        {
+            const F32 d = lls_avatar_distance;
+            if (dist_vec_squared(avatar->getPositionAgent(), light_center) > d * d)
+            {
+                return true;
+            }
+        }
+    }
     if (!sShadowRender || gCubeSnapshot || !avatar || gPipeline.mFSSunShadowCascade < 0 || avatar->isSelf())
     {
         return false;

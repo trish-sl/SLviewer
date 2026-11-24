@@ -28694,6 +28694,28 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>32.0</real>
     </map>
+    <key>FSRenderLocalLightShadowAvatarDistance</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. With FSRenderLocalLightShadows: 0 is off. Otherwise other avatars (with their attachments and rigged meshes) farther than this many metres from a local light cast no shadow into that light's maps; your own avatar always casts. A light's maps are drawn again whenever an avatar in them moves, and every avatar in reach is drawn into all six faces, so in a crowd the avatars are most of the local light shadow cost. Changes the picture: a far avatar casts no shadow from that light. Try half the light's radius.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>0.0</real>
+    </map>
+    <key>FSRenderLocalLightShadowRiggedLOD</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. With FSRenderLocalLightShadows: rigged meshes within the reach of a light with a shadow map keep at least the level of detail they would have seen from that light, as unrigged objects already do, so an avatar's shadow doesn't change shape as the camera moves away from it. Costs triangles: a distant avatar near a mapped light keeps its detail. Changes the picture: steadier shadows, more detailed distant avatars near lights.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>Boolean</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
     <key>FSRenderLocalLightShadowStrength</key>
     <map>
       <key>Comment</key>

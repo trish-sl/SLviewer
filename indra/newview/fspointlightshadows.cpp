@@ -421,6 +421,12 @@ void FSPointLightShadows::clearTile(S32 x, S32 y)
 void FSPointLightShadows::renderFace(U32 slot, U32 face, LLCamera& camera, bool split)
 {
     Slot& s = mSlots[slot];
+    struct RenderingSlot    // FSRenderLocalLightShadowAvatarDistance: the casters' draws ask which light this is
+    {
+        S32& mSlot;
+        ~RenderingSlot() { mSlot = -1; }
+    } rendering_slot{ mRenderingSlot };
+    mRenderingSlot = (S32)slot;
     const S32 x = (S32)(face * mRes);
     const S32 y = (S32)(slot * mRes);
     const S32 res = (S32)mRes;
@@ -834,6 +840,16 @@ void FSPointLightShadows::logSlot(U32 slot, const char* what) const
     const LLVOVolume* volume = light->getVOVolume();
     LL_INFOS("FSLocalLightShadows") << "Slot " << slot << " " << what << " light " << (volume ? volume->getID() : LLUUID::null)
                                     << " at " << light->getPositionAgent() << LL_ENDL;
+}
+
+bool FSPointLightShadows::renderingLight(LLVector3& center) const
+{
+    if (mRenderingSlot < 0 || mRenderingSlot >= (S32)MAX_LIGHTS)
+    {
+        return false;
+    }
+    center = mSlots[mRenderingSlot].mCenter;
+    return true;
 }
 
 F32 FSPointLightShadows::lodDistance(const LLVector3& center, F32 radius, F32 distance) const
