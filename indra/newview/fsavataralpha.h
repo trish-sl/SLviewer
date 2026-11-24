@@ -30,9 +30,13 @@
 #define FS_AVATARALPHA_H
 
 #include "stdtypes.h"
+#include "llpointer.h"
+
+#include <vector>
 
 class LLDrawInfo;
 class LLSpatialGroup;
+class LLVector4a;
 class LLTextureEntry;
 class LLViewerObject;
 class LLViewerTexture;
@@ -50,9 +54,15 @@ class LLVOAvatar;
 // Main thread only, like the rest of the render pipeline.
 namespace FSAvatarAlpha
 {
-    // At the start of a renderAlpha call: whether its draws may be lit cheaply at all (the setting on, not
-    // HUDs, not an impostor bake). False costs the pass nothing more.
+    // At the start of a renderAlpha call: whether its draws may be lit cheaply at all (FSRenderCheapAvatarAlpha
+    // or FSRenderCheapAlphaDistance on, not HUDs, not an impostor bake). False costs the pass nothing more.
     bool beginPass();
+
+    // FSRenderCheapAlphaDistance: the fs_particle flags of the draws of a group of in-world alpha (not an avatar's,
+    // not particles) in a pass beginPass allowed: CHEAP when the group is farther from the camera than the setting,
+    // else 0. ext: the group's (or its bridge's) extents. With the stats on and log_ok (the main view's colour
+    // pass), the group also goes into the log of the biggest in-world alpha groups on screen.
+    S32 sceneGroup(LLSpatialGroup* group, const LLVector4a* ext, const std::vector<LLPointer<LLDrawInfo>>& draws, bool log_ok);
 
     // The wearer of a group of non-rigged attachments (PARTITION_AVATAR), or nullptr
     const LLVOAvatar* groupAvatar(LLSpatialGroup* group);

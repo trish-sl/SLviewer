@@ -28584,6 +28584,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <integer>0</integer>
     </map>
+    <key>FSRenderCheapAlphaDistance</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. 0 is off. Otherwise in-world alpha blended surfaces (glass, water features, foliage, lamp glows; not avatars or particles, which have their own cheap settings) whose group is farther from the camera than this many metres are lit like cheap particles: the sky probe's light instead of searching the nearby reflection probes, one sun shadow sample instead of a filtered set, and the four local lights nearest the camera instead of seven. Fog is applied as before. Changes the picture: distant alpha can look slightly different near local lights and inside buildings with their own probes. With FSRenderGPUTimings on, the #FSAvatarAlpha# log lists the biggest in-world alpha groups on screen, to see what the alpha pass spends its time on.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>0.0</real>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>

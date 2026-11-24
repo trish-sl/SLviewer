@@ -1294,6 +1294,10 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
             {
                 fs_attachment_zone.emplace("alpha avatars");
             }
+            // FSRenderCheapAlphaDistance: the flags of a group of in-world alpha (neither an avatar's nor particles),
+            // and with the stats on its place in the log of the biggest alpha groups on screen
+            const S32 fs_scene_flags = (fs_avatar_pass || FSAvatarAlpha::statsOn()) && !rigged && !fs_attachment_group && !is_particle_or_hud_particle ?
+                FSAvatarAlpha::sceneGroup(group, ext, group->mDrawMap[LLRenderPass::PASS_ALPHA], !depth_only && wboit_phase != WBOIT_DEPTH && mHairPass != HAIR_DEPTH) : 0;
             // </FS:Trish>
 
             bool disable_cull = is_particle_or_hud_particle;
@@ -1381,9 +1385,11 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
                         initialized_lighting = true;
                         light_enabled = !params.mFullbright;
                         // FSRenderCheapAvatarAlpha: the pending run is drawn first when this draw is lit otherwise
+                        // (FSRenderCheapAlphaDistance: an in-world group's draws carry the group's flags)
                         {
                             const LLVOAvatar* fs_avatar = params.mAvatar.notNull() ? params.mAvatar.get() : fs_group_avatar;
-                            const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
+                            //const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
+                            const S32 fs_avatar_flags = !fs_avatar_pass ? 0 : fs_avatar ? FSAvatarAlpha::flags(fs_avatar) : fs_scene_flags;
                             if (fs_avatar_flags != fs_gdd_run_flags)
                             {
                                 fsGDDAlphaFlush(fs_gdd_bind);
@@ -1601,10 +1607,12 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
                     // <FS:Trish> Particle draws: the early-out only where a discarded fragment changes
                     // nothing, source alpha blending in a colour pass that writes no depth
                     // FSRenderCheapAvatarAlpha: the draws of avatars carry their avatar's flags, every other
-                    // draw 0 (so does every draw while it is off)
+                    // draw 0 (so does every draw while it is off). FSRenderCheapAlphaDistance: an in-world
+                    // group's draws carry the group's flags.
                     {
                         const LLVOAvatar* fs_avatar = params.mAvatar.notNull() ? params.mAvatar.get() : fs_group_avatar;
-                        const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
+                        //const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
+                        const S32 fs_avatar_flags = !fs_avatar_pass ? 0 : fs_avatar ? FSAvatarAlpha::flags(fs_avatar) : fs_scene_flags;
                         //const S32 fs_particle_flags = fs_particle_group ?
                         //    FSParticleRender::flags(params.mBlendFuncSrc == LLRender::BF_SOURCE_ALPHA && !depth_only && !mFSWriteDepth) : 0;
                         const S32 fs_particle_flags = fs_particle_group ?

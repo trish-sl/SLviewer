@@ -35,6 +35,7 @@
 #include "lldrawable.h"
 #include "llspatialpartition.h"
 #include "lltextureentry.h"
+#include "llviewercamera.h"
 #include "llviewercontrol.h"
 #include "llviewerobject.h"
 #include "llviewertexture.h"
@@ -43,6 +44,7 @@
 #include "llvoavatar.h"
 #include "pipeline.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 extern bool gCubeSnapshot;
@@ -87,6 +89,31 @@ namespace
     bool sStatsOn = false;
     std::unordered_map<const LLVOAvatar*, bool> sSeen;  // this frame: avatars with alpha drawn, cheaply or not
 
+    // FSRenderCheapAlphaDistance: the in-world alpha groups of this frame's main view, for the log of the biggest
+    // on screen (the last frame's top entries are what gets logged)
+    struct SceneGroup
+    {
+        F32 mArea = 0.f;        // share of the view, 0-1
+        F32 mDistance = 0.f;
+        U32 mDraws = 0;
+        U32 mTris = 0;
+        bool mCheap = false;
+        bool mBridge = false;
+        LLUUID mId;
+        LLVector3 mPosition;
+    };
+    constexpr size_t SCENE_GROUPS_LOGGED = 8;
+    std::vector<SceneGroup> sSceneGroups;       // this frame
+    std::vector<SceneGroup> sSceneGroupsLast;   // the last frame that had any, the top entries by area
+    U32 sSceneDraws = 0;                        // summed over the interval, main view
+    U32 sSceneCheapDraws = 0;
+
+    F32 scene_distance()
+    {
+        static LLCachedControl<F32> distance(gSavedSettings, "FSRenderCheapAlphaDistance", 0.f);
+        return distance > 0.f ? llmax((F32)distance, 1.f) : 0.f;
+    }
+
     // summed over the interval
     U32 sFrames = 0;
     U64 sDraws = 0;
@@ -109,6 +136,13 @@ namespace
             sCheapAvatars += seen.second ? 1 : 0;
         }
         sSeen.clear();
+        if (!sSceneGroups.empty())
+        {
+            std::sort(sSceneGroups.begin(), sSceneGroups.end(), [](const SceneGroup& a, const SceneGroup& b) { return a.mArea > b.mArea; });
+            sSceneGroups.resize(llmin(sSceneGroups.size(), SCENE_GROUPS_LOGGED));
+            sSceneGroupsLast.swap(sSceneGroups);
+            sSceneGroups.clear();
+        }
     }
 
     void log_stats()
@@ -134,8 +168,26 @@ namespace
                                   << "GPU time: zone \"alpha avatars\" in the FSGPUTimings line"
                                   << (sUntimedGroups ? llformat(" (%.1f attachment groups per frame past the zone cap, untimed)", (F64)sUntimedGroups * per_frame) : std::string())
                                   << LL_ENDL;
+        // FSRenderCheapAlphaDistance: the in-world alpha (everything the alpha pass draws besides avatars and
+        // particles), and where the big surfaces are
+        const F32 scene_dist = scene_distance();
+        std::string groups;
+        for (const SceneGroup& g : sSceneGroupsLast)
+        {
+            groups += llformat("\n    %s at <%.0f, %.0f, %.0f>: %.1f%% of the screen, %u draws, %uk triangles, %.0f m, %s",
+                               g.mBridge ? llformat("object %s (moving or linked)", g.mId.asString().substr(0, 8).c_str()).c_str()
+                                         : llformat("region cell with object %s", g.mId.asString().substr(0, 8).c_str()).c_str(),
+                               g.mPosition.mV[0], g.mPosition.mV[1], g.mPosition.mV[2], g.mArea * 100.f, g.mDraws, (g.mTris + 500) / 1000,
+                               g.mDistance, g.mCheap ? "lit cheaply" : "full lighting");
+        }
+        LL_INFOS("FSAvatarAlpha") << "In-world alpha (not avatars or particles) per frame over " << sFrames << " frames: "
+                                  << llformat("%.1f draws (%.1f cheap); ", (F64)sSceneDraws * per_frame, (F64)sSceneCheapDraws * per_frame)
+                                  << (scene_dist > 0.f ? llformat("FSRenderCheapAlphaDistance %.0f m", scene_dist) : std::string("FSRenderCheapAlphaDistance off"))
+                                  << "; GPU time: the \"alpha\" zones less \"alpha avatars\" and \"alpha particles\". Biggest groups on screen in the last frame:"
+                                  << (groups.empty() ? std::string(" none") : groups) << LL_ENDL;
         sFrames = 0;
         sDraws = sCheapDraws = sAvatars = sCheapAvatars = sUntimedGroups = 0;
+        sSceneDraws = sSceneCheapDraws = 0;
     }
 }
 
@@ -144,7 +196,75 @@ bool FSAvatarAlpha::beginPass()
     static LLCachedControl<bool> cheap(gSavedSettings, "FSRenderCheapAvatarAlpha", false);
     sFlaggedThisPass = false;
     // An impostor bake is lit flat by its programs (FOR_IMPOSTOR) anyway
-    return cheap && !LLPipeline::sRenderingHUDs && !LLPipeline::sImpostorRender;
+    return (cheap || scene_distance() > 0.f) && !LLPipeline::sRenderingHUDs && !LLPipeline::sImpostorRender;
+}
+
+S32 FSAvatarAlpha::sceneGroup(LLSpatialGroup* group, const LLVector4a* ext, const std::vector<LLPointer<LLDrawInfo>>& draws, bool log_ok)
+{
+    if (!group)
+    {
+        return 0;
+    }
+    const F32 distance = scene_distance();
+    const bool cheap = distance > 0.f && group->mDistance > distance;
+    const S32 flags = cheap ? FSParticleRender::CHEAP : 0;
+    sFlaggedThisPass = sFlaggedThisPass || flags != 0;
+    if (!sStatsOn || !log_ok || !main_view())
+    {
+        return flags;
+    }
+    SceneGroup g;
+    for (const LLPointer<LLDrawInfo>& draw : draws)
+    {
+        if (draw.notNull() && draw->mAvatar.isNull())
+        {
+            ++g.mDraws;
+            g.mTris += draw->mCount / 3;
+        }
+    }
+    if (!g.mDraws)
+    {
+        return flags;
+    }
+    sSceneDraws += g.mDraws;
+    sSceneCheapDraws += cheap ? g.mDraws : 0;
+    if (ext)
+    {
+        LLVector4a center;
+        LLVector4a size;
+        center.setAdd(ext[0], ext[1]);
+        center.mul(0.5f);
+        size.setSub(ext[1], ext[0]);
+        size.mul(0.5f);
+        LLViewerCamera* camera = LLViewerCamera::getInstance();
+        const F32 view_pixels = (F32)camera->getViewHeightInPixels() * (F32)camera->getViewHeightInPixels() * camera->getAspect();
+        g.mArea = view_pixels > 0.f ? llmin(LLPipeline::calcPixelArea(center, size, *camera) / view_pixels, 1.f) : 0.f;
+    }
+    g.mDistance = group->mDistance;
+    g.mCheap = cheap;
+    // which object: a bridge's root, else the first drawable of the region cell
+    LLSpatialBridge* bridge = group->getSpatialPartition() ? group->getSpatialPartition()->asBridge() : nullptr;
+    const LLDrawable* drawable = bridge ? bridge->mDrawable : nullptr;
+    g.mBridge = bridge != nullptr;
+    if (!drawable)
+    {
+        for (LLSpatialGroup::element_iter i = group->getDataBegin(); i != group->getDataEnd(); ++i)
+        {
+            drawable = (const LLDrawable*)(*i)->getDrawable();
+            if (drawable)
+            {
+                break;
+            }
+        }
+    }
+    const LLViewerObject* vobj = drawable ? drawable->getVObj() : nullptr;
+    if (vobj)
+    {
+        g.mId = vobj->getID();
+        g.mPosition = vobj->getPositionRegion();
+    }
+    sSceneGroups.push_back(g);
+    return flags;
 }
 
 const LLVOAvatar* FSAvatarAlpha::groupAvatar(LLSpatialGroup* group)
@@ -192,7 +312,8 @@ S32 FSAvatarAlpha::flags(const LLVOAvatar* avatar)
         else
         {
             S32 flags = 0;
-            if (!avatar->isSelf() && !avatar->isControlAvatar() && !avatar->isDead())
+            static LLCachedControl<bool> cheap_avatars(gSavedSettings, "FSRenderCheapAvatarAlpha", false);
+            if (cheap_avatars && !avatar->isSelf() && !avatar->isControlAvatar() && !avatar->isDead())
             {
                 static LLCachedControl<F32> distance_setting(gSavedSettings, "FSRenderCheapAvatarAlphaDistance", 10.f);
                 const F32 distance = llclamp((F32)distance_setting, 2.f, 64.f);
@@ -319,6 +440,7 @@ void FSAvatarAlpha::frame(bool enabled, F32 interval_seconds)
         ++sFrames;
     }
     sSeen.clear();
+    sSceneGroups.clear();
     if (enabled != sStatsOn)
     {
         sStatsOn = enabled;
@@ -326,6 +448,8 @@ void FSAvatarAlpha::frame(bool enabled, F32 interval_seconds)
         log_stats(); // what was gathered so far, or nothing
         sFrames = 0;
         sDraws = sCheapDraws = sAvatars = sCheapAvatars = sUntimedGroups = 0;
+        sSceneDraws = sSceneCheapDraws = 0;
+        sSceneGroupsLast.clear();
         return;
     }
     if (enabled && timer.getElapsedTimeF32() >= llmax(interval_seconds, 1.f))
