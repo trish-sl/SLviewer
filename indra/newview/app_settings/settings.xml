@@ -28551,6 +28551,28 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>0.0</real>
     </map>
+    <key>FSRenderCheapAvatarAlphaCrowd</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. With FSRenderCheapAvatarAlpha on: 0 is off. Otherwise, when at least this many other avatars are drawn in full (not impostors, not muted, in view), the transparent parts of every other avatar are lit cheaply whatever their distance, as those beyond FSRenderCheapAvatarAlphaDistance are. Six avatars standing around you at 3 m never reach the distance; this catches the crowd instead. Changes the picture as the distance does: nearby hair and sheer clothing take the sky probe's light, one shadow sample and four local lights.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>S32</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
+    <key>FSRenderCheapAvatarAlphaCoverage</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. With FSRenderCheapAvatarAlpha on: 0 is off. Otherwise, another avatar whose box on screen covers less than this share of the view (0.02 is 2 percent, about a 180 pixel square at 1080p) has its transparent parts lit cheaply, whatever its distance: a small avatar on screen can't show the difference. Changes the picture where it applies, as the distance does.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>F32</string>
+      <key>Value</key>
+      <real>0.0</real>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>

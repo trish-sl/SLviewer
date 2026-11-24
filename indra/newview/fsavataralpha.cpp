@@ -39,6 +39,7 @@
 #include "llviewerobject.h"
 #include "llviewertexture.h"
 #include "llviewerregion.h"
+#include "llviewerwindow.h"
 #include "llvoavatar.h"
 #include "pipeline.h"
 
@@ -55,6 +56,25 @@ namespace
     U32 sCacheFrame = 0;
     const LLVOAvatar* sLastAvatar = nullptr;    // consecutive draws are mostly one avatar's
     S32 sLastFlags = 0;
+    // FSRenderCheapAvatarAlphaCrowd: the other avatars drawn in full this frame (not you, animesh, impostors, muted
+    // or out of view), counted once a frame with the cache
+    S32 sCrowd = 0;
+    F32 sScreenPixels = 0.f;                    // FSRenderCheapAvatarAlphaCoverage: the main view's pixels
+
+    S32 count_crowd()
+    {
+        S32 crowd = 0;
+        for (LLCharacter* character : LLCharacter::sInstances)
+        {
+            LLVOAvatar* avatar = static_cast<LLVOAvatar*>(character); // isVisuallyMuted and isImpostor aren't const
+            if (avatar && !avatar->isDead() && !avatar->isSelf() && !avatar->isControlAvatar() && !avatar->isVisuallyMuted() &&
+                !avatar->isImpostor() && avatar->isVisible())
+            {
+                ++crowd;
+            }
+        }
+        return crowd;
+    }
 
     bool sFlaggedThisPass = false;
 
@@ -99,13 +119,18 @@ namespace
         }
         static LLCachedControl<bool> cheap(gSavedSettings, "FSRenderCheapAvatarAlpha", false);
         static LLCachedControl<F32> distance(gSavedSettings, "FSRenderCheapAvatarAlphaDistance", 10.f);
+        static LLCachedControl<S32> crowd(gSavedSettings, "FSRenderCheapAvatarAlphaCrowd", 0);
+        static LLCachedControl<F32> coverage(gSavedSettings, "FSRenderCheapAvatarAlphaCoverage", 0.f);
         const F64 per_frame = 1.0 / (F64)sFrames;
         LL_INFOS("FSAvatarAlpha") << "Avatar alpha per frame over " << sFrames << " frames: "
                                   << llformat("%.1f draws (%.1f cheap, %.1f full), %.1f avatars (%.1f cheap, %.1f full); ",
                                               (F64)sDraws * per_frame, (F64)sCheapDraws * per_frame, (F64)(sDraws - sCheapDraws) * per_frame,
                                               (F64)sAvatars * per_frame, (F64)sCheapAvatars * per_frame, (F64)(sAvatars - sCheapAvatars) * per_frame)
-                                  << (cheap ? llformat("FSRenderCheapAvatarAlpha on, beyond %.1f m; ", llclamp((F32)distance, 2.f, 64.f))
-                                            : std::string("FSRenderCheapAvatarAlpha off; "))
+                                  << (cheap ? llformat("FSRenderCheapAvatarAlpha on, beyond %.1f m", llclamp((F32)distance, 2.f, 64.f))
+                                            : std::string("FSRenderCheapAvatarAlpha off"))
+                                  << (cheap && crowd > 0 ? llformat(", or with %d or more other avatars drawn in full (%d now)", (S32)crowd, sCrowd) : std::string())
+                                  << (cheap && coverage > 0.f ? llformat(", or covering under %.1f%% of the screen", (F32)coverage * 100.f) : std::string())
+                                  << "; "
                                   << "GPU time: zone \"alpha avatars\" in the FSGPUTimings line"
                                   << (sUntimedGroups ? llformat(" (%.1f attachment groups per frame past the zone cap, untimed)", (F64)sUntimedGroups * per_frame) : std::string())
                                   << LL_ENDL;
@@ -146,12 +171,16 @@ S32 FSAvatarAlpha::flags(const LLVOAvatar* avatar)
     {
         return 0;
     }
+    static LLCachedControl<S32> crowd_setting(gSavedSettings, "FSRenderCheapAvatarAlphaCrowd", 0);
+    static LLCachedControl<F32> coverage_setting(gSavedSettings, "FSRenderCheapAvatarAlphaCoverage", 0.f);
     const U32 frame = LLFrameTimer::getFrameCount();
     if (frame != sCacheFrame)
     {
         sCache.clear();
         sCacheFrame = frame;
         sLastAvatar = nullptr;
+        sCrowd = crowd_setting > 0 ? count_crowd() : 0;
+        sScreenPixels = gViewerWindow ? (F32)gViewerWindow->getWorldViewWidthRaw() * (F32)gViewerWindow->getWorldViewHeightRaw() : 0.f;
     }
     if (avatar != sLastAvatar)
     {
@@ -169,6 +198,18 @@ S32 FSAvatarAlpha::flags(const LLVOAvatar* avatar)
                 const F32 distance = llclamp((F32)distance_setting, 2.f, 64.f);
                 const F32 dist_sq = dist_vec_squared(avatar->getPositionAgent(), gAgentCamera.getCameraPositionAgent());
                 flags = dist_sq > distance * distance ? FSParticleRender::CHEAP : 0;
+                // FSRenderCheapAvatarAlphaCrowd: with that many other avatars drawn in full, every one of them is cheap,
+                // however near. FSRenderCheapAvatarAlphaCoverage: so is one whose box on screen (the pixel area the
+                // impostor logic keeps, from the main camera) is under that share of the view.
+                if (!flags && crowd_setting > 0 && sCrowd >= (S32)crowd_setting)
+                {
+                    flags = FSParticleRender::CHEAP;
+                }
+                if (!flags && coverage_setting > 0.f && sScreenPixels > 0.f &&
+                    avatar->getPixelArea() < llclamp((F32)coverage_setting, 0.f, 1.f) * sScreenPixels)
+                {
+                    flags = FSParticleRender::CHEAP;
+                }
             }
             sCache.emplace(avatar, flags);
             sLastFlags = flags;
