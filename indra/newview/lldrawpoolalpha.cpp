@@ -308,6 +308,7 @@ void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
 
     //prepare_alpha_shader(simple_shader, true, water_sign); //prime simple shader (loads shadow relevant uniforms)
     fs_mark_for_prepare(simple_shader); // <FS:Trish/>
+    fs_mark_for_prepare(&gFSDeferredSkinnedAlphaNoDiscardProgram); // <FS:Trish/> FSRenderAlphaRiggedNoDiscard, prepared as the rigged variant is
 
     LLGLSLShader* materialShader = gDeferredMaterialProgram;
     for (int i = 0; i < LLMaterial::SHADER_COUNT*2; ++i)
@@ -889,7 +890,11 @@ bool LLDrawPoolAlpha::TexSetup(LLDrawInfo* draw, bool use_material)
                 current_shader->bindTexture(LLShaderMgr::SPECULAR_MAP, draw->mSpecularMap);
             }
         }
-        else if (current_shader == simple_shader || current_shader == simple_shader->mRiggedVariant)
+        // <FS:Trish> FSRenderAlphaRiggedNoDiscard: the no discard rigged program is the rigged variant's twin
+        //else if (current_shader == simple_shader || current_shader == simple_shader->mRiggedVariant)
+        else if (current_shader == simple_shader || current_shader == simple_shader->mRiggedVariant ||
+                 current_shader == &gFSDeferredSkinnedAlphaNoDiscardProgram)
+        // </FS:Trish>
         {
             current_shader->bindTexture(LLShaderMgr::BUMP_MAP, LLViewerFetchedTexture::sFlatNormalImagep);
             current_shader->bindTexture(LLShaderMgr::SPECULAR_MAP, LLViewerFetchedTexture::sWhiteImagep);
@@ -1141,8 +1146,18 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
     // <FS:Trish> FSPerfGPUDrivenAlpha: runs of consecutive draws of a group as multi-draws, in their place
     // (fsgpudrivenalpha.cpp). Not for HUDs, impostors and reflection probes, the depth only passes, the WBOIT
     // phases and the two-pass hair passes; their programs are bound as the stock ones are (fs_bind_program).
+    // FSRenderAlphaRiggedNoDiscard: whether this pass may draw rigged draws of the legacy alpha program that could
+    // never fail the alpha test (FSAvatarAlpha::noDiscardDraw) with the program built without it. Only the plain
+    // rigged colour pass: the hair, hybrid OIT and WBOIT passes rely on the program's own tests, an impostor bake or
+    // HUD pass picks other programs anyway.
+    static LLCachedControl<bool> fs_no_discard_setting(gSavedSettings, "FSRenderAlphaRiggedNoDiscard", true);
+    const bool fs_no_discard = fs_no_discard_setting && rigged && !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF &&
+        !mFSHybridOIT && !LLPipeline::sImpostorRender && !LLPipeline::sRenderingHUDs && simple_shader == &gDeferredAlphaProgram &&
+        gFSDeferredSkinnedAlphaNoDiscardProgram.isComplete();
+    //const bool fs_gdd = !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF && !gCubeSnapshot &&
+    //    fsGDDAlphaBeginPass(rigged, simple_shader, fullbright_shader, mAlphaSFactor, mAlphaDFactor, MINIMUM_ALPHA);
     const bool fs_gdd = !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF && !gCubeSnapshot &&
-        fsGDDAlphaBeginPass(rigged, simple_shader, fullbright_shader, mAlphaSFactor, mAlphaDFactor, MINIMUM_ALPHA);
+        fsGDDAlphaBeginPass(rigged, simple_shader, fullbright_shader, mAlphaSFactor, mAlphaDFactor, MINIMUM_ALPHA, fs_no_discard);
     //const fs_gdd_alpha_bind_t fs_gdd_bind = fs_bind_program;
     // </FS:Trish>
 
@@ -1470,7 +1485,18 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
                     if (params.mAvatar != nullptr)
                     {
                         llassert(target_shader->mRiggedVariant != nullptr);
-                        target_shader = target_shader->mRiggedVariant;
+                        // <FS:Trish> FSRenderAlphaRiggedNoDiscard: the legacy alpha program's rigged variant without the
+                        // alpha test, where the draw could never fail it
+                        //target_shader = target_shader->mRiggedVariant;
+                        if (fs_no_discard && target_shader == simple_shader && FSAvatarAlpha::noDiscardDraw(params))
+                        {
+                            target_shader = &gFSDeferredSkinnedAlphaNoDiscardProgram;
+                        }
+                        else
+                        {
+                            target_shader = target_shader->mRiggedVariant;
+                        }
+                        // </FS:Trish>
                     }
 
                     if (current_shader != target_shader)

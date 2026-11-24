@@ -35,6 +35,7 @@
 #include "lldrawable.h"
 #include "llspatialpartition.h"
 #include "llviewercontrol.h"
+#include "llviewertexture.h"
 #include "llviewerregion.h"
 #include "llvoavatar.h"
 #include "pipeline.h"
@@ -197,6 +198,35 @@ void FSAvatarAlpha::noteDraw(const LLVOAvatar* avatar, S32 flags)
     ++sDraws;
     sCheapDraws += flags ? 1 : 0;
     sSeen.emplace(avatar, flags != 0);
+}
+
+// FSRenderAlphaRiggedNoDiscard
+static bool fs_opaque_texture(const LLViewerTexture* tex)
+{
+    // 3 components only: 1 can be an alpha-only (invisiprim) texture, 2 and 4 carry alpha; a texture without a GL
+    // texture yet is drawn with a placeholder
+    return tex && tex->hasGLTexture() && tex->getComponents() == 3;
+}
+
+bool FSAvatarAlpha::noDiscardDraw(const LLDrawInfo& params)
+{
+    if (!params.mFSTintAboveMin || params.mGLTFMaterial.notNull())
+    {
+        return false;
+    }
+    if (params.mTextureList.size() > 1)
+    {   // every texture of the list, picked by the vertex's texture index (an empty slot leaves an earlier draw's
+        // texture on the unit: unknown)
+        for (const LLPointer<LLViewerTexture>& tex : params.mTextureList)
+        {
+            if (!fs_opaque_texture(tex.get()))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    return fs_opaque_texture(params.mTexture.get());
 }
 
 bool FSAvatarAlpha::openZone()

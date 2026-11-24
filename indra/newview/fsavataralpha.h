@@ -31,6 +31,7 @@
 
 #include "stdtypes.h"
 
+class LLDrawInfo;
 class LLSpatialGroup;
 class LLVOAvatar;
 
@@ -70,6 +71,13 @@ namespace FSAvatarAlpha
 
     // Main thread, every frame (llappviewer.cpp, with FSGPUTimers): stats on or off, logged every interval
     void frame(bool enabled, F32 interval_seconds);
+
+    // FSRenderAlphaRiggedNoDiscard: whether a rigged alpha draw of the legacy alpha program could never fail its
+    // alpha test, so the program built without the discards (gFSDeferredSkinnedAlphaNoDiscardProgram) draws it the
+    // same: every texture it samples is loaded and has no alpha channel, and every face colour alpha of the batch
+    // is above the pass's minimum alpha (LLDrawInfo::mFSTintAboveMin). Not for particles, HUDs or impostors (the
+    // caller's pass decides those).
+    bool noDiscardDraw(const LLDrawInfo& params);
 }
 
 #endif // FS_AVATARALPHA_H

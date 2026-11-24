@@ -210,6 +210,7 @@ LLGLSLShader            gDeferredAvatarAlphaMaskShadowProgram;
 LLGLSLShader            gDeferredAlphaProgram;
 LLGLSLShader            gHUDAlphaProgram;
 LLGLSLShader            gDeferredSkinnedAlphaProgram;
+LLGLSLShader            gFSDeferredSkinnedAlphaNoDiscardProgram; // <FS:Trish/> FSRenderAlphaRiggedNoDiscard
 LLGLSLShader            gDeferredAlphaImpostorProgram;
 LLGLSLShader            gDeferredSkinnedAlphaImpostorProgram;
 LLGLSLShader            gDeferredAvatarEyesProgram;
@@ -2065,6 +2066,7 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         gDeferredAlphaProgram.unload();
         gHUDAlphaProgram.unload();
         gDeferredSkinnedAlphaProgram.unload();
+        gFSDeferredSkinnedAlphaNoDiscardProgram.unload(); // <FS:Trish/>
         gDeferredFullbrightProgram.unload();
         gHUDFullbrightProgram.unload();
         gDeferredFullbrightAlphaMaskProgram.unload();
@@ -3016,17 +3018,37 @@ bool LLViewerShaderMgr::loadShadersDeferred()
 
     if (success)
     {
-        for (int i = 0; i < 3 && success; ++i)
+        // <FS:Trish> FSRenderAlphaRiggedNoDiscard: a fourth program, the rigged one without the alpha test discards,
+        // for rigged draws that could never fail them (LLDrawPoolAlpha::renderAlpha, FSAvatarAlpha::noDiscardDraw)
+        static LLCachedControl<bool> fs_rigged_no_discard(gSavedSettings, "FSRenderAlphaRiggedNoDiscard", true);
+        gFSDeferredSkinnedAlphaNoDiscardProgram.unload();
+        //for (int i = 0; i < 3 && success; ++i)
+        for (int i = 0; i < 4 && success; ++i)
         {
             LLGLSLShader* shader = nullptr;
-            bool rigged = (i == 1);
+            //bool rigged = (i == 1);
+            bool rigged = (i == 1 || i == 3);
             bool hud = (i == 2);
+            const bool no_discard = (i == 3);
+            if (no_discard && !fs_rigged_no_discard)
+            {
+                continue;
+            }
+        // </FS:Trish>
 
             if (hud)
             {
                 shader = &gHUDAlphaProgram;
                 shader->mName = "HUD Alpha Shader";
             }
+            // <FS:Trish>
+            else if (no_discard)
+            {
+                shader = &gFSDeferredSkinnedAlphaNoDiscardProgram;
+                shader->mName = "FS Skinned Deferred Alpha No Discard Shader";
+                shader->mFeatures.hasObjectSkinning = true;
+            }
+            // </FS:Trish>
             else if (!rigged)
             {
                 shader = &gDeferredAlphaProgram;
@@ -3069,8 +3091,14 @@ bool LLViewerShaderMgr::loadShadersDeferred()
             if (rigged)
             {
                 shader->addPermutation("HAS_SKIN", "1");
-                // <FS:Trish> Two-pass rigged alpha
-                if (fs_use_hair_two_pass())
+                // <FS:Trish> Two-pass rigged alpha. The no discard program is never bound in the hair passes (nor the
+                // hybrid OIT or WBOIT ones): it has no FS_HAIR or FS_WBOIT, and no discards at all
+                //if (fs_use_hair_two_pass())
+                if (no_discard)
+                {
+                    shader->addPermutation("FS_NO_DISCARD", "1");
+                }
+                else if (fs_use_hair_two_pass())
                 {
                     shader->addPermutation("FS_HAIR", "1");
                 }
@@ -3089,7 +3117,8 @@ bool LLViewerShaderMgr::loadShadersDeferred()
             }
 
             // <FS:Trish> WBOIT
-            if (use_wboit && !hud && (!rigged || gFSAlphaHybridOITShaders)) // rigged too for the hybrid OIT
+            //if (use_wboit && !hud && (!rigged || gFSAlphaHybridOITShaders)) // rigged too for the hybrid OIT
+            if (use_wboit && !hud && !no_discard && (!rigged || gFSAlphaHybridOITShaders)) // rigged too for the hybrid OIT
             {
                 shader->addPermutation("FS_WBOIT", "1");
             }
@@ -3109,8 +3138,25 @@ bool LLViewerShaderMgr::loadShadersDeferred()
 
             shader->mShaderLevel = mShaderLevel[SHADER_DEFERRED];
 
+            // <FS:Trish> The no discard program is optional: without it its draws take the stock rigged program
+            //success = shader->createShader();
+            //llassert(success);
+            if (no_discard)
+            {
+                if (!shader->createShader())
+                {
+                    LL_WARNS("Shader") << "FSRenderAlphaRiggedNoDiscard: the no discard rigged alpha program failed to build; "
+                                       << "its draws take the stock rigged alpha program" << LL_ENDL;
+                    shader->unload();
+                    continue;
+                }
+            }
+            else
+            {
             success = shader->createShader();
             llassert(success);
+            }
+            // </FS:Trish>
 
             // Hack
             shader->mFeatures.calculatesLighting = true;

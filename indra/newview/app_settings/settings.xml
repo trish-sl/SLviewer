@@ -28529,6 +28529,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>10.0</real>
     </map>
+    <key>FSRenderAlphaRiggedNoDiscard</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. Rigged alpha blended faces whose texture has no alpha channel and whose face colour is not almost fully transparent (the usual tinted mesh body and clothing faces) are drawn with a copy of the rigged alpha program that leaves out the alpha test they could never fail. The picture is the same; a program without a discard lets the graphics card write depth before shading, which cheapens the overlapping hair and clothing layers behind. Also for the GPU-driven alpha runs. Changing it rebuilds the shaders.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>Boolean</string>
+      <key>Value</key>
+      <integer>1</integer>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>

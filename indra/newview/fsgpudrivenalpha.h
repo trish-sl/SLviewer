@@ -63,8 +63,10 @@ typedef std::function<void(LLGLSLShader&)> fs_gdd_alpha_bind_t;
 // simple and fullbright are the pass's stock programs, which must be gDeferredAlphaProgram and
 // gDeferredFullbrightAlphaMaskAlphaProgram. alpha_s/alpha_d: the pass's alpha blend factors, minimum_alpha
 // what the pass sets on its programs.
+// no_discard: FSRenderAlphaRiggedNoDiscard, the rigged pass may draw the draws that could never fail the alpha test
+// with the program built without it (FSAvatarAlpha::noDiscardDraw), as the stock loop does.
 bool fsGDDAlphaBeginPass(bool rigged, LLGLSLShader* simple, LLGLSLShader* fullbright, LLRender::eBlendFactor alpha_s,
-                         LLRender::eBlendFactor alpha_d, F32 minimum_alpha);
+                         LLRender::eBlendFactor alpha_d, F32 minimum_alpha, bool no_discard);
 // Before a group's draw loop: works out which of its draws go into multi-draws, and uploads them. True if
 // any does. palettes_moved: the palette buffer got new storage meanwhile, so a palette range the stock loop
 // remembers as bound (its last avatar and mesh) is gone.

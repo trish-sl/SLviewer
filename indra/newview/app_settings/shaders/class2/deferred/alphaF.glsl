@@ -214,21 +214,29 @@ void main()
 
     float final_alpha = diffuse_linear.a;
 
+// <FS:Trish> FSRenderAlphaRiggedNoDiscard: built without the alpha tests, for rigged draws whose texture has no
+// alpha channel and whose face colour alpha is above minimum_alpha, which could never fail them. A program
+// without discard lets the depth write go early.
+#ifndef FS_NO_DISCARD
+// </FS:Trish>
 #ifdef IS_AVATAR_SKIN
     if(final_alpha < minimum_alpha)
     {
         discard;
     }
 #endif
+#endif // FS_NO_DISCARD <FS:Trish/>
 
 #ifdef USE_VERTEX_COLOR
     final_alpha *= vertex_color.a;
 
+#ifndef FS_NO_DISCARD // <FS:Trish/>
     if (final_alpha < minimum_alpha)
     { // TODO: figure out how to get invisible faces out of
         // render batches without breaking glow
         discard;
     }
+#endif // FS_NO_DISCARD <FS:Trish/>
 
     diffuse_srgb.rgb *= vertex_color.rgb;
     diffuse_linear.rgb = srgb_to_linear(diffuse_srgb.rgb);

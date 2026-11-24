@@ -302,6 +302,7 @@ extern LLGLSLShader         gDeferredAvatarShadowProgram;
 extern LLGLSLShader         gDeferredAvatarAlphaShadowProgram;
 extern LLGLSLShader         gDeferredAvatarAlphaMaskShadowProgram;
 extern LLGLSLShader         gDeferredAlphaProgram;
+extern LLGLSLShader         gFSDeferredSkinnedAlphaNoDiscardProgram; // <FS:Trish/> FSRenderAlphaRiggedNoDiscard
 extern LLGLSLShader         gHUDAlphaProgram;
 extern LLGLSLShader         gDeferredAlphaImpostorProgram;
 extern LLGLSLShader         gDeferredFullbrightProgram;

@@ -1632,6 +1632,7 @@ void settings_setup_listeners()
     setting_setup_signal_listener(gSavedSettings, "FSRenderShadowFastFilter", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderAlphaWBOIT", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderHairTwoPass", handleSetShaderChanged); // <FS:Trish/>
+    setting_setup_signal_listener(gSavedSettings, "FSRenderAlphaRiggedNoDiscard", handleSetShaderChanged); // <FS:Trish/> builds the no discard rigged alpha program
     setting_setup_signal_listener(gSavedSettings, "FSRenderAlphaHybridOIT", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderWaterCaustics", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSRenderWetShore", handleSetShaderChanged); // <FS:Trish/>

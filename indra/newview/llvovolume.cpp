@@ -6157,6 +6157,10 @@ void LLVolumeGeometryManager::registerFace(LLSpatialGroup* group, LLFace* facep,
     // <FS:Trish> The glow this face's vertices carry, as LLFace::getGeometryVolume writes it
     const bool glow_free = (U8)llclamp((S32)(te->getGlow() * 255), 0, 255) == 0;
     // </FS:Trish>
+    // <FS:Trish> FSRenderAlphaRiggedNoDiscard: the face colour alpha the vertices carry is well above the alpha
+    // pass's minimum alpha (0.004; 0.01 is at least 2 of 255 once stored as a byte)
+    const bool tint_above_min = te->getColor().mV[3] >= 0.01f;
+    // </FS:Trish>
 
     LLViewerTexture* tex = facep->getTexture();
 
@@ -6268,6 +6272,7 @@ void LLVolumeGeometryManager::registerFace(LLSpatialGroup* group, LLFace* facep,
         info->mCount += facep->getIndicesCount();
         info->mEnd += facep->getGeomCount();
         info->mFSGlowFree = info->mFSGlowFree && glow_free; // <FS:Trish/>
+        info->mFSTintAboveMin = info->mFSTintAboveMin && tint_above_min; // <FS:Trish/>
         FSGPUOcclusion::extendBatchBounds(*info, facep); // <FS:Trish/> FSRenderGPUOcclusionCulling
 
         if (index < FACE_DO_NOT_BATCH_TEXTURES && index >= info->mTextureList.size())
@@ -6298,6 +6303,7 @@ void LLVolumeGeometryManager::registerFace(LLSpatialGroup* group, LLFace* facep,
         draw_info->mBump  = bump;
         draw_info->mShiny = shiny;
         draw_info->mFSGlowFree = glow_free; // <FS:Trish/>
+        draw_info->mFSTintAboveMin = tint_above_min; // <FS:Trish/>
         draw_info->mFSFadeStart = fade_start; // <FS:Trish/> fade-in
         draw_info->mFSSkinBake = skin_bake; // <FS:Trish/> skin SSS
 

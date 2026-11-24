@@ -77,6 +77,7 @@
 #include "fsgpudrivenalpha.h"
 #include "fsreversez.h"
 
+#include "fsavataralpha.h"
 #include "fsgddarena.h"
 #include "fsgddcommon.h"
 #include "fsgpudrivenlegacy.h"
@@ -162,13 +163,14 @@ namespace
     {
         F_ALPHA = 0,        // gDeferredAlphaProgram
         F_FULLBRIGHT,       // gDeferredFullbrightAlphaMaskAlphaProgram
+        F_ALPHA_NO_DISCARD, // gFSDeferredSkinnedAlphaNoDiscardProgram (FSRenderAlphaRiggedNoDiscard): the rigged slot only
         F_MATERIAL,         // gDeferredMaterialProgram[(k << 2) | DIFFUSE_ALPHA_MODE_BLEND], k = 0..3: F_MATERIAL + k
         F_COUNT = F_MATERIAL + 4
     };
     constexpr U32 SLOT_COUNT = F_COUNT * 2;
 
     LLGLSLShader sPrograms[SLOT_COUNT];
-    GLint sRecordAttrib[SLOT_COUNT] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    GLint sRecordAttrib[SLOT_COUNT] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
     S32 sInputsReady[SLOT_COUNT] = {};      // bind_inputs done: 0 not yet, 1 yes, -1 failed
 
     bool slot_rigged(U32 slot)
@@ -199,6 +201,10 @@ namespace
         {
             stock = &gDeferredFullbrightAlphaMaskAlphaProgram;
         }
+        else if (family == F_ALPHA_NO_DISCARD)
+        {   // rigged only, and only while built (the setting off leaves it unloaded)
+            return slot_rigged(slot) && gFSDeferredSkinnedAlphaNoDiscardProgram.isComplete() ? &gFSDeferredSkinnedAlphaNoDiscardProgram : nullptr;
+        }
         else
         {
             stock = &gDeferredMaterialProgram[((family - F_MATERIAL) << 2) | LLMaterial::DIFFUSE_ALPHA_MODE_BLEND];
@@ -214,10 +220,10 @@ namespace
     {
         static const char* names[SLOT_COUNT] =
         {
-            "FS GPU-Driven Alpha Shader", "FS GPU-Driven Fullbright Alpha Shader",
+            "FS GPU-Driven Alpha Shader", "FS GPU-Driven Fullbright Alpha Shader", "FS GPU-Driven Alpha No Discard Shader (unused)",
             "FS GPU-Driven Alpha Material Shader 1", "FS GPU-Driven Alpha Material Shader 5",
             "FS GPU-Driven Alpha Material Shader 9", "FS GPU-Driven Alpha Material Shader 13",
-            "FS GPU-Driven Skinned Alpha Shader", "FS GPU-Driven Skinned Fullbright Alpha Shader",
+            "FS GPU-Driven Skinned Alpha Shader", "FS GPU-Driven Skinned Fullbright Alpha Shader", "FS GPU-Driven Skinned Alpha No Discard Shader",
             "FS GPU-Driven Skinned Alpha Material Shader 1", "FS GPU-Driven Skinned Alpha Material Shader 5",
             "FS GPU-Driven Skinned Alpha Material Shader 9", "FS GPU-Driven Skinned Alpha Material Shader 13",
         };
@@ -232,6 +238,7 @@ namespace
     // the pass
     bool sPassOn = false;
     bool sPassRigged = false;
+    bool sPassNoDiscard = false;    // FSRenderAlphaRiggedNoDiscard: the pass may use the no discard program
     LLRender::eBlendFactor sAlphaS = LLRender::BF_ZERO;
     LLRender::eBlendFactor sAlphaD = LLRender::BF_ONE_MINUS_SOURCE_ALPHA;
     F32 sMinimumAlpha = 0.f;
@@ -283,7 +290,7 @@ namespace
         shader.mFeatures.mIndexedTextureChannels = 0;
         // As the stock programs were built (LLViewerShaderMgr::loadShadersDeferred sets these after building
         // them, so the lighting objects aren't linked); put back below, they decide whether gGL syncs the lights
-        if (slot_family(slot) == F_ALPHA)
+        if (slot_family(slot) == F_ALPHA || slot_family(slot) == F_ALPHA_NO_DISCARD)
         {
             shader.mFeatures.calculatesLighting = false;
             shader.mFeatures.hasLighting = false;
@@ -465,7 +472,7 @@ void fsGDDAlphaMarkUniformsDirty()
 // The pass
 
 bool fsGDDAlphaBeginPass(bool rigged, LLGLSLShader* simple, LLGLSLShader* fullbright, LLRender::eBlendFactor alpha_s,
-                         LLRender::eBlendFactor alpha_d, F32 minimum_alpha)
+                         LLRender::eBlendFactor alpha_d, F32 minimum_alpha, bool no_discard)
 {
     sPassOn = false;
     sPendingSlot = -1;
@@ -498,6 +505,7 @@ bool fsGDDAlphaBeginPass(bool rigged, LLGLSLShader* simple, LLGLSLShader* fullbr
 
     sPassOn = true;
     sPassRigged = rigged;
+    sPassNoDiscard = rigged && no_discard && sPrograms[F_ALPHA_NO_DISCARD + F_COUNT].isComplete();
     sAlphaS = alpha_s;
     sAlphaD = alpha_d;
     sMinimumAlpha = minimum_alpha;
@@ -554,6 +562,11 @@ namespace
         else
         {
             family = params.mFullbright ? F_FULLBRIGHT : F_ALPHA;
+            // FSRenderAlphaRiggedNoDiscard: as the stock loop picks the no discard program for such a draw
+            if (family == F_ALPHA && sPassNoDiscard && FSAvatarAlpha::noDiscardDraw(params))
+            {
+                family = F_ALPHA_NO_DISCARD;
+            }
         }
         const U32 slot = family + (sPassRigged ? F_COUNT : 0);
         const LLGLSLShader* stock = stock_of(slot);

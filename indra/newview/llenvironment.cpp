@@ -1801,6 +1801,7 @@ void LLEnvironment::update(const LLViewerCamera * cam)
         }
     }
     fsGDDAlphaMarkUniformsDirty(); // <FS:Trish/> FSPerfGPUDrivenAlpha: its copies of the alpha programs
+    gFSDeferredSkinnedAlphaNoDiscardProgram.mUniformsDirty = true; // <FS:Trish/> FSRenderAlphaRiggedNoDiscard: nobody's rigged variant
 }
 
 void LLEnvironment::updateCloudScroll()

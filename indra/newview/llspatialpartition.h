@@ -152,6 +152,11 @@ public:
     // False means unknown.
     bool mFSGlowFree = false;
     // </FS:Trish>
+    // <FS:Trish> FSRenderAlphaRiggedNoDiscard: every face of this batch has a face colour alpha of at least 0.01,
+    // above the alpha pass's minimum alpha, so with a texture without alpha channel none of its fragments could
+    // fail the alpha test (FSAvatarAlpha::noDiscardDraw). Set by registerFace; false means unknown.
+    bool mFSTintAboveMin = false;
+    // </FS:Trish>
     // <FS:Trish> Fade-in (FSRenderFadeIn): while the faces of this batch are fading into view, when
     // their object's fade began (LLDrawable::mFSFadeStart); -1 for a batch that isn't fading
     F32 mFSFadeStart = -1.f;
