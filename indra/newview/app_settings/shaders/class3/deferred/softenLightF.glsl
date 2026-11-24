@@ -522,7 +522,12 @@ void main()
         float nl = dot(gb.normal, light_dir);
         float nv = dot(gb.normal, to_eye);
         float through = nl * nv < 0.0 ? abs(nl) : 0.0;
-        float toward_sun = pow(max(dot(-to_eye, light_dir), 0.0), 4.0);
+        // <FS:Trish> The fourth power as two squarings, not a pow
+        //float toward_sun = pow(max(dot(-to_eye, light_dir), 0.0), 4.0);
+        float toward_sun = max(dot(-to_eye, light_dir), 0.0);
+        toward_sun *= toward_sun;
+        toward_sun *= toward_sun;
+        // </FS:Trish>
         fs_leaf_light = sunlit_linear * (scol * through * mix(0.35, 1.0, toward_sun) * fs_foliage);
     }
 #endif

@@ -74,6 +74,19 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
                     out float nl,
                     out vec3 diff,
                     out vec3 spec);
+// The same with the pixel's multiple-scattering factor passed in (deferredUtil.glsl): taken once
+// before the loop instead of a LUT fetch per light
+void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
+                    float perceptualRoughness,
+                    float metallic,
+                    vec3 n,
+                    vec3 v,
+                    vec3 l,
+                    out float nl,
+                    out vec3 diff,
+                    out vec3 spec,
+                    vec3 ms_comp);
+vec3 fsPbrMultiscatterComp(vec3 specularColor, float perceptualRoughness, vec3 n, vec3 v);
 
 GBufferInfo getGBuffer(vec2 screenpos);
 // Avatar skin lighting (fsSkinUtil.glsl)
@@ -97,14 +110,18 @@ vec3 fsSkinAlbedo(GBufferInfo gb);
 uniform int fs_lls_count;
 uniform int fs_lls_index[FS_LLS_MAX];
 
-vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+// The surface's position and normal along the agent axes, taken once per pixel (fsPointShadowMapF.glsl)
+vec3 fsPointShadowPosAgent(vec3 pos);
+vec3 fsPointShadowDirAgent(vec3 v);
+vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_light);
 
-// The shadow on a lit pixel from light idx: its shadow map where it has one
-vec3 fsLocalShadow(int idx, vec3 pos, vec3 n, vec3 shading_light)
+// The shadow on a lit pixel from light idx: its shadow map where it has one. pos_agent, n_agent:
+// the pixel's position and normal along the agent axes
+vec3 fsLocalShadow(int idx, vec3 pos_agent, vec3 n_agent, vec3 shading_light)
 {
     if (idx < fs_lls_count)
     {
-        return fsPointShadowMap(fs_lls_index[idx], pos, n, shading_light);
+        return fsPointShadowMapAgent(fs_lls_index[idx], pos_agent, n_agent, shading_light);
     }
     return vec3(1.0);
 }
@@ -165,6 +182,11 @@ void main()
 #endif
 
     vec3 n = gb.normal;
+#ifdef FS_POINT_SHADOW_MAP
+    // Along the agent axes once, not once per shadowed light
+    vec3 fs_pos_agent = fsPointShadowPosAgent(pos);
+    vec3 fs_n_agent = fsPointShadowDirAgent(n);
+#endif
 
     vec4 spec    = gb.specular;
     vec3 diffuse = gb.albedo.rgb;
@@ -182,6 +204,8 @@ void main()
         vec3 diffuseColor;
         vec3 specularColor;
         calcDiffuseSpecular(baseColor, metallic, diffuseColor, specularColor);
+        // Multiple-scattering factor (FSRenderMultiscatter), the same for every light of the pixel
+        vec3 fs_ms_comp = fsPbrMultiscatterComp(specularColor, perceptualRoughness, n, v);
 
         for (int i = 0; i < count; ++i)
         {
@@ -209,7 +233,8 @@ void main()
                 float nl = 0;
                 vec3 diff = vec3(0);
                 vec3 specPunc = vec3(0);
-                pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc);
+                //pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc);
+                pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc, fs_ms_comp);
 #ifdef FS_SKIN_DUAL_SPEC
                 if (fs_skin > 0.0)
                 {
@@ -218,7 +243,8 @@ void main()
 #endif
                 intensity *= fsMicroShadow(nl, orm.r);
 #ifdef FS_POINT_SHADOW_MAP
-                intensity *= fsLocalShadow(idx, pos, n, light.xyz);
+                //intensity *= fsLocalShadow(idx, pos, n, light.xyz);
+                intensity *= fsLocalShadow(idx, fs_pos_agent, fs_n_agent, light.xyz);
 #endif
                 final_color += intensity * clampRadiance(nl * (diff + specPunc));
             }
@@ -289,7 +315,8 @@ void main()
 
                     // Bounded per light, as the stock passes do
 #ifdef FS_POINT_SHADOW_MAP
-                    final_color += clampRadiance(col) * fsLocalShadow(idx, pos, n, light.xyz);
+                    //final_color += clampRadiance(col) * fsLocalShadow(idx, pos, n, light.xyz);
+                    final_color += clampRadiance(col) * fsLocalShadow(idx, fs_pos_agent, fs_n_agent, light.xyz);
 #else
                     final_color += clampRadiance(col);
 #endif

@@ -803,6 +803,17 @@ float microfacetDistribution(PBRInfo pbrInputs)
     return roughnessSq / (M_PI * f * f);
 }
 
+// <FS:Trish> ms_comp: the pixel's multiple-scattering factor (fsPbrMultiscatterComp below), which is
+// the same for every light of a pixel; the light loops take it once instead of a LUT fetch per light
+//void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
+//                    float perceptualRoughness,
+//                    float metallic,
+//                    vec3 n, // normal
+//                    vec3 v, // surface point to camera
+//                    vec3 l,
+//                    out float nl,
+//                    out vec3 diff,
+//                    out vec3 spec) //surface point to light
 void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
                     float perceptualRoughness,
                     float metallic,
@@ -811,7 +822,9 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
                     vec3 l,
                     out float nl,
                     out vec3 diff,
-                    out vec3 spec) //surface point to light
+                    out vec3 spec, //surface point to light
+                    vec3 ms_comp)
+// </FS:Trish>
 {
     // make sure specular highlights from punctual lights don't fall off of polished surfaces
     perceptualRoughness = max(perceptualRoughness, MIN_PBR_ROUGHNESS);
@@ -871,16 +884,97 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
     // every light of a pixel, so this equals applying it once to the summed specular. Not while a
     // probe is captured, as for the probes.
 #ifdef FS_MULTISCATTER
-    if (cube_snapshot == 0)
-    {
-        // Computed per call. An earlier version cached the factor in global variables written from
-        // inside the light loops; an AMD driver hung with this option on, and mutable globals in
-        // loops are the one unusual construct it added, so the shader stays stateless
-        spec *= pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
-    }
+    // The factor is a parameter now (fsPbrMultiscatterComp): the loops compute it once per pixel
+    // and pass it in. An earlier version cached it in global variables written from inside the
+    // light loops; an AMD driver hung with this option on, and mutable globals in loops are the
+    // one unusual construct it added, so the shader stays stateless: a value in, no globals
+    //if (cube_snapshot == 0)
+    //{
+    //    // Computed per call. An earlier version cached the factor in global variables written from
+    //    // inside the light loops; an AMD driver hung with this option on, and mutable globals in
+    //    // loops are the one unusual construct it added, so the shader stays stateless
+    //    spec *= pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
+    //}
+    spec *= ms_comp;
 #endif
     // </FS:Trish>
 }
+
+// <FS:Trish> The multiple-scattering factor of a pixel for pbrPunctual (FSRenderMultiscatter): what
+// the per call form computed inside, from the same floored roughness and clamped N.V, so a light
+// loop evaluates the LUT once per pixel rather than once per light. 1 when the option is off and
+// while a probe is captured (cube_snapshot), as before.
+vec3 fsPbrMultiscatterComp(vec3 specularColor, float perceptualRoughness, vec3 n, vec3 v)
+{
+#ifdef FS_MULTISCATTER
+    if (cube_snapshot == 0)
+    {
+        return pbrEnergyCompensation(specularColor, max(perceptualRoughness, MIN_PBR_ROUGHNESS), clamp(abs(dot(n, v)), 0.001, 1.0));
+    }
+#endif
+    return vec3(1.0);
+}
+
+// As before: one light, the factor computed in the call
+void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
+                    float perceptualRoughness,
+                    float metallic,
+                    vec3 n, // normal
+                    vec3 v, // surface point to camera
+                    vec3 l, // surface point to light
+                    out float nl,
+                    out vec3 diff,
+                    out vec3 spec)
+{
+    pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n, v, l, nl, diff, spec,
+                fsPbrMultiscatterComp(specularColor, perceptualRoughness, n, v));
+}
+
+// pbrCalcPointLightOrSpotLight with the pixel's multiple-scattering factor passed in (see
+// pbrPunctual): the forward passes evaluate up to seven light slots per fragment
+vec3 pbrCalcPointLightOrSpotLight(vec3 diffuseColor, vec3 specularColor,
+                    float perceptualRoughness,
+                    float metallic,
+                    vec3 n, // normal
+                    vec3 p, // pixel position
+                    vec3 v, // view vector (negative normalized pixel position)
+                    vec3 lp, // light position
+                    vec3 ld, // light direction (for spotlights)
+                    vec3 lightColor,
+                    float lightSize, float falloff, float is_pointlight, float ambiance,
+                    vec3 ms_comp)
+{
+    vec3 color = vec3(0,0,0);
+
+    vec3 lv = lp.xyz - p;
+
+    float lightDist = length(lv);
+
+    float dist = lightDist / lightSize;
+    if (dist <= 1.0 && dot(n, lv) > 0.0)
+    {
+        lv /= max(lightDist, 1e-8);
+
+        float dist_atten = calcLegacyDistanceAttenuation(dist, falloff);
+
+        float spot = max(dot(-ld, lv), is_pointlight);
+        float spot_atten = spot*spot;
+
+        vec3 intensity = spot_atten * dist_atten * lightColor * PUNCTUAL_LIGHT_SCALE;
+
+        float nl = 0;
+        vec3 diffPunc = vec3(0);
+        vec3 specPunc = vec3(0);
+
+        pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diffPunc, specPunc, ms_comp);
+        color = intensity * clampRadiance(nl * (diffPunc + specPunc));
+    }
+    float final_scale = 1.0;
+    if (classic_mode > 0)
+        final_scale = 0.9;
+    return color * final_scale;
+}
+// </FS:Trish>
 
 vec3 pbrCalcPointLightOrSpotLight(vec3 diffuseColor, vec3 specularColor,
                     float perceptualRoughness,

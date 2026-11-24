@@ -162,6 +162,21 @@ vec3 pbrCalcPointLightOrSpotLight(vec3 diffuseColor, vec3 specularColor,
                     vec3 ld, // light direction (for spotlights)
                     vec3 lightColor,
                     float lightSize, float falloff, float is_pointlight, float ambiance);
+// <FS:Trish> The same with the pixel's multiple-scattering factor passed in (deferredUtil.glsl):
+// taken once before the light slots instead of a LUT fetch per slot
+vec3 pbrCalcPointLightOrSpotLight(vec3 diffuseColor, vec3 specularColor,
+                    float perceptualRoughness,
+                    float metallic,
+                    vec3 n,
+                    vec3 p,
+                    vec3 v,
+                    vec3 lp,
+                    vec3 ld,
+                    vec3 lightColor,
+                    float lightSize, float falloff, float is_pointlight, float ambiance,
+                    vec3 ms_comp);
+vec3 fsPbrMultiscatterComp(vec3 specularColor, float perceptualRoughness, vec3 n, vec3 v);
+// </FS:Trish>
 
 #ifdef FS_FADE_IN
 void fsFadeIn(); // fsFadeInF.glsl
@@ -250,9 +265,19 @@ void main()
 #endif
 
     // emissiveColor is the emissive color factor from GLTF and is already in linear space
-    vec3 colorEmissive = emissiveColor;
-    // emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
-    colorEmissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    // <FS:Trish> No emissive factor (the glTF default, 0, which most materials keep): the map's
+    // fetch would be multiplied by 0, so it is skipped. The test is on a uniform, so every
+    // fragment of the draw takes the same branch and the fetch's derivatives are intact.
+    //vec3 colorEmissive = emissiveColor;
+    //// emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
+    //colorEmissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    vec3 colorEmissive = vec3(0.0);
+    if (any(greaterThan(emissiveColor, vec3(0.0))))
+    {
+        // emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
+        colorEmissive = emissiveColor * srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    }
+    // </FS:Trish>
 
     // Clip and alpha-test once every mipmapped fetch is done (as pbropaqueF does) but before
     // the atmospherics and the shadow PCF, so rejected fragments -- masked foliage, the far
@@ -350,7 +375,10 @@ void main()
 // <FS:Trish> A slot without a light (black, see LLPipeline::setupHWLights) adds exactly nothing:
 // skip it. The test is on a uniform, so every fragment takes the same branch.
 //#define LIGHT_LOOP(i) light += pbrCalcPointLightOrSpotLight(diffuseColor, specularColor, perceptualRoughness, metallic, norm.xyz, pos.xyz, v, light_position[i].xyz, light_direction[i].xyz, light_diffuse[i].rgb, light_deferred_attenuation[i].x, light_deferred_attenuation[i].y, light_attenuation[i].z, light_attenuation[i].w);
-#define LIGHT_LOOP(i) if (any(notEqual(light_diffuse[i], vec3(0.0)))) { light += pbrCalcPointLightOrSpotLight(diffuseColor, specularColor, perceptualRoughness, metallic, norm.xyz, pos.xyz, v, light_position[i].xyz, light_direction[i].xyz, light_diffuse[i].rgb, light_deferred_attenuation[i].x, light_deferred_attenuation[i].y, light_attenuation[i].z, light_attenuation[i].w); }
+// The pixel's multiple-scattering factor (FSRenderMultiscatter) once, not a LUT fetch per slot
+//#define LIGHT_LOOP(i) if (any(notEqual(light_diffuse[i], vec3(0.0)))) { light += pbrCalcPointLightOrSpotLight(diffuseColor, specularColor, perceptualRoughness, metallic, norm.xyz, pos.xyz, v, light_position[i].xyz, light_direction[i].xyz, light_diffuse[i].rgb, light_deferred_attenuation[i].x, light_deferred_attenuation[i].y, light_attenuation[i].z, light_attenuation[i].w); }
+    vec3 fs_ms_comp = fsPbrMultiscatterComp(specularColor, perceptualRoughness, norm.xyz, v);
+#define LIGHT_LOOP(i) if (any(notEqual(light_diffuse[i], vec3(0.0)))) { light += pbrCalcPointLightOrSpotLight(diffuseColor, specularColor, perceptualRoughness, metallic, norm.xyz, pos.xyz, v, light_position[i].xyz, light_direction[i].xyz, light_diffuse[i].rgb, light_deferred_attenuation[i].x, light_deferred_attenuation[i].y, light_attenuation[i].z, light_attenuation[i].w, fs_ms_comp); }
 // </FS:Trish>
 
     LIGHT_LOOP(1)
@@ -439,9 +467,17 @@ void main()
     color = vertex_color.rgb * basecolor.rgb;
 
     // emissiveColor is the emissive color factor from GLTF and is already in linear space
-    vec3 colorEmissive = emissiveColor;
-    // emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
-    colorEmissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    // <FS:Trish> No emissive factor: no fetch, as in the deferred path above
+    //vec3 colorEmissive = emissiveColor;
+    //// emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
+    //colorEmissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    vec3 colorEmissive = vec3(0.0);
+    if (any(greaterThan(emissiveColor, vec3(0.0))))
+    {
+        // emissiveMap here is a vanilla RGB texture encoded as sRGB, manually convert to linear
+        colorEmissive = emissiveColor * srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    }
+    // </FS:Trish>
 
 
     float a = basecolor.a*vertex_color.a;

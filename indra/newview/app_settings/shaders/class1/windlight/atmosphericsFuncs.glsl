@@ -60,8 +60,14 @@ void calcAtmosphericVars(vec3 inPositionEye, vec3 light_dir, float ambFactor, ou
     if (abs(rel_pos.y) > max_y) rel_pos *= (max_y / abs(rel_pos.y));
     // </FS:Trish>
 
-    vec3  rel_pos_norm = normalize(rel_pos);
-    float rel_pos_len  = length(rel_pos);
+    // <FS:Trish> One reciprocal square root for both the direction and the length
+    //vec3  rel_pos_norm = normalize(rel_pos);
+    //float rel_pos_len  = length(rel_pos);
+    float rel_pos_d2   = dot(rel_pos, rel_pos);
+    float rel_pos_inv  = inversesqrt(rel_pos_d2);
+    vec3  rel_pos_norm = rel_pos * rel_pos_inv;
+    float rel_pos_len  = rel_pos_d2 * rel_pos_inv;
+    // </FS:Trish>
 
     vec3  sunlight     = (sun_up_factor == 1) ? sunlight_color: moonlight_color;
 

@@ -58,6 +58,22 @@ vec3 fsPointShadowToAgent(vec3 v)
     return transpose(mat3(modelview_matrix)) * v;
 }
 
+// The surface's position along the agent axes, once per pixel. The draw's view is a rotation R
+// and a translation t (eye = R agent + t), so R^T (pos - t) is the surface in agent space, and
+// light to surface is then its difference from the light's agent space centre (fs_lls_light): a
+// light loop spends a subtraction per shadowed light where it spent the light's eye position, a
+// subtraction and a rotation, and the normal's rotation once instead of per light.
+vec3 fsPointShadowPosAgent(vec3 pos)
+{
+    return transpose(mat3(modelview_matrix)) * (pos - modelview_matrix[3].xyz);
+}
+
+// A direction (the surface normal) along the agent axes, once per pixel
+vec3 fsPointShadowDirAgent(vec3 v)
+{
+    return fsPointShadowToAgent(v);
+}
+
 // Offsets in texels of the face at the surface's distance, so they grow with it as the texels do:
 // along the surface normal (more at grazing light), then towards the light along the ray
 #define FS_LLS_NORMAL_OFFSET 0.75
@@ -65,10 +81,12 @@ vec3 fsPointShadowToAgent(vec3 v)
 #define FS_LLS_DEPTH_BIAS    1.0
 
 // 1: lit, down to 1 - strength: the slot's map has something between pos and the light.
-// pos, n: the lit surface's eye space position and normal.
+// pos_agent, n_agent: the lit surface's position and normal along the agent axes
+// (fsPointShadowPosAgent, fsPointShadowDirAgent).
 // Filtered with a fixed 3x3 tent of hardware compares (each a bilinear 2x2), the same taps on
 // every pixel: smooth edges without noise, nothing for TAA to blend.
-float fsPointShadowFactor(int slot, vec3 pos, vec3 n)
+//float fsPointShadowFactor(int slot, vec3 pos, vec3 n)
+float fsPointShadowFactor(int slot, vec3 pos_agent, vec3 n_agent)
 {
     vec4 light = fs_lls_light[slot];
     if (light.w <= 0.0)
@@ -77,7 +95,8 @@ float fsPointShadowFactor(int slot, vec3 pos, vec3 n)
     }
     vec4 dp = fs_lls_depth[slot];
 
-    vec3 d = fsPointShadowToAgent(pos - fsPointShadowLightEye(light.xyz)); // light to surface, along the faces' axes
+    //vec3 d = fsPointShadowToAgent(pos - fsPointShadowLightEye(light.xyz)); // light to surface, along the faces' axes
+    vec3 d = pos_agent - light.xyz; // light to surface, along the faces' axes
     float dist = length(d);
     vec3 a = abs(d);
     float m = max(a.x, max(a.y, a.z));
@@ -88,7 +107,8 @@ float fsPointShadowFactor(int slot, vec3 pos, vec3 n)
 
     // one texel of a face at this distance, in metres
     float texel = 2.0 * m / (fs_lls_atlas.z * fs_lls_atlas.w);
-    vec3 nw = fsPointShadowToAgent(n);
+    //vec3 nw = fsPointShadowToAgent(n);
+    vec3 nw = n_agent;
     float nl = clamp(-dot(nw, d) / dist, 0.0, 1.0);
     d += nw * (texel * (FS_LLS_NORMAL_OFFSET + FS_LLS_SLOPE_OFFSET * sqrt(1.0 - nl * nl)));
 
@@ -153,13 +173,16 @@ vec3 fsPointShadowSlotColor(int slot)
 }
 
 // What a light pass multiplies the light's contribution by: the shadow of slot `slot`'s map on
-// the surface at pos (eye space) with normal n, tinted by the slot's colour with
-// FSRenderLocalLightShadowDebug. shading_light: the eye space centre the pass lights from.
+// the surface at pos_agent with normal n_agent (both along the agent axes, fsPointShadowPosAgent
+// and fsPointShadowDirAgent, taken once per pixel by a pass with several lights), tinted by the
+// slot's colour with FSRenderLocalLightShadowDebug. shading_light: the eye space centre the pass
+// lights from.
 // Debug 5: half metre bands along the agent axes, measured from the map's centre the way the
 // lookup measures (the draw's view, fs_lls_light, pos): they stay fixed to the world as the
 // camera moves when those inputs are right. Debug 6: green where the pass lights from the map's
 // centre, red where it lights from elsewhere (more than 5 cm off).
-vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
+//vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
+vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_light)
 {
     if (slot < 0 || slot >= FS_LLS_MAX)
     {
@@ -167,18 +190,26 @@ vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
     }
     if (fs_lls_debug >= 5 && fs_lls_light[slot].w > 0.0)
     {
-        vec3 light_eye = fsPointShadowLightEye(fs_lls_light[slot].xyz);
         if (fs_lls_debug == 6)
         {
+            vec3 light_eye = fsPointShadowLightEye(fs_lls_light[slot].xyz);
             return length(shading_light - light_eye) > 0.05 ? vec3(4.0, 0.0, 0.0) : vec3(0.0, 4.0, 0.0);
         }
-        vec3 d = fsPointShadowToAgent(pos - light_eye);
+        //vec3 d = fsPointShadowToAgent(pos - light_eye);
+        vec3 d = pos_agent - fs_lls_light[slot].xyz;
         return vec3(0.2) + 2.0 * step(vec3(0.5), fract(d * 2.0));
     }
-    float s = fsPointShadowFactor(slot, pos, n);
+    //float s = fsPointShadowFactor(slot, pos, n);
+    float s = fsPointShadowFactor(slot, pos_agent, n_agent);
     if (fs_lls_debug != 0 && fs_lls_light[slot].w > 0.0)
     {
         return s * fsPointShadowSlotColor(slot);
     }
     return vec3(s);
+}
+
+// The same from the surface's eye space position pos and normal n: one light per pass
+vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
+{
+    return fsPointShadowMapAgent(slot, fsPointShadowPosAgent(pos), fsPointShadowDirAgent(n), shading_light);
 }

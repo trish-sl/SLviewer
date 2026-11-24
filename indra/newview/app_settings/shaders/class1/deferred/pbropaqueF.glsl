@@ -146,8 +146,17 @@ void main()
     spec.g = filterSpecularRoughness(spec.g, tnorm);
 #endif
 
-    vec3 emissive = emissiveColor;
-    emissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    // <FS:Trish> No emissive factor (the glTF default, 0, which most materials keep): the map's
+    // fetch would be multiplied by 0, so it is skipped. The test is per draw (a uniform, or a
+    // flat input with FS_GDD), so every fragment takes the same branch.
+    //vec3 emissive = emissiveColor;
+    //emissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    vec3 emissive = vec3(0.0);
+    if (any(greaterThan(emissiveColor, vec3(0.0))))
+    {
+        emissive = emissiveColor * srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    }
+    // </FS:Trish>
 
     tnorm *= gl_FrontFacing ? 1.0 : -1.0;
 
@@ -222,8 +231,15 @@ void main()
 
     vec3 col = vertex_color.rgb * srgb_to_linear(basecolor.rgb);
 
-    vec3 emissive = emissiveColor;
-    emissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    // <FS:Trish> No emissive factor: no fetch, as in the deferred path above
+    //vec3 emissive = emissiveColor;
+    //emissive *= srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    vec3 emissive = vec3(0.0);
+    if (any(greaterThan(emissiveColor, vec3(0.0))))
+    {
+        emissive = emissiveColor * srgb_to_linear(texture(emissiveMap, emissive_texcoord.xy).rgb);
+    }
+    // </FS:Trish>
 
     col += emissive;
 

@@ -66,6 +66,20 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
                     out float nl,
                     out vec3 diff,
                     out vec3 spec);
+// <FS:Trish> The same with the pixel's multiple-scattering factor passed in (deferredUtil.glsl):
+// taken once before the loop instead of a LUT fetch per light
+void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
+                    float perceptualRoughness,
+                    float metallic,
+                    vec3 n,
+                    vec3 v,
+                    vec3 l,
+                    out float nl,
+                    out vec3 diff,
+                    out vec3 spec,
+                    vec3 ms_comp);
+vec3 fsPbrMultiscatterComp(vec3 specularColor, float perceptualRoughness, vec3 n, vec3 v);
+// </FS:Trish>
 
 GBufferInfo getGBuffer(vec2 screenpos);
 // <FS:Trish> Avatar skin lighting (fsSkinUtil.glsl)
@@ -85,7 +99,11 @@ vec3 fsSkinAlbedo(GBufferInfo gb);
 // <FS:Trish> Shadow maps of the local point lights (FSRenderLocalLightShadows, fsPointShadowMapF.glsl)
 #ifdef FS_POINT_SHADOW_MAP
 uniform int fs_lls_slots[LIGHT_COUNT];  // per light: its shadow map slot, -1 for none
-vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+//vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light);
+// The surface's position and normal along the agent axes, taken once per pixel
+vec3 fsPointShadowPosAgent(vec3 pos);
+vec3 fsPointShadowDirAgent(vec3 v);
+vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_light);
 #endif
 // </FS:Trish>
 
@@ -114,6 +132,12 @@ void main()
     // </FS:Trish>
 
     vec3 n = gb.normal;
+    // <FS:Trish> Along the agent axes once, not once per shadowed light
+#ifdef FS_POINT_SHADOW_MAP
+    vec3 fs_pos_agent = fsPointShadowPosAgent(pos);
+    vec3 fs_n_agent = fsPointShadowDirAgent(n);
+#endif
+    // </FS:Trish>
 
     vec4 spec    = gb.specular;
     vec3 diffuse = gb.albedo.rgb;
@@ -135,6 +159,8 @@ void main()
         vec3 diffuseColor;
         vec3 specularColor;
         calcDiffuseSpecular(baseColor, metallic, diffuseColor, specularColor);
+        // <FS:Trish/> Multiple-scattering factor (FSRenderMultiscatter), the same for every light of the pixel
+        vec3 fs_ms_comp = fsPbrMultiscatterComp(specularColor, perceptualRoughness, n, v);
 
         for (int light_idx = 0; light_idx < LIGHT_COUNT; ++light_idx)
         {
@@ -158,7 +184,10 @@ void main()
                 float nl = 0;
                 vec3 diff = vec3(0);
                 vec3 specPunc = vec3(0);
-                pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc);
+                // <FS:Trish> The pixel's multiple-scattering factor, taken once before the loop
+                //pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc);
+                pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc, fs_ms_comp);
+                // </FS:Trish>
                 // <FS:Trish> Skin: the two-lobe specular in place of the single lobe (FSRenderSkinDualSpecular)
 #ifdef FS_SKIN_DUAL_SPEC
                 if (fs_skin > 0.0)
@@ -172,7 +201,8 @@ void main()
 #ifdef FS_POINT_SHADOW_MAP
                 if (fs_lls_slots[light_idx] >= 0)
                 {
-                    intensity *= fsPointShadowMap(fs_lls_slots[light_idx], pos, n, light[light_idx].xyz);
+                    //intensity *= fsPointShadowMap(fs_lls_slots[light_idx], pos, n, light[light_idx].xyz);
+                    intensity *= fsPointShadowMapAgent(fs_lls_slots[light_idx], fs_pos_agent, fs_n_agent, light[light_idx].xyz);
                 }
 #endif
                 // </FS:Trish>
@@ -256,7 +286,8 @@ void main()
 #ifdef FS_POINT_SHADOW_MAP
                     if (fs_lls_slots[i] >= 0)
                     {
-                        col *= fsPointShadowMap(fs_lls_slots[i], pos, n, light[i].xyz);
+                        //col *= fsPointShadowMap(fs_lls_slots[i], pos, n, light[i].xyz);
+                        col *= fsPointShadowMapAgent(fs_lls_slots[i], fs_pos_agent, fs_n_agent, light[i].xyz);
                     }
 #endif
                     // </FS:Trish>
