@@ -187,8 +187,6 @@ public:
         }
     }
 
-    HANDLE mainThread() const { return mMain; }
-
 private:
     void run()
     {

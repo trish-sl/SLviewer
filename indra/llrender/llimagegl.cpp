@@ -485,7 +485,6 @@ bool LLImageGL::fsPrepareUpload(S32 discard_level, const LLImageRaw* imageraw, S
     // setImage's CPU work, with the decoder's analysis when it matches
     mUploadAlphaInfo = imageraw->getAlphaInfo();
     analyzeAlpha(data, w, h);
-    //updatePickMask(w, h, data);
     fsBuildPickMask(w, h, data, out); // the main thread may be picking with the current mask: swapped at the commit
     mUploadAlphaInfo = nullptr;
 
@@ -1266,7 +1265,6 @@ bool LLImageGL::setImage(const U8* data_in, bool data_hasmips /* = false */, S32
 {
     LL_PROFILE_ZONE_SCOPED_CATEGORY_TEXTURE;
     // <FS:Trish> FSPerfGPUDrivenPBRBindless: respecified below, so a locked texture moves to a fresh one
-    //fsUnlockTexture(usename ? (U32)usename : mTexName);
     if (!usename)
     {
         fsMakeWritable(false);
@@ -1660,7 +1658,6 @@ bool LLImageGL::setSubImage(const U8* datap, S32 data_width, S32 data_height, S3
 {
     // <FS:Trish> FSPerfGPUDrivenPBRBindless: changes part of it and may rebuild mipmaps, so a locked texture
     // moves to a copy first
-    //fsUnlockTexture(use_name ? (U32)use_name : mTexName);
     if (!use_name)
     {
         fsMakeWritable(true);
@@ -3435,7 +3432,6 @@ bool LLImageGL::scaleDown(S32 desired_discard)
     S32 mip = desired_discard - mCurrentDiscardLevel;
 
     // <FS:Trish> FSPerfGPUDrivenPBRBindless: a locked texture moves to a fresh one below, once it was read
-    //fsUnlockTexture(mTexName);
     // </FS:Trish>
 
     S32 desired_width = getWidth(desired_discard);

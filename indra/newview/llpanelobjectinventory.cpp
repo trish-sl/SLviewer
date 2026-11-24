@@ -724,12 +724,10 @@ void LLTaskInvFVBridge::buildContextMenu(LLMenuGL& menu, U32 flags)
         items.push_back(std::string("Task Stop Script"));
         bool is_running = true;
         // <FS:Trish> Act on the item's own link
-        //if (!mPanel->getScriptRunningState(item->getUUID(), is_running))
         if (!mPanel->getScriptRunningState(getTaskID(), item->getUUID(), is_running))
         // </FS:Trish>
         {
             // <FS:Trish> Act on the item's own link
-            //mPanel->requestScriptRunningInfo(item->getUUID());
             mPanel->requestScriptRunningInfo(getTaskID(), item->getUUID());
             // </FS:Trish>
         }
@@ -738,7 +736,6 @@ void LLTaskInvFVBridge::buildContextMenu(LLMenuGL& menu, U32 flags)
             menu_item->setLabel(LLStringExplicit(is_running ? "Stop Script" : "Start Script"));
         }
         // <FS:Trish> Act on the item's own link
-        //if (!mPanel->canStopScripts())
         if (!mPanel->canStopScripts(getTaskID()))
         // </FS:Trish>
         {
@@ -919,7 +916,6 @@ void LLTaskCategoryBridge::buildContextMenu(LLMenuGL& menu, U32 flags)
     {
         items.push_back(std::string("Task Stop Scripts"));
         // <FS:Trish> Act on the item's own link
-        //if (!mPanel->canStopScripts())
         if (!mPanel->canStopScripts(getTaskID()))
         // </FS:Trish>
         {
@@ -1299,12 +1295,10 @@ LLFontGL::StyleFlags LLTaskScriptBridge::getLabelStyle() const
     if (mPanel)
     {
         // <FS:Trish> Act on the item's own link
-        //if (!mPanel->getScriptRunningState(mUUID, is_running))
         if (!mPanel->getScriptRunningState(getTaskID(), mUUID, is_running))
         // </FS:Trish>
         {
             // <FS:Trish> Act on the item's own link
-            //mPanel->requestScriptRunningInfo(mUUID);
             mPanel->requestScriptRunningInfo(getTaskID(), mUUID);
             // </FS:Trish>
         }
@@ -1331,12 +1325,10 @@ std::string LLTaskScriptBridge::getLabelSuffix() const
     if (mPanel)
     {
         // <FS:Trish> Act on the item's own link
-        //if (!mPanel->getScriptRunningState(mUUID, is_running))
         if (!mPanel->getScriptRunningState(getTaskID(), mUUID, is_running))
         // </FS:Trish>
         {
             // <FS:Trish> Act on the item's own link
-            //mPanel->requestScriptRunningInfo(mUUID);
             mPanel->requestScriptRunningInfo(getTaskID(), mUUID);
             // </FS:Trish>
             return suffix;
@@ -1899,9 +1891,6 @@ bool LLPanelObjectInventory::postBuild()
 }
 
 // <FS:Trish> Script state is per link
-//bool LLPanelObjectInventory::getScriptRunningState(const LLUUID& item_id, bool& running) const
-//{
-//auto it = mScriptRunningState.find(item_id);
 bool LLPanelObjectInventory::getScriptRunningState(const LLUUID& task_id, const LLUUID& item_id, bool& running) const
 {
     auto it = mScriptRunningState.find(makeItemKey(task_id, item_id));
@@ -1916,8 +1905,6 @@ bool LLPanelObjectInventory::getScriptRunningState(const LLUUID& task_id, const 
 }
 
 // <FS:Trish> Script state is per link
-//void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& item_id)
-//{
 void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& task_id, const LLUUID& item_id)
 {
     const LLUUID key = makeItemKey(task_id, item_id);
@@ -1928,8 +1915,6 @@ void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& task_id, con
     }
 
     // <FS:Trish> Script state is per link
-    //if (mScriptRunningRequested.find(item_id) != mScriptRunningRequested.end() ||
-    //mScriptRunningState.find(item_id) != mScriptRunningState.end())
     if (mScriptRunningRequested.find(key) != mScriptRunningRequested.end() ||
         mScriptRunningState.find(key) != mScriptRunningState.end())
     // </FS:Trish>
@@ -1938,7 +1923,6 @@ void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& task_id, con
     }
 
     // <FS:Trish> Script state is per link
-    //LLViewerObject* object = gObjectList.findObject(mTaskUUID);
     LLViewerObject* object = gObjectList.findObject(task_id);
     // </FS:Trish>
     if (!object || object->isInventoryPending())
@@ -1962,11 +1946,6 @@ void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& task_id, con
     msg->newMessageFast(_PREHASH_GetScriptRunning);
     msg->nextBlockFast(_PREHASH_Script);
     // <FS:Trish> Script state is per link
-    //msg->addUUIDFast(_PREHASH_ObjectID, mTaskUUID);
-    //msg->addUUIDFast(_PREHASH_ItemID, item_id);
-    //msg->sendReliable(region->getHost());
-    //
-    //mScriptRunningRequested.insert(item_id);
     msg->addUUIDFast(_PREHASH_ObjectID, task_id);
     msg->addUUIDFast(_PREHASH_ItemID, item_id);
     msg->sendReliable(region->getHost());
@@ -1976,12 +1955,6 @@ void LLPanelObjectInventory::requestScriptRunningInfo(const LLUUID& task_id, con
 }
 
 // <FS:Trish> Script state is per link
-//void LLPanelObjectInventory::setScriptRunningState(const LLUUID& item_id, bool running)
-//{
-//auto existing = mScriptRunningState.find(item_id);
-//const bool state_changed = existing == mScriptRunningState.end() || existing->second != running;
-//mScriptRunningState[item_id] = running;
-//mScriptRunningRequested.insert(item_id);
 void LLPanelObjectInventory::setScriptRunningState(const LLUUID& task_id, const LLUUID& item_id, bool running)
 {
     const LLUUID key = makeItemKey(task_id, item_id);
@@ -1999,7 +1972,6 @@ void LLPanelObjectInventory::setScriptRunningState(const LLUUID& task_id, const 
     }
 
     // <FS:Trish> Script state is per link
-    //if (LLFolderViewItem* item = getItemByID(item_id))
     mLinksetSummaryDirty = true;
     if (LLFolderViewItem* item = getItemByID(key))
     // </FS:Trish>
@@ -2016,14 +1988,12 @@ void LLPanelObjectInventory::setScriptRunningState(const LLUUID& task_id, const 
 }
 
 // <FS:Trish> Also remembers which VM the script runs on, for the Content tab summary
-//void LLPanelObjectInventory::handleScriptRunningReply(const LLUUID& object_id, const LLUUID& item_id, bool running)
 void LLPanelObjectInventory::handleScriptRunningReply(const LLUUID& object_id, const LLUUID& item_id, bool running, S32 vm)
 // </FS:Trish>
 {
     for (LLPanelObjectInventory* panel : sInstances)
     {
         // <FS:Trish> Script state is per link
-        //if (!panel || panel->mTaskUUID != object_id)
         if (!panel || !panel->isShowingTask(object_id))
         // </FS:Trish>
         {
@@ -2031,7 +2001,6 @@ void LLPanelObjectInventory::handleScriptRunningReply(const LLUUID& object_id, c
         }
 
         // <FS:Trish> Script state is per link
-        //panel->setScriptRunningState(item_id, running);
         panel->setScriptRunningState(object_id, item_id, running);
         // </FS:Trish>
         // <FS:Trish>
@@ -2140,9 +2109,6 @@ void LLPanelObjectInventory::doToSelected(const LLSD& userdata)
 }
 
 // <FS:Trish> Any link of the linkset
-//bool LLPanelObjectInventory::canStopScripts() const
-//{
-//LLViewerObject* object = gObjectList.findObject(mTaskUUID);
 bool LLPanelObjectInventory::canStopScripts() const
 {
     return canStopScripts(mTaskUUID);
@@ -2205,7 +2171,6 @@ void LLPanelObjectInventory::stopScripts()
         msg->sendReliable(region->getHost());
 
         // <FS:Trish> Script state is per link
-        //setScriptRunningState(inventory->getUUID(), false);
         setScriptRunningState(mTaskUUID, inventory->getUUID(), false);
         // </FS:Trish>
     }
@@ -2259,10 +2224,6 @@ void LLPanelObjectInventory::toggleScript()
 
     bool is_running = true;
     // <FS:Trish> Script state is per link
-    //if (!getScriptRunningState(inventory->getUUID(), is_running))
-    //{
-    //requestScriptRunningInfo(inventory->getUUID());
-    //}
     if (!getScriptRunningState(mTaskUUID, inventory->getUUID(), is_running))
     {
         requestScriptRunningInfo(mTaskUUID, inventory->getUUID());
@@ -2295,7 +2256,6 @@ void LLPanelObjectInventory::toggleScript()
         msg->sendReliable(region->getHost());
 
         // <FS:Trish> Script state is per link
-        //setScriptRunningState(selected_script->getUUID(), new_running_state);
         setScriptRunningState(mTaskUUID, selected_script->getUUID(), new_running_state);
         // </FS:Trish>
     }
@@ -2659,11 +2619,6 @@ void LLPanelObjectInventory::createViewsForCategory(LLInventoryObject::object_li
                 view->addToFolder(folder);
                 // <FS:Trish> Item keys are per link
                 //addItemID(obj->getUUID(), view);
-                //
-                //if (obj->getType() == LLAssetType::AT_LSL_TEXT)
-                //{
-                //requestScriptRunningInfo(obj->getUUID());
-                //}
                 const LLUUID key = makeItemKey(task_id, obj->getUUID());
                 addItemID(key, view);
                 if (keys)

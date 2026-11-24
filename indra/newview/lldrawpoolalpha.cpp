@@ -341,7 +341,6 @@ void LLDrawPoolAlpha::renderPostDeferred(S32 pass)
         fsGDDAlphaPrograms(fs_gdd_programs);
         for (LLGLSLShader* shader : fs_gdd_programs)
         {
-            //prepare_alpha_shader(shader, true, water_sign);
             fs_mark_for_prepare(shader);
         }
     }
@@ -1126,7 +1125,6 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
     auto fs_bind_program = [&](LLGLSLShader& shader)
     {
         fs_prepare_on_bind(shader, true); // the pass's preparation, at the program's first bind in it
-        //if (fs_glow_return == &shader)
         if (fs_glow_return == &shader && !fs_glow_rebind)
         {   // as the stock rebind after the glow pass: its textures are still on their units
             fs_glow_return = nullptr;
@@ -1155,11 +1153,8 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
     const bool fs_no_discard = fs_no_discard_setting && rigged && !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF &&
         !mFSHybridOIT && !LLPipeline::sImpostorRender && !LLPipeline::sRenderingHUDs && simple_shader == &gDeferredAlphaProgram &&
         gFSDeferredSkinnedAlphaNoDiscardProgram.isComplete();
-    //const bool fs_gdd = !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF && !gCubeSnapshot &&
-    //    fsGDDAlphaBeginPass(rigged, simple_shader, fullbright_shader, mAlphaSFactor, mAlphaDFactor, MINIMUM_ALPHA);
     const bool fs_gdd = !depth_only && wboit_phase == WBOIT_OFF && mHairPass == HAIR_OFF && !gCubeSnapshot &&
         fsGDDAlphaBeginPass(rigged, simple_shader, fullbright_shader, mAlphaSFactor, mAlphaDFactor, MINIMUM_ALPHA, fs_no_discard);
-    //const fs_gdd_alpha_bind_t fs_gdd_bind = fs_bind_program;
     // </FS:Trish>
 
     // <FS:Trish> FSRenderCheapAvatarAlpha (fsavataralpha.cpp): whether this pass may light the alpha of distant
@@ -1404,7 +1399,6 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
                         // (FSRenderCheapAlphaDistance: an in-world group's draws carry the group's flags)
                         {
                             const LLVOAvatar* fs_avatar = params.mAvatar.notNull() ? params.mAvatar.get() : fs_group_avatar;
-                            //const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
                             const S32 fs_avatar_flags = !fs_avatar_pass ? 0 : fs_avatar ? FSAvatarAlpha::flags(fs_avatar) : fs_scene_flags;
                             if (fs_avatar_flags != fs_gdd_run_flags)
                             {
@@ -1627,10 +1621,7 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
                     // group's draws carry the group's flags.
                     {
                         const LLVOAvatar* fs_avatar = params.mAvatar.notNull() ? params.mAvatar.get() : fs_group_avatar;
-                        //const S32 fs_avatar_flags = fs_avatar_pass ? FSAvatarAlpha::flags(fs_avatar) : 0;
                         const S32 fs_avatar_flags = !fs_avatar_pass ? 0 : fs_avatar ? FSAvatarAlpha::flags(fs_avatar) : fs_scene_flags;
-                        //const S32 fs_particle_flags = fs_particle_group ?
-                        //    FSParticleRender::flags(params.mBlendFuncSrc == LLRender::BF_SOURCE_ALPHA && !depth_only && !mFSWriteDepth) : 0;
                         const S32 fs_particle_flags = fs_particle_group ?
                             FSParticleRender::flags(params.mBlendFuncSrc == LLRender::BF_SOURCE_ALPHA && !depth_only && !mFSWriteDepth) : fs_avatar_flags;
                         FSParticleRender::apply(*current_shader, fs_particle_flags);

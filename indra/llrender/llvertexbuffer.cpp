@@ -895,7 +895,6 @@ void LLVertexBuffer::fsReleaseVAOs()
 // </FS:Trish>
 // <FS:Trish> see getFSContentSerial(). Atomic: buffers are made and filled on worker threads too
 // (FSPerfThreadedGeometry, FSPerfParallelGeometry), and a plain ++ there could hand two buffers one serial.
-//static U32 sFSNextContentSerial = 0;
 static std::atomic<U32> sFSNextContentSerial{ 0 };
 // </FS:Trish>
 U32 LLVertexBuffer::sFSInstanceCount = 0; // <FS:Trish/> FSPerfShadowSinglePass

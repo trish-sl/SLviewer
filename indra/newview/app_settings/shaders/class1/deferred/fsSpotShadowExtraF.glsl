@@ -48,12 +48,10 @@ uniform vec2 proj_shadow_res;
 // transpose(inverse(fs_spot_shadow_matrix)), for the receiver plane depth gradient in closed form
 // (shadowUtil.glsl pcfDepthGradient), set with the matrix
 uniform mat4 fs_spot_shadow_plane_matrix;
-//float pcssPoissonPCF(sampler2DShadow shadowMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float z_bias, vec2 res);
 float pcssPoissonPCF(sampler2DShadow shadowMap, mat4 pm, vec4 stc, vec3 pos, vec3 norm, float z_bias, vec2 res);
 #if defined(FS_SPOT_PCSS_FETCH)
 uniform sampler2D fs_spot_shadow_depth;
 uniform vec3 fs_spot_shadow_eye_extra; // this light's position, view space (LLPipeline::fsBindExtraSpotShadow)
-//float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale, vec3 eye);
 float pcssSpotContactShadow(sampler2DShadow shadowMap, sampler2D depthMap, mat4 m, vec4 stc, vec3 pos, vec3 norm, float bias_scale, vec3 eye, mat4 pm);
 #endif
 #endif
@@ -78,10 +76,8 @@ float fsSampleSpotShadowExtra(vec3 pos, vec3 norm)
         return 1.0; // behind the projector (the divide would mirror the map) or outside its map
     }
 #if defined(PCSS_SHADOW) && defined(FS_SPOT_PCSS_FETCH)
-    //float shadow = pcssSpotContactShadow(fs_spot_shadow_map, fs_spot_shadow_depth, fs_spot_shadow_matrix, lpos, pos, norm, 0.8, fs_spot_shadow_eye_extra);
     float shadow = pcssSpotContactShadow(fs_spot_shadow_map, fs_spot_shadow_depth, fs_spot_shadow_matrix, lpos, pos, norm, 0.8, fs_spot_shadow_eye_extra, fs_spot_shadow_plane_matrix);
 #elif defined(PCSS_SHADOW)
-    //float shadow = pcssPoissonPCF(fs_spot_shadow_map, fs_spot_shadow_matrix, lpos, pos, norm, spot_shadow_bias * 0.8, proj_shadow_res);
     float shadow = pcssPoissonPCF(fs_spot_shadow_map, fs_spot_shadow_plane_matrix, lpos, pos, norm, spot_shadow_bias * 0.8, proj_shadow_res);
 #else
     float shadow = pcfSpotShadow(fs_spot_shadow_map, lpos, 0.8, gl_FragCoord.xy); // the jitter is per screen row

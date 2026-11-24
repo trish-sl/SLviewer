@@ -163,7 +163,7 @@ void main()
     {
         level = max(level, ivec2(1));
     }
-    if (quarter && min_coc >= 4.0)
+    if (quarter)
     {
         level = ivec2(2);
     }

@@ -599,7 +599,6 @@ vec3 getSpecularDominantDir(vec3 n, vec3 r, float perceptualRoughness)
     float lerpFactor = smoothness * (sqrt(smoothness) + perceptualRoughness);
     // <FS:Trish> r = -n (a flipped two-sided normal) at lerpFactor 0.5 cancels to zero, and
     // normalize(0) is NaN in the probe lookup
-    //return normalize(mix(n, r, lerpFactor));
     vec3 d = mix(n, r, lerpFactor);
     return dot(d, d) > 1e-8 ? normalize(d) : n;
     // </FS:Trish>
@@ -762,9 +761,6 @@ void pbrIbl(vec3 diffuseColor,
     // compensation raised rough reflective materials enough to look self-lit under probes.
     vec2 brdf = BRDF(clamp(nv, 0.0, 1.0), 1.0-perceptualRough);
     // <FS:Trish> FSRenderMultiscatter: the energy single scattering loses, added back
-    //// Multi-bounce (see gtaoMultiBounce), as the classic branch of pbrBaseLight applies it
-    //diffuseOut = irradiance * diffuseColor * gtaoMultiBounce(ao, diffuseColor);
-    //specularOut = radiance * (specularColor * brdf.x + brdf.y) * fsSpecularOcclusion(ao, nv, perceptualRough);
     vec3 FssEss = specularColor * brdf.x + brdf.y;
     vec3 ms = vec3(0.0);
     float kd = 1.0;
@@ -932,13 +928,6 @@ void pbrPunctual(vec3 diffuseColor, vec3 specularColor,
     // and pass it in. An earlier version cached it in global variables written from inside the
     // light loops; an AMD driver hung with this option on, and mutable globals in loops are the
     // one unusual construct it added, so the shader stays stateless: a value in, no globals
-    //if (cube_snapshot == 0)
-    //{
-    //    // Computed per call. An earlier version cached the factor in global variables written from
-    //    // inside the light loops; an AMD driver hung with this option on, and mutable globals in
-    //    // loops are the one unusual construct it added, so the shader stays stateless
-    //    spec *= pbrEnergyCompensation(specularColor, perceptualRoughness, NdotV);
-    //}
     spec *= ms_comp;
 #endif
     // </FS:Trish>

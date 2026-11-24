@@ -81,7 +81,6 @@ void main()
     // reading keeps the last exposure. An exposure of 0 is a real one (a sky whose HDR offset is
     // its minimum) and eases like any other: restarting on it snapped the exposure every frame.
     // (A new map starts at 1, LLPipeline::createGLBuffers clears it so.)
-    //if (isnan(prev) || isinf(prev) || prev <= 0.0)
     if (isnan(prev) || isinf(prev) || prev < 0.0)
     {
         prev = s;

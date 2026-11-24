@@ -558,8 +558,6 @@ void LLPipeline::fsShadowSinglePassFinish()
             {
                 continue;
             }
-            // each batch is in the list once, with the bits of every cascade that recorded it (record_entry)
-
             // grouped by cascade set, then by what saves state changes: model matrix and buffer (opaque, where
             // runs of index ranges merge), skin palette (rigged), texture (alpha masked)
             const bool rigged = r == 1;

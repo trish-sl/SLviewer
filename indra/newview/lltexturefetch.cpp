@@ -2050,7 +2050,6 @@ bool LLTextureFetchWorker::doWork(S32 param)
         if (fetch_rest && (cur_size > 0 || mDesiredDiscard <= 1) &&
             (mFormattedImage.isNull() || mFormattedImage->getCodec() == IMG_CODEC_J2C))
         {
-            //mRequestedSize = llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
             mRequestedSize = haveLayout() ? mLayout.mLength
                                           : llmax(mRequestedSize, HTTP_REQUESTS_RANGE_END_MAX); // open ended range below
         }

@@ -682,7 +682,7 @@ namespace
             sRingMode = mode;
             GLint align = 0;
             glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &align);
-            sAlign = llmax((size_t)llmax(align, 16), (size_t)16);
+            sAlign = (size_t)llmax(align, 16);
             if (sAlign & (sAlign - 1))
             {   // not a power of two: unheard of, but the rounding below needs one
                 sAlign = 256;
@@ -696,7 +696,6 @@ namespace
         if (!slot.mBuffer.mName || offset + size > slot.mCapacity)
         {
             // FSAutoSizeResources: a new slot buffer at the measured size, a full one still doubles
-            //size_t capacity = llmax(RING_FIRST_BYTES, slot.mCapacity * 2);
             const size_t want = !slot.mBuffer.mName && ring_auto_size() ? ring_wanted_bytes() : 0;
             size_t capacity = want ? want : llmax(RING_FIRST_BYTES, slot.mCapacity * 2);
             while (capacity < size && capacity <= RING_MAX_BYTES)

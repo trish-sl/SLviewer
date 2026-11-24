@@ -516,11 +516,8 @@ void LLSpatialGroup::rebuildGeom()
         // <FS:Trish> FSPerfShadowStaticCache
         if (fs_geom_dirty)
         {
-            //fs_note_static_shadow_change(this, getObjectExtents());
             LLVector4a fs_changed[2] = { getObjectExtents()[0], getObjectExtents()[1] };
             // FSPerfShadowStaticCacheStable: no vertex moved, and the bounds are the same
-            //const bool fs_no_depth_change = !fs_moves && !fs_before[0].equals3(fs_before[1]) &&
-            //                                fs_before[0].equals3(fs_changed[0]) && fs_before[1].equals3(fs_changed[1]);
             // FSPerfShadowStaticCacheFilter: a rebuild with no drawable of the group changed only re-batches the same
             // triangles after drawables joined or left the group, which were noted as they did (moving objects'
             // bridges aren't drawn into the cache): its bounds may have changed, its static depth has not
@@ -532,7 +529,6 @@ void LLSpatialGroup::rebuildGeom()
                 fs_changed[0].setMin(fs_before[0], fs_changed[0]);
                 fs_changed[1].setMax(fs_before[1], fs_changed[1]);
             }
-            //fs_note_static_shadow_change(this, fs_changed);
             // FSRenderMovingShadowCache: detail changes only, with about the same bounds before and after
             fs_lod_only = fs_lod_only && !fs_before[0].equals3(fs_before[1]) && fs_extents_close(fs_before, getObjectExtents());
             fs_note_static_shadow_change(this, fs_changed, fs_no_depth_change, fs_lod_only, fs_who, fs_kind);
@@ -553,8 +549,6 @@ void LLSpatialGroup::rebuildMesh()
         // <FS:Trish> FSPerfShadowStaticCache
         if (hasState(LLSpatialGroup::MESH_DIRTY))
         {
-            //fs_note_static_shadow_change(this, getObjectExtents());
-            //fs_note_static_shadow_change(this, getObjectExtents(), !fs_group_moves_vertices(this)); // FSPerfShadowStaticCacheStable
             FSShadowCacheOffenders::EKind fs_kind = FSShadowCacheOffenders::KIND_UNKNOWN;
             const LLDrawable* fs_who = gPipeline.mFSShadowCacheInUse ? fs_group_culprit(this, fs_kind) : nullptr;
             fs_note_static_shadow_change(this, getObjectExtents(), !fs_group_moves_vertices(this), false, fs_who, fs_kind); // FSPerfShadowStaticCacheStable

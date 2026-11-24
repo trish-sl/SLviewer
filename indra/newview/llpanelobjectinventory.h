@@ -100,13 +100,10 @@ public:
     const LLInventoryFilter& getFilter() const { return mInventoryViewModel.getFilter(); }
 
     // <FS:Trish> Script state is per link
-    //bool getScriptRunningState(const LLUUID& item_id, bool& running) const;
-    //void requestScriptRunningInfo(const LLUUID& item_id);
     bool getScriptRunningState(const LLUUID& task_id, const LLUUID& item_id, bool& running) const;
     void requestScriptRunningInfo(const LLUUID& task_id, const LLUUID& item_id);
     // </FS:Trish>
     // <FS:Trish> vm: -1 unknown, 0 LSL2, 1 Mono, 2 Lua (from the running state reply)
-    //static void handleScriptRunningReply(const LLUUID& object_id, const LLUUID& item_id, bool running);
     static void handleScriptRunningReply(const LLUUID& object_id, const LLUUID& item_id, bool running, S32 vm = -1);
     // Counts for the scripts in this object's contents; state and VM are filled in as replies arrive
     struct ScriptSummary
@@ -174,7 +171,6 @@ protected:
 private:
     std::unordered_map<LLUUID, LLFolderViewItem*> mItemMap;
     // <FS:Trish> Script state is per link
-    //void setScriptRunningState(const LLUUID& item_id, bool running);
     void setScriptRunningState(const LLUUID& task_id, const LLUUID& item_id, bool running);
     // </FS:Trish>
     std::map<LLUUID, S32> mScriptVM; // <FS:Trish/> -1 unknown, 0 LSL2, 1 Mono, 2 Lua

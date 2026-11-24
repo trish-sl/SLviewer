@@ -166,7 +166,6 @@ void FSParticleRender::frame(bool enabled, F32 interval_seconds)
         sStatsOn = enabled;
         timer.reset();
         log_stats(); // what was gathered so far, or nothing
-        sFrames = 0;
         return;
     }
     if (enabled && timer.getElapsedTimeF32() >= llmax(interval_seconds, 1.f))

@@ -315,7 +315,6 @@ namespace
             F32 level[NUM_LEVEL];
             S32 level_hits = 0;
             F32 hit_sum = 0.f;
-            S32 hit_count = 0;
             for (S32 i = 0; i < NUM_LEVEL; ++i)
             {
                 const F32 a = F_TWO_PI * (F32)i / (F32)NUM_LEVEL;
@@ -324,7 +323,6 @@ namespace
                 {
                     ++level_hits;
                     hit_sum += level[i];
-                    ++hit_count;
                 }
             }
             S32 diag_hits = 0;
@@ -338,7 +336,6 @@ namespace
                 {
                     ++diag_hits;
                     hit_sum += d;
-                    ++hit_count;
                 }
             }
 
@@ -370,6 +367,7 @@ namespace
             // The sheltered air: as far as the walls and posts around, or under a roof with
             // nothing around (a porch) about three times its height
             F32 shelter = 0.f;
+            const S32 hit_count = level_hits + diag_hits;
             if (hit_count > 0)
             {
                 shelter = hit_sum / (F32)hit_count;

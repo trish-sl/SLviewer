@@ -148,7 +148,6 @@ public:
     U64             mWorldMatrixSerial;
     // <FS:Trish> FSPerfParallelAvatarUpdate: avatars recompute their joints on worker threads, a lost
     // increment could hand a joint its previous stamp again and leave a stale cached palette
-    //static U64      sWorldMatrixSerial;
     static std::atomic<U64> sWorldMatrixSerial;
     // </FS:Trish>
     // </FS:Trish>

@@ -430,7 +430,6 @@ F32 FSTextureFaceBias::vsizeBias(F32 max_discard, F32 desired_bias)
 // static
 F32 FSTextureFaceBias::biasLevel(F32 max_discard, F32 desired_bias)
 {
-    //F32 bias = llclamp(max_discard - 2.f, 1.f, desired_bias);
     return llclamp(max_discard - 2.f + llclamp(desired_bias - 4.f, 0.f, 2.f), 1.f, desired_bias);
 }
 
@@ -500,7 +499,6 @@ F32 FSTextureFaceBias::materialMapScale(U32 channel, const LLFace* face, const L
 F32 FSTextureFaceBias::scale(const LLViewerObject* objp, const LLTextureEntry* te, S32 te_offset, U32 channel,
                              F32 scale_min, F32 scale_max) const
 {
-    //F32 min_scale = te ? llmin(fabsf(te->getScaleS()), fabsf(te->getScaleT())) : 1.f;
     F32 min_scale = te ? repeats(te, channel) : 1.f;
     // texture animations that show one frame at a time screw up their own resolution
     if (te && objp->getPCode() == LL_PCODE_VOLUME)

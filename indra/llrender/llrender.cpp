@@ -554,10 +554,6 @@ void LLTexUnit::setTextureAddressModeFast(eTextureAddressMode mode, eTextureType
 {
     // <FS:Trish> FSPerfGPUDrivenPBRBindless: a texture that had a bindless handle can't take new parameters,
     // its image moves to a copy (bound here) first
-    //if (LLImageGL::sFSTextureUnlock)
-    //{
-    //    LLImageGL::fsUnlockTexture(gGL.getTexUnit(gGL.getCurrentTexUnitIndex())->mCurrTexture);
-    //}
     // Only 2D textures get handles; one that is locked and already has this mode keeps it
     if (tex_type == TT_TEXTURE)
     {
@@ -589,10 +585,6 @@ void LLTexUnit::setTextureFilteringOptionFast(LLTexUnit::eTextureFilterOptions o
 {
     // <FS:Trish> FSPerfGPUDrivenPBRBindless: a texture that had a bindless handle can't take new parameters,
     // its image moves to a copy (bound here) first
-    //if (LLImageGL::sFSTextureUnlock)
-    //{
-    //    LLImageGL::fsUnlockTexture(gGL.getTexUnit(gGL.getCurrentTexUnitIndex())->mCurrTexture);
-    //}
     // Only 2D textures get handles; one that is locked and already has this filtering keeps it
     if (tex_type == TT_TEXTURE)
     {

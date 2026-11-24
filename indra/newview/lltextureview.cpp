@@ -590,10 +590,9 @@ void LLGLTexMemBar::draw()
     // <FS:Trish> The video memory source, what is used of the target and what the target leaves for
     // textures after the vertex buffers, the bias with its hold, and the inflow scale (FSTextureUseDXGIVRAM,
     // FSTextureBiasHoldSeconds, FSPerfTextureUploadFullRoomMB)
-    //text = llformat("Budget Free: %d MB Heap Free: %d MB RSS: %d MB GL Tex: %d MB FBO: %d MB Probe#: %d Probe Mem: %d MB Bias: %.2f Cache: %.1f/%.1f MB",
+    //text = llformat("Est. Free: %d MB Sys Free: %d MB GL Tex: %d MB FBO: %d MB Probe#: %d Probe Mem: %d MB Bias: %.2f Cache: %.1f/%.1f MB",
     //                (S32)LLViewerTexture::sFreeVRAMMegabytes,
     //                LLMemory::getAvailableMemKB()/1024,
-    //                LLMemory::getAllocatedMemKB()/1024,
     //                LLImageGL::getTextureBytesAllocated() / 1024 / 1024,
     //                LLRenderTarget::sBytesAllocated/(1024*1024),
     //                gPipeline.mReflectionMapManager.probeCount(),

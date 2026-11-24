@@ -571,11 +571,8 @@ vec3 getPoissonSample(int i) {
 // the last 0.1 below it.
 //
 // The caller that decides whether to march at all lives in another compilation unit and cannot
-// see a constant declared here, so it asks for the threshold through a function. It used to
-// carry its own literal instead, and the two disagreed: the fade ramped up from one glossiness
-// while the gate rejected everything below another, so the whole ramp was unreachable and
-// screen-space reflections switched on at full strength in a single step -- a hard visible edge
-// across any surface whose roughness crossed the gate.
+// see a constant declared here, so it asks for the threshold through a function: a literal of its
+// own could disagree with the fade, and reflections would switch on in one hard step.
 float ssrMinGlossiness()
 {
     return 1.0 - maxRoughness;

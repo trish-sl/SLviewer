@@ -808,8 +808,7 @@ namespace FSCameraLinks
             return false;
         }
 
-        // INFO: If some day we want to extand the querystrings to support more camera parameters, simply wire them down below.
-        //       As well as in buildlinks()
+        // New query parameters go here and in buildLink()
         F32 fov = 0.f;
         if (query_map.has("fov"))
         {
@@ -996,7 +995,7 @@ namespace FSCameraLinks
             LLNotificationsUtil::add("FSCameraLinkRlvCamera");
             return;
         }
-        // a link clicked during a tour will alt the tour
+        // a link clicked during a tour ends the tour
         stopTour();
 
         // Targets follow where the target is, rather than a set point
@@ -1406,7 +1405,7 @@ namespace FSCameraTour
                 target_pose(target, stop.mView, sTourTo.mPos, sTourTo.mFocus);
             }
         }
-        const TourPose to = sTourTo;
+        const TourPose& to = sTourTo;
         if (sTourTravelling)
         {
             const F32 u = stop.mTravel > 0.f ? llclamp(elapsed / stop.mTravel, 0.f, 1.f) : 1.f;

@@ -85,7 +85,6 @@ vec3 fsPointShadowDirAgent(vec3 v)
 // (fsPointShadowPosAgent, fsPointShadowDirAgent).
 // Filtered with a fixed 3x3 tent of hardware compares (each a bilinear 2x2), the same taps on
 // every pixel: smooth edges without noise, nothing for TAA to blend.
-//float fsPointShadowFactor(int slot, vec3 pos, vec3 n)
 float fsPointShadowFactor(int slot, vec3 pos_agent, vec3 n_agent)
 {
     vec4 light = fs_lls_light[slot];
@@ -95,7 +94,6 @@ float fsPointShadowFactor(int slot, vec3 pos_agent, vec3 n_agent)
     }
     vec4 dp = fs_lls_depth[slot];
 
-    //vec3 d = fsPointShadowToAgent(pos - fsPointShadowLightEye(light.xyz)); // light to surface, along the faces' axes
     vec3 d = pos_agent - light.xyz; // light to surface, along the faces' axes
     float dist = length(d);
     vec3 a = abs(d);
@@ -107,7 +105,6 @@ float fsPointShadowFactor(int slot, vec3 pos_agent, vec3 n_agent)
 
     // one texel of a face at this distance, in metres
     float texel = 2.0 * m / (fs_lls_atlas.z * fs_lls_atlas.w);
-    //vec3 nw = fsPointShadowToAgent(n);
     vec3 nw = n_agent;
     float nl = clamp(-dot(nw, d) / dist, 0.0, 1.0);
     d += nw * (texel * (FS_LLS_NORMAL_OFFSET + FS_LLS_SLOPE_OFFSET * sqrt(1.0 - nl * nl)));
@@ -181,7 +178,6 @@ vec3 fsPointShadowSlotColor(int slot)
 // lookup measures (the draw's view, fs_lls_light, pos): they stay fixed to the world as the
 // camera moves when those inputs are right. Debug 6: green where the pass lights from the map's
 // centre, red where it lights from elsewhere (more than 5 cm off).
-//vec3 fsPointShadowMap(int slot, vec3 pos, vec3 n, vec3 shading_light)
 vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_light)
 {
     if (slot < 0 || slot >= FS_LLS_MAX)
@@ -195,11 +191,9 @@ vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_
             vec3 light_eye = fsPointShadowLightEye(fs_lls_light[slot].xyz);
             return length(shading_light - light_eye) > 0.05 ? vec3(4.0, 0.0, 0.0) : vec3(0.0, 4.0, 0.0);
         }
-        //vec3 d = fsPointShadowToAgent(pos - light_eye);
         vec3 d = pos_agent - fs_lls_light[slot].xyz;
         return vec3(0.2) + 2.0 * step(vec3(0.5), fract(d * 2.0));
     }
-    //float s = fsPointShadowFactor(slot, pos, n);
     float s = fsPointShadowFactor(slot, pos_agent, n_agent);
     if (fs_lls_debug != 0 && fs_lls_light[slot].w > 0.0)
     {

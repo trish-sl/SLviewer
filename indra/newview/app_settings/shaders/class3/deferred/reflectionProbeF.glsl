@@ -574,11 +574,8 @@ vec3 tapRefMap(vec3 pos, vec3 dir, out float w, out float dw, float lod, vec3 c,
     v -= c;
     v = env_mat * v;
 
-    // Unnormalized on purpose: a cubemap fetch takes a direction of any length. The normalize
-    // that used to sit here was assigned to a local nothing read, so it was one inverse square
-    // root per probe tap -- up to REF_SAMPLE_COUNT of them per pixel, in a function every
-    // deferred and forward lighting path calls -- and it was a normalize of a vector with no
-    // guarantee of being non-zero.
+    // Unnormalized on purpose: a cubemap fetch takes a direction of any length, and a normalize
+    // here would cost an inverse square root per probe tap on a vector that may be zero.
     vec4 ret = textureLod(reflectionProbes, vec4(v.xyz, refIndex[i].x), lod) * refParams[i].y;
 
     return ret.rgb;

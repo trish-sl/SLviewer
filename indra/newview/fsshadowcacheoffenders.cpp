@@ -95,7 +95,6 @@ namespace
         U64     mSignature = 0;
         F32     mStillSince = 0.f;
         F32     mCooldown = STILL_FIRST;
-        U8      mWhy = WHY_REPEATED;
     };
 
     Culprit sCulprit;
@@ -266,7 +265,6 @@ namespace
         rec.mStillSince = now();
         auto backoff = sBackoff.find(id);
         rec.mCooldown = backoff != sBackoff.end() ? backoff->second : STILL_FIRST;
-        rec.mWhy = why;
         sDemoted[id] = rec;
         addEvent(llformat("demoted %s (%s, %u prims)", id.asString().c_str(), WHY_NAMES[llmin((U32)why, 3U)],
                           (U32)obj->getChildren().size() + 1));

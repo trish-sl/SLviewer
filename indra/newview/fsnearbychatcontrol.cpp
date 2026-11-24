@@ -195,7 +195,6 @@ void FSNearbyChatControl::drawBackground()
 
 void FSNearbyChatControl::drawBorderOverlay()
 {
-
     LLRect background_rect = getLocalRect();
     background_rect.stretch(-mBackgroundPad);
     background_rect.mTop += 1;
@@ -217,7 +216,6 @@ void FSNearbyChatControl::drawBorderOverlay()
         focus_color.mV[2] *= focus_tint_scale;
         focus_color.setAlpha(alpha * focus_alpha_scale);
 
-        // Draw focus outline
         const S32 focus_width = llmax(1, gFocusMgr.getFocusFlashWidth());
         for (S32 i = 0; i < focus_width; ++i)
         {

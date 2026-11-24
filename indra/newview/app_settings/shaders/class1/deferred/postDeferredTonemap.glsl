@@ -230,7 +230,6 @@ void main()
     {
         // <FS:Trish> The gamma corrected programs encode to sRGB just below: stay encoded instead of
         // decoding and encoding again (six pow per pixel)
-        //diff.rgb = srgb_to_linear(gradeDisplay(linear_to_srgb(diff.rgb)));
 #ifdef GAMMA_CORRECT
         diff.rgb = gradeDisplay(linear_to_srgb(diff.rgb));
         fs_display_encoded = true;

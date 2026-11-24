@@ -3751,7 +3751,6 @@ void LLLiveLSLEditor::processScriptRunningReply(LLMessageSystem* msg, void**)
     }
 
     // <FS:Trish> Pass on the VM for the Content tab script summary
-    //LLPanelObjectInventory::handleScriptRunningReply(object_id, item_id, running);
     bool reply_mono = false;
     bool reply_luau_language = false;
     msg->getBOOLFast(_PREHASH_Script, _PREHASH_Mono, reply_mono);

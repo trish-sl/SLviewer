@@ -429,7 +429,7 @@ vec3 getGeoNorm(vec2 screenpos);
 // red stripes along them, worst on a cheek seen at a grazing angle. The stored geometric normal is
 // quantized to about 1/128 rad at most, which reads as tens of centimetres of skin, so it adds no
 // glow. Legacy surfaces store none and get their shading normal back from getGeoNorm, as before.
-// n is unused (the shading normal the callers have).
+// n_shading is unused (the shading normal the callers have).
 float fsSkinThickness(vec2 tc, vec3 pos, vec3 n_shading)
 {
     vec3 n = getGeoNorm(tc);

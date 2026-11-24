@@ -681,7 +681,6 @@ GLuint LLShaderMgr::loadShaderFile(const std::string& filename, S32 & shader_lev
     // objects. Supply the test defines to both without changing the scope of
     // the other global defines used to load basic shader dependencies.
     // <FS:Trish> FSRenderReverseZ: the depth convention reaches every object too (fsreversez.h)
-    //for (const char* name : { "RIGGED_LOCAL_ORIGIN", "RIGGED_DIRECT_NORMALS", "RIGGED_PRECISE_MATH", "SKIN_PRECISE" })
     for (const char* name : { "RIGGED_LOCAL_ORIGIN", "RIGGED_DIRECT_NORMALS", "RIGGED_PRECISE_MATH", "SKIN_PRECISE", "REVERSE_Z" })
     // </FS:Trish>
     {

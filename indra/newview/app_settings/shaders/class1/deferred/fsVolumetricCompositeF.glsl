@@ -70,12 +70,11 @@ void main()
             {
                 ivec2 p = clamp(base + ivec2(x, y), ivec2(0), size - ivec2(1));
                 vec2 tap = texelFetch(diffuseRect, p, 0).rg;
-                vec2 d = vec2(p) - low_pos;
                 float rel = abs(tap.g - center_dist) / max(center_dist, 0.1);
 #ifdef FS_BICUBIC
-                //float w = fsBSplineWeight(d) * exp(-10.0 * rel);
                 float w = (wx[x + 1] * wy[y + 1]) * exp(-10.0 * rel);
 #else
+                vec2 d = vec2(p) - low_pos;
                 float w = exp(-0.5 * dot(d, d) - 10.0 * rel);
 #endif
                 total += tap.r * w;
@@ -121,12 +120,11 @@ void main()
             {
                 ivec2 p = clamp(base + ivec2(x, y), ivec2(0), size - ivec2(1));
                 vec4 tap = texelFetch(specularRect, p, 0);
-                vec2 d = vec2(p) - low_pos;
                 float rel = abs(tap.a - center_dist) / max(center_dist, 0.1);
 #ifdef FS_BICUBIC
-                //float w = fsBSplineWeight(d) * exp(-10.0 * rel);
                 float w = (wx[x + 1] * wy[y + 1]) * exp(-10.0 * rel);
 #else
+                vec2 d = vec2(p) - low_pos;
                 float w = exp(-0.5 * dot(d, d) - 10.0 * rel);
 #endif
                 total += tap.rgb * w;

@@ -1232,35 +1232,6 @@ void LLWorld::updateRegions(F32 max_update_time)
         // <FS:Trish> Spread the refresh over the interval, round-robin, instead of requesting every
         // avatar in the region at once. Each round queues the avatars present when it starts and
         // sends their requests at an even pace; anything left is flushed when the round ends.
-        //if (sAvatarPositionRefreshInterval > 0.0f &&
-        //    sAvatarPositionRefreshTimer.getElapsedTimeF32() >= sAvatarPositionRefreshInterval)
-        //{
-        //    bool requested = false;
-        //    for (LLCharacter* character : LLCharacter::sInstances)
-        //    {
-        //        LLVOAvatar* avatar = static_cast<LLVOAvatar*>(character);
-        //        if (!avatar->isDead() &&
-        //            !avatar->isSelf() &&
-        //            !avatar->mIsDummy &&
-        //            !avatar->isOrphaned() &&
-        //            !avatar->isControlAvatar() &&
-        //            avatar->getRegion() == self_regionp)
-        //        {
-        //            const U32 local_id = avatar->getLocalID();
-        //            if (local_id != 0)
-        //            {
-        //                self_regionp->addCacheMissFull(local_id);
-        //                requested = true;
-        //            }
-        //        }
-        //    }
-        //
-        //    if (requested)
-        //    {
-        //        self_regionp->requestCacheMisses();
-        //    }
-        //    sAvatarPositionRefreshTimer.reset();
-        //}
         static std::vector<LLUUID> sAvatarPositionRefreshQueue;
         static size_t sAvatarPositionRefreshSent = 0;
         if (sAvatarPositionRefreshInterval > 0.0f)

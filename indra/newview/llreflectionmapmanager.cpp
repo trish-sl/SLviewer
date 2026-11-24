@@ -474,7 +474,6 @@ void LLReflectionMapManager::update()
     // FSPerfProbeReuseIrradiance and FSPerfProbeSlowSky go by the same environment version
     static LLCachedControl<bool> fs_reuse_irradiance(gSavedSettings, "FSPerfProbeReuseIrradiance", false);
     static LLCachedControl<bool> fs_slow_sky(gSavedSettings, "FSPerfProbeSlowSky", false);
-    //if (skip_unchanged)
     if (skip_unchanged || fs_reuse_irradiance || fs_slow_sky)
     {
         updateEnvironmentVersion(fs_sun_threshold);
@@ -511,7 +510,6 @@ void LLReflectionMapManager::update()
         // The default (sky) probe and dynamic ones on moving objects refresh the same way once their
         // map is complete: the sky changes slowly, and a moving probe's cube still turns over every
         // 6 x interval frames. A probe still filling its first map keeps one face a frame.
-        //const bool refreshing = mUpdatingProbe->mComplete && mUpdatingProbe != mDefaultProbe && !mUpdatingProbe->getIsDynamic();
         const bool refreshing = mUpdatingProbe->mComplete;
         if (!refreshing || refresh_interval <= 1 || (LLFrameTimer::getFrameCount() % refresh_interval) == 0)
         {

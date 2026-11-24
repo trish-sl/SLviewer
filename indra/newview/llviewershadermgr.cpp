@@ -2930,7 +2930,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
             gDeferredSunProgram.addPermutation("FS_GTAO", "1");
             gDeferredSunProgram.addPermutation("FS_GTAO_SLICES", llformat("%d", llclamp((S32)fs_gtao_slices, 1, 4)));
             // the full-resolution GTAO, or the upsample of the half-resolution pass
-            //gDeferredSunProgram.mShaderFiles.push_back(make_pair("deferred/fsGTAOF.glsl", GL_FRAGMENT_SHADER));
             gDeferredSunProgram.mShaderFiles.push_back(make_pair(fs_load_gtao_half(mShaderLevel[SHADER_DEFERRED], llclamp((S32)fs_gtao_slices, 1, 4)), GL_FRAGMENT_SHADER));
         }
         else
@@ -3093,7 +3092,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
                 shader->addPermutation("HAS_SKIN", "1");
                 // <FS:Trish> Two-pass rigged alpha. The no discard program is never bound in the hair passes (nor the
                 // hybrid OIT or WBOIT ones): it has no FS_HAIR or FS_WBOIT, and no discards at all
-                //if (fs_use_hair_two_pass())
                 if (no_discard)
                 {
                     shader->addPermutation("FS_NO_DISCARD", "1");
@@ -3117,7 +3115,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
             }
 
             // <FS:Trish> WBOIT
-            //if (use_wboit && !hud && (!rigged || gFSAlphaHybridOITShaders)) // rigged too for the hybrid OIT
             if (use_wboit && !hud && !no_discard && (!rigged || gFSAlphaHybridOITShaders)) // rigged too for the hybrid OIT
             {
                 shader->addPermutation("FS_WBOIT", "1");
@@ -5298,7 +5295,6 @@ void LLViewerShaderMgr::updateShaderUniforms(LLGLSLShader * shader)
     // <FS:Trish> Specular AA strength and threshold. LLEnvironment marks every listed program and
     // its rigged variant dirty each frame, so a slider change reaches the next bind without a
     // shader rebuild.
-    //if (shader->mDefines.count("FS_SPECULAR_AA"))
     if (shader->mFSSpecularAA) // set from mDefines by createShader
     {
         static LLCachedControl<F32> strength(gSavedSettings, "FSRenderSpecularAAStrength", 0.25f);

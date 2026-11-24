@@ -46,7 +46,6 @@
 #include "lltimer.h"
 
 #include <cmath>
-#include <cstring>
 #include <vector>
 
 namespace

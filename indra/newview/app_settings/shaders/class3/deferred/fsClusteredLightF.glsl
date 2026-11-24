@@ -46,8 +46,6 @@ uniform vec4 fs_cl_scale;               // tiles per unit of screen coordinate a
                                         // slices per unit of log depth, log of the first slice's depth
 uniform int fs_cl_debug;                // 1: add a heat map of the lights per cluster
 
-uniform vec2  screen_res;
-uniform mat4  inv_proj;
 uniform int classic_mode;
 
 in vec4 vary_fragcoord;
@@ -233,7 +231,6 @@ void main()
                 float nl = 0;
                 vec3 diff = vec3(0);
                 vec3 specPunc = vec3(0);
-                //pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc);
                 pbrPunctual(diffuseColor, specularColor, perceptualRoughness, metallic, n.xyz, v, lv, nl, diff, specPunc, fs_ms_comp);
 #ifdef FS_SKIN_DUAL_SPEC
                 if (fs_skin > 0.0)
@@ -243,7 +240,6 @@ void main()
 #endif
                 intensity *= fsMicroShadow(nl, orm.r);
 #ifdef FS_POINT_SHADOW_MAP
-                //intensity *= fsLocalShadow(idx, pos, n, light.xyz);
                 intensity *= fsLocalShadow(idx, fs_pos_agent, fs_n_agent, light.xyz);
 #endif
                 final_color += intensity * clampRadiance(nl * (diff + specPunc));
@@ -315,7 +311,6 @@ void main()
 
                     // Bounded per light, as the stock passes do
 #ifdef FS_POINT_SHADOW_MAP
-                    //final_color += clampRadiance(col) * fsLocalShadow(idx, pos, n, light.xyz);
                     final_color += clampRadiance(col) * fsLocalShadow(idx, fs_pos_agent, fs_n_agent, light.xyz);
 #else
                     final_color += clampRadiance(col);

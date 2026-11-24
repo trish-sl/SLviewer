@@ -1016,7 +1016,6 @@ void LLJoint::updateWorldMatrix()
         mWorldMatrix.loadu(mXform.getWorldMatrix());
         // <FS:Trish> FSPerfParallelAvatarUpdate
         //mWorldMatrixSerial = ++sWorldMatrixSerial; // <FS:Trish/>
-        //mWorldMatrixSerial = sWorldMatrixSerial.fetch_add(1, std::memory_order_relaxed) + 1;
         mWorldMatrixSerial = fs_next_joint_serial();
         // </FS:Trish>
         mDirtyFlags = 0x0;

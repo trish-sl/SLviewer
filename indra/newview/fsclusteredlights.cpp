@@ -176,18 +176,15 @@ U32 FSClusteredLights::moveMappedLights()
 }
 
 // The point light glow's lights, chosen once for the whole screen: the max_lights whose glow weighs
-// most on screen, scored as screenWeight scores (brightness times the share of the view the
-// sphere takes). The glow used to take the first lights of each screen tile's list instead, so a
-// light kept in one tile could be dropped in the next, where more lights reached: its halo was cut
-// along the tile edges, in long straight lines where a big light's tiles ended. Now a light glows
-// in every tile its sphere reaches or in none.
+// most on screen, scored as screenWeight scores. Chosen per screen tile instead, a light kept in
+// one tile could be dropped in the next, cutting its halo along the tile edges; chosen once, a
+// light glows in every tile its sphere reaches or in none.
 // So that a light changing places with the last one wanted does not pop, the weights follow the
 // score of the max_lights-th light (ref): 1 at ref and above, falling to 0 at GLOW_FADE below it,
 // and the lights in that band are taken too (a few past max_lights, glow_list_cap). Lights that
-// tie with ref all glow in full: a set of identical lamps no longer loses its glow because one of
-// them was left out (the fade used to end at the first light left out, so a tie gave weight 0).
-// Only when the band holds more lights than the cap does the fade end at the first one it leaves
-// out instead.
+// tie with ref all glow in full, so a set of identical lamps never loses its glow because one of
+// them was left out. Only when the band holds more lights than the cap does the fade end at the
+// first one it leaves out instead.
 // Lights whose sphere lies wholly outside the view take no place: they glow on no pixel, and
 // turning the camera would swap them in and out of the set. Not in the tiles of a high resolution
 // snapshot, which must all choose the same lights. Fills mGlowWeights; returns how many lights
@@ -755,7 +752,6 @@ bool FSClusteredLights::prepareScatter(S32 max_lights)
     mLogNear = 0.f;
     mLists.resize(2 + (size_t)count);
     mLists[0] = 2;
-    mLists[1] = count;
     U32 entry = 2;
     for (U32 i = 0; i < (U32)mGlowWeights.size() && entry < 2 + count; ++i)
     {

@@ -155,11 +155,9 @@ public:
     // the video memory the arena's buffers hold, used or not; what the copies in it take
     U32 allocatedMB() const;
     U64 usedBytes() const;
-    U32 vertexStride() const    { return mStride; }
     U32 entries() const         { return (U32)mEntries.size(); }
     U32 uploads() const         { return mUploads; }
     U32 fallbacks() const       { return mFallbacks; }
-    const U32* failCounts() const { return mFails; }
     void clearCounts();
 
 private:

@@ -756,10 +756,6 @@ void LLViewerObjectList::processObjectUpdate(LLMessageSystem *mesgsys,
                     LL_DEBUGS() << "update for unknown localid " << local_id << " host " << gMessageSystem->getSender() << ":" << gMessageSystem->getSenderPort() << LL_ENDL;
                     mNumUnknownUpdates++;
                     // <FS:Trish> Requested below if updateCacheEntry() can't create it from the object cache
-                    //// Terse updates can arrive before we have a valid local-id -> UUID mapping.
-                    //// Request a full update so state (including TE/alpha changes) is recovered.
-                    //regionp->addCacheMissFull(local_id);
-                    //regionp->requestCacheMisses();
                     // </FS:Trish>
                 }
             }
@@ -849,8 +845,6 @@ void LLViewerObjectList::processObjectUpdate(LLMessageSystem *mesgsys,
                     // LL_INFOS() << "terse update for an unknown object (compressed):" << fullid << LL_ENDL;
                     // Recover by requesting a full object update on the next cache-miss pass.
                     // <FS:Trish> Throttled per object, sent by the per-frame cache miss pass
-                    //regionp->addCacheMissFull(local_id);
-                    //regionp->requestCacheMisses();
                     requestUnknownObjectUpdate(regionp, local_id);
                     // </FS:Trish>
                     recorder.objectUpdateFailure();

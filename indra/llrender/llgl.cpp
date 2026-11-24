@@ -1662,7 +1662,6 @@ void LLGLManager::fsSetMaxShaderCompilerThreads()
     {
         // 0xFFFFFFFF asks for the implementation's maximum
         // <FS:Trish> FSRenderThread: this pointer isn't proxied, run it where the context is
-        //fs_glMaxShaderCompilerThreads(0xFFFFFFFFu);
         FSGLStream::runSync([]() { fs_glMaxShaderCompilerThreads(0xFFFFFFFFu); });
         // </FS:Trish>
     }

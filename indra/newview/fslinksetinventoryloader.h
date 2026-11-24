@@ -69,7 +69,6 @@ public:
     bool isLoaded(const LLUUID& link_id) const;
     // Links queued or waiting for the simulator
     S32 getPendingCount() const { return mPending; }
-    S32 getLinkCount() const { return (S32)mLinks.size(); }
 
 private:
     class Listener;

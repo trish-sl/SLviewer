@@ -383,7 +383,6 @@ void main()
 #ifdef FOR_IMPOSTOR
     float fs_soft_fade = fsSoftParticleFade(vary_position); // no impostor program is built with it, kept whole
 #endif
-    //frag_color = fsSoftParticleApply(frag_color, fsSoftParticleFade(vary_position));
     frag_color = fsSoftParticleApply(frag_color, fs_soft_fade); // taken after the alpha tests
 #endif
     // </FS:Trish>

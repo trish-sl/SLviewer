@@ -237,7 +237,7 @@ void FSSpotLightBatch::add(LLDrawable* drawablep, bool inside, const LLColor3& l
 // for a large light, while the surface is inside the box and before the far plane: clipping would
 // drop that pixel, so GL_DEPTH_CLAMP is on for these draws, which turns off near and far
 // clipping and clamps the face's depth to the far value, where GEQUAL passes for every surface.
-// This fork has no reverse-Z: LLGLDepthTest defaults to GL_LEQUAL, the far value is 1.
+// With FSRenderReverseZ on, LLGLDepthTest flips the function and the far value is 0: the same holds.
 void FSSpotLightBatch::flush(LLCamera* camera)
 {
     LL_PROFILE_ZONE_SCOPED_CATEGORY_PIPELINE;

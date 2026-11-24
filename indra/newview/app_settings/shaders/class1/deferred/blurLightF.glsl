@@ -75,7 +75,6 @@ bool fsBlurNeighbour(vec2 tc, out vec3 p)
         p = vec3(0.0);
         return false;
     }
-    //p = getPositionWithDepth(tc, d).xyz;
     p = fsPositionWithDepthPersp(tc, d);
     return true;
 }
@@ -144,7 +143,6 @@ void main()
     // blur exists to remove (GTAO's step pattern, the cascade dither) stayed on those surfaces.
     // The plane is now the depth buffer's own (fsBlurDepthNormal): legacy surfaces answer
     // getGeoNorm with their normal-mapped normal, which left the same noise on them.
-    //vec3 plane_n = getGeoNorm(tc);
     vec3 plane_n = fsBlurDepthNormal(tc, pos, getGeoNorm(tc));
     // </FS:Trish>
 
@@ -152,14 +150,11 @@ void main()
     // P = inv_proj * ndc / w. Fold n into the matrix once here and that becomes two dot products
     // per tap instead of a full unprojection.
     // <FS:Trish> the geometric plane, see plane_n
-    //vec4 nRow = vec4(dot(norm.xyz, inv_proj[0].xyz), dot(norm.xyz, inv_proj[1].xyz),
-    //                 dot(norm.xyz, inv_proj[2].xyz), dot(norm.xyz, inv_proj[3].xyz));
     vec4 nRow = vec4(dot(plane_n, inv_proj[0].xyz), dot(plane_n, inv_proj[1].xyz),
                      dot(plane_n, inv_proj[2].xyz), dot(plane_n, inv_proj[3].xyz));
     // </FS:Trish>
     vec4 wRow = vec4(inv_proj[0].w, inv_proj[1].w, inv_proj[2].w, inv_proj[3].w);
     // <FS:Trish> the geometric plane, see plane_n
-    //float nDotPos = dot(norm.xyz, pos.xyz);
     float nDotPos = dot(plane_n, pos.xyz);
     // </FS:Trish>
 

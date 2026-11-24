@@ -244,16 +244,13 @@ vec3 fsContactDepthNormal(vec2 tc, vec3 pos, vec3 fallback)
     return dot(n, fallback) > 0.0 ? n : fallback;
 }
 
-// How the march works, and what it fixed (on a depth buffer test scene, the old march found about
-// half of the pixels a cup, a chair leg and a foot shadow within a metre, and missed most of the
-// first few centimetres around them; this one finds nearly all of those):
+// How the march works:
 //  - The ray starts a pixel's width off the surface along the depth buffer's own normal. That is
 //    all the neighbouring texels of the same surface need to stay behind the ray, so a hit needs
-//    no margin beyond depth precision. The old start, 1 to 8 cm off along the G-buffer normal,
-//    jumped over the contact itself, and its hit margin of a centimetre and more missed a ray
-//    passing through a thin chair leg.
+//    no margin beyond depth precision. A start centimetres off would jump over the contact itself,
+//    and a centimetre hit margin would miss a ray passing through a thin chair leg.
 //  - Steps get longer along the ray (t grows as s^1.5) and start right at the surface, so the first
-//    centimetres are walked about a pixel at a time; the old even steps began one whole step out.
+//    centimetres are walked about a pixel at a time.
 //  - A surface counts as an occluder when it is up to 10 cm (plus 5 mm per metre) in front of the
 //    ray, about the depth of a limb or a chair leg; deeper ones drew halos around objects whose
 //    silhouette the ray passed behind. Its deeper part (from 60 %) counts less and less, so the
@@ -309,14 +306,10 @@ float fsContactShadow(vec3 pos, vec3 norm, vec3 light_dir)
     float jitter = fs_contact_shadow.z < 0.0 ? 0.5 : fract(fsExtrasNoise(gl_FragCoord.xy) + fs_contact_shadow.z);
     float min_t = 0.5 * px_m;
 
-    // Soft, not hit or miss. A hit used to be all or nothing at full strength wherever along the
-    // ray it was, so the term drew a hard edged shape that ended exactly where the depth buffer
-    // test stopped finding the occluder: along the outline of a leg on a floor (rays passing
-    // behind it), and in stair steps where a coarse step jumped over the front few centimetres
-    // that count as the occluder. Now each sample occludes by how well it fits (fading in just
-    // past depth precision, out over the deeper part of the thickness), a hit far along the ray
-    // is lighter (a real shadow widens and pales away from its contact; the cascades carry the
-    // rest), and a ray that crosses a surface between two steps counts as a hit.
+    // Soft, not hit or miss (an all or nothing hit drew hard edges along the outline of a leg on a
+    // floor, and stair steps): each sample occludes by how well it fits, a hit far along the ray
+    // is lighter (the cascades carry the rest), and a ray that crosses a surface between two steps
+    // counts as a hit.
     float occ = 0.0;
     bool prev_valid = false;
     float prev_delta = 0.0;
@@ -402,13 +395,13 @@ float fsSunShadowExtras(float shadow, vec3 pos, vec3 norm)
     {
         return shadow; // probes keep the plain shadow: too rare for moving clouds, too coarse for contact
     }
-    vec3 light_dir = normalize((sun_up_factor == 1) ? sun_dir : moon_dir);
 #if defined(FS_CONTACT_SHADOWS)
     shadow = fsContactShadowTerm(shadow, pos, norm);
 #endif
 #if defined(FS_CLOUD_SHADOWS)
     if (shadow > 0.0)
     {
+        vec3 light_dir = normalize((sun_up_factor == 1) ? sun_dir : moon_dir);
         shadow *= fsCloudShadow(pos, light_dir);
     }
 #endif

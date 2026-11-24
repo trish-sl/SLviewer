@@ -471,7 +471,6 @@ void FSShadowDepthFit::reduce(LLRenderTarget& depth_target, LLVertexBuffer* scre
         {
             glBindBuffer(GL_PIXEL_PACK_BUFFER, sPBO);
         }
-        //glReadPixels(0, 0, 1, 1, GL_RGBA, GL_FLOAT, nullptr);
         glReadPixels(0, 0, 1, 1, GL_RG, GL_FLOAT, nullptr);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         sState.store(RB_PENDING, std::memory_order_relaxed);

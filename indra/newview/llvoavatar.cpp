@@ -11968,7 +11968,6 @@ const LLVOAvatar::MatrixPaletteCache& LLVOAvatar::updateSkinInfoMatrixPalette(co
     // Follow the compiled shader permutation, not a live setting that may have
     // changed without a shader reload.
     // <FS:Trish> Cached at shader load, a string keyed map lookup here runs for every rigged mesh in every pass
-    //const bool use_local_origin = LLGLSLShader::sGlobalDefines.count("RIGGED_LOCAL_ORIGIN") != 0;
     const bool use_local_origin = LLViewerShaderMgr::sRiggedLocalOrigin;
     // </FS:Trish>
 
@@ -12015,7 +12014,6 @@ const LLVOAvatar::MatrixPaletteCache& LLVOAvatar::updateSkinInfoMatrixPalette(co
     // FSPerfAnimationLOD: an avatar posed only every few frames keeps its joints in between, reuse its
     // palettes then too
     const bool reuse_palette = rigged_palette_cache || (mFSAnimLODPeriod > 1 && FSAnimationLOD::isActive());
-    //if (rigged_palette_cache && entry.mFrame != gFrameCount && entry.mUsesLocalOrigin == use_local_origin)
     if (reuse_palette && entry.mFrame != gFrameCount && entry.mUsesLocalOrigin == use_local_origin)
     {
         U32 count = LLSkinningUtil::getMeshJointCount(skin);
@@ -12054,8 +12052,6 @@ const LLVOAvatar::MatrixPaletteCache& LLVOAvatar::updateSkinInfoMatrixPalette(co
         entry.mUsesLocalOrigin = use_local_origin;
         entry.mJointSerials.clear(); // <FS:Trish/>
         // <FS:Trish> A new palette needs uploading again (see fs_palette_uploaded)
-        //static U32 sFSPaletteBuildSerial = 0;
-        //entry.mFSBuildSerial = ++sFSPaletteBuildSerial;
         entry.mFSBuildSerial = fs_next_palette_build_serial(); // shared with the pose workers
         // </FS:Trish>
 
@@ -12072,7 +12068,6 @@ const LLVOAvatar::MatrixPaletteCache& LLVOAvatar::updateSkinInfoMatrixPalette(co
         LLSkinningUtil::initSkinningMatrixPalette(&(entry.mMatrixPalette[0]), count, skin, this);
 
         // <FS:Trish> Remember which joint state this palette was built from
-        //if (rigged_palette_cache && skin->mJointNums.size() >= count && skin->mInvBindMatrix.size() >= count)
         if (reuse_palette && skin->mJointNums.size() >= count && skin->mInvBindMatrix.size() >= count) // FSPerfAnimationLOD
         {
             entry.mJointSerials.resize(count);

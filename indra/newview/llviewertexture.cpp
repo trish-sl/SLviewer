@@ -762,7 +762,6 @@ void LLViewerTexture::updateClass()
     // would shrink the target by the same factor and leave too little room after a teleport.
     static LLCachedControl<bool> use_live_vram(gSavedSettings, "FSTextureUseLiveVRAM", false);
     // <FS:Trish> FSAutoSizeResources: 0 (the default) sizes the reserve from the card, see below
-    //static LLCachedControl<U32> live_vram_reserve(gSavedSettings, "FSTextureVRAMReserveMB", 2048);
     static LLCachedControl<U32> live_vram_reserve(gSavedSettings, "FSTextureVRAMReserveMB", 0);
     static LLCachedControl<bool> fs_auto_size(gSavedSettings, "FSAutoSizeResources", true);
     // </FS:Trish>
@@ -796,14 +795,12 @@ void LLViewerTexture::updateClass()
         // The query is cheap, but the answer only needs to keep up with the bias ramp
         // <FS:Trish> FSTextureVRAMPagingFloorMB: near the reserve, read it four times as often, so a burst
         // of loads (entering mouselook, a teleport) is seen before it reaches the driver's floor
-        //if (live_vram_free < 0 || live_vram_timer.getElapsedTimeF32() > 1.f)
         const bool live_near_reserve = live_vram_free >= 0 && fs_live_reserve > 0.f && (F32)live_vram_free < fs_live_reserve + 1024.f;
         if (live_vram_free < 0 || live_vram_timer.getElapsedTimeF32() > (live_near_reserve ? 0.25f : 1.f))
         // </FS:Trish>
         {
             // <FS:Trish> FSTextureUseDXGIVRAM: DXGI first (this process against its budget), the driver's
             // free memory (NVX, ATI) when DXGI can't report. Logged once, and again if the source changes.
-            //live_vram_free = gGLManager.getAvailableVRAMMegabytes();
             U64 dx_used_bytes = 0;
             U64 dx_budget_bytes = 0;
             S32 source = VRAM_SOURCE_ESTIMATE;
@@ -845,7 +842,6 @@ void LLViewerTexture::updateClass()
                 // reached and paging starts first. Not above 3 GB: what else runs beside the viewer (the
                 // desktop, a browser, a stream) doesn't grow with the card. With the setting off, 0 is 2048
                 // as before; any other value is the user's and is used as it is.
-                //const F32 reserve = (F32)live_vram_reserve();
                 const F32 total = (F32)(gGLManager.mVRAMDetected > 0 ? gGLManager.mVRAMDetected : (S32)gGLManager.mVRAM);
                 F32 reserve = (F32)live_vram_reserve();
                 if (reserve <= 0.f)
@@ -884,7 +880,6 @@ void LLViewerTexture::updateClass()
                 // target at once, not only once the smallest sample has aged out. Not measured right after
                 // our own freeing (the driver hands that memory back late, so for a few seconds it looks
                 // taken by something else), which is what the smallest-of-window used to guard against.
-                //if ((F32)live_vram_free > 2.f * reserve && total > (F32)live_vram_free)
                 // FSTextureUseDXGIVRAM: with DXGI, what is held outside our textures is the process use
                 // minus what we track; with the driver's free memory, the card minus free minus tracked
                 const bool from_dxgi = live_vram_used >= 0 && live_vram_budget > 0;
@@ -900,7 +895,6 @@ void LLViewerTexture::updateClass()
                     live_vram_untracked = live_untracked_samples.front().second;
                     for (const auto& sample : live_untracked_samples)
                     {
-                        //live_vram_untracked = llmin(live_vram_untracked, sample.second);
                         live_vram_untracked = llmax(live_vram_untracked, sample.second);
                     }
                 }
@@ -909,7 +903,6 @@ void LLViewerTexture::updateClass()
                 if (live_vram_untracked >= 0.f)
                 {
                     // FSTextureUseDXGIVRAM: the process budget stands in for the card with DXGI
-                    //sample_target = llmin(sample_target, total - reserve - live_vram_untracked);
                     sample_target = llmin(sample_target, (from_dxgi ? (F32)live_vram_budget : total) - reserve - live_vram_untracked);
                 }
                 // FSTextureVRAMTargetFraction: at most this share of the card. The stock budget counts
@@ -1206,10 +1199,6 @@ void LLViewerTexture::updateClass()
             // </FS:Trish>
         }
         // <FS:Trish>
-        //else
-        //{
-        //    recovery_timer.reset();
-        //}
         // Between the soft zone and the lowering threshold the bias used to freeze wherever it
         // was; after the hold it creeps down there, slowly, as the room is modest.
         else if (soft_zone > 0.f && sDesiredDiscardBias > 1.f && over_pct < FREE_PERCENTAGE_TRESHOLD + 0.15f
@@ -1299,8 +1288,6 @@ void LLViewerTexture::updateClass()
     // While the GPU pages, a texture shrunk for memory in the last 30 s keeps what it shows (updateFetch);
     // it used to hold at the cap with little room too, and with the inflow now following the room
     // (FSPerfTextureUploadFullRoomMB) that only kept visible textures blurry
-    //constexpr F32 FS_SHARPEN_HEADROOM_MB = 512.f;
-    //sFSHoldSharpening = sFSBiasAtCap && sFreeVRAMMegabytes < FS_SHARPEN_HEADROOM_MB;
     sFSHoldSharpening = fs_paging;
     // Every 30 s while the bias is up: where it is and how full video memory is
     {
@@ -1344,7 +1331,6 @@ void LLViewerTexture::updateClass()
             s_settle_ref = s_bias_state;
             s_settle_timer.reset();
         }
-        //if (s_bias_state <= 1.f || s_bias_state >= 4.f || fabsf(s_bias_state - s_applied_bias) >= BIAS_STEP
         if (s_bias_state <= 1.f || s_bias_state >= max_bias || fabsf(s_bias_state - s_applied_bias) >= BIAS_STEP // <FS:Trish/>
             || s_settle_timer.getElapsedTimeF32() > SETTLE_TIME)
         {
@@ -1387,11 +1373,7 @@ void LLViewerTexture::updateClass()
         last_texture_update_count_bias = sDesiredDiscardBias;
     }
 
-    // <FS:Trish> Camera mode changes and teleports are logged with the video memory state. The sharpening
-    // meter that lived here (FSTextureSharpenRateMB, so many MB/s for textures already showing something)
-    // is gone: at 256 MB/s it never limited the login burst (12 GB in a minute), yet it put off about 2000
-    // sharpen requests every 10 s with 4.5 GB free, all of them textures in view. The inflow now follows
-    // the room left (FSPerfTextureUploadFullRoomMB) instead.
+    // <FS:Trish> Camera mode changes and teleports are logged with the video memory state
     {
         static S32 s_last_camera_mode = -1;
         const F64 now = LLTimer::getTotalSeconds();
@@ -2676,8 +2658,6 @@ namespace
                 scale = 0.125f;
             }
         }
-        //const F32 rate = sFSUploadRateBytes.load(std::memory_order_relaxed);
-        //if (rate <= 0.f || bytes <= 0)
         const F32 rate = sFSUploadRateBytes.load(std::memory_order_relaxed) * scale;
         if (rate <= 0.f)
         {
@@ -4474,21 +4454,8 @@ void LLViewerLODTexture::processTextureStats()
         mDesiredDiscardLevel = llmin(mMinDesiredDiscardLevel, (S8)(MAX_DISCARD_LEVEL + 1));
         mDesiredDiscardLevel = llmin(mDesiredDiscardLevel, (S32)mLoadedCallbackDesiredDiscardLevel);
 
-        // <FS:Trish> Free faceless textures under memory pressure -- disabled. In a busy scene the
-        // bias sits above 1 for as long as you stay there, so this destroyed textures on every
-        // pass, and the ones coming back into view (PBR materials before their faces register,
-        // anything just off screen) paid a full refetch, decode and upload each time: grey
-        // flashes, and hitching while moving.
-        // if (LLViewerTexture::sDesiredDiscardBias > 1.f &&
-        //    mBoostLevel == LLGLTexture::BOOST_NONE &&
-        //    !mForceToSaveRawImage &&
-        //    getTotalNumFaces() == 0 &&
-        //    getNumVolumes(LLRender::LIGHT_TEX) == 0 &&
-        //    getNumVolumes(LLRender::SCULPT_TEX) == 0 &&
-        //    hasGLTexture())
-        //{
-        //    destroyTexture();
-        //}
+        // <FS:Trish> Faceless textures are not destroyed under memory pressure: in a busy scene that
+        // ran on every pass and textures coming back into view paid a full refetch (grey flashes, hitching).
         // Shrunk instead, under the same memory pressure as visible textures and only when not drawn
         // lately: otherwise everything that loaded at full size and then went out of view (thousands
         // after a login in a busy place) kept its memory, the bias stayed at its cap and every new

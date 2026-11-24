@@ -39,9 +39,6 @@ void main()
                                         vec2(-0.8660254, -0.5), vec2( 0.0, -1.0), vec2( 0.8660254, -0.5));
         for (int i = 0; i < 6; ++i)
         {
-            //float a = float(i) * 1.0471976; // 60 degrees
-            //vec2 d1 = vec2(cos(a), sin(a));
-            //vec2 d2 = vec2(cos(a + 0.5235988), sin(a + 0.5235988));
             vec2 d1 = fs_dir1[i];
             vec2 d2 = fs_dir2[i];
             ring1 += texture(diffuseRect, tc + d1 * R1 * src_texel).rgb;

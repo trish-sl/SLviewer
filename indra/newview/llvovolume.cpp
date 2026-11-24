@@ -2922,7 +2922,6 @@ S32 LLVOVolume::setTEColor(const U8 te, const LLColor4& color)
         // nearly opaque, opaque/maskable). Scripted fades otherwise rebuilt the volume every step,
         // the vertex color update below covers the rest.
         //if (color.mV[3] != old_alpha)
-        //auto alpha_class = [](F32 alpha) { return alpha == 0.f ? 0 : alpha < 0.999f ? 1 : alpha < 1.f ? 2 : 3; };
         // FSRenderAvatarTintOpaqueAlpha adds a class boundary at its threshold (0.999 while off: no extra class)
         const F32 fs_tint_opaque = FSAvatarAlpha::tintOpaqueThreshold();
         auto alpha_class = [fs_tint_opaque](F32 alpha)
@@ -6752,10 +6751,6 @@ void LLVolumeGeometryManager::rebuildGeom(LLSpatialGroup* group)
                     if (is_pbr && gltf_mat)
                     {
                         // <FS:Trish> Alpha masked PBR is alpha tested in the PBR pool, sending it to the alpha pool loses batching and glow
-                        //const bool gltf_alpha =
-                        //    (gltf_mat->mAlphaMode == LLGLTFMaterial::ALPHA_MODE_BLEND ||
-                        //     gltf_mat->mAlphaMode == LLGLTFMaterial::ALPHA_MODE_MASK) &&
-                        //    gltf_blend_has_transparency(gltf_mat);
                         const bool gltf_alpha =
                             gltf_mat->mAlphaMode == LLGLTFMaterial::ALPHA_MODE_BLEND &&
                             gltf_blend_has_transparency(gltf_mat);

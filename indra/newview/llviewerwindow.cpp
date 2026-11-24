@@ -3495,7 +3495,6 @@ bool LLViewerWindow::handleKey(KEY key, MASK mask)
 {
     // <FS:Trish> FSRenderUICap: only keys the UI actually handled count as UI input (noted where
     // the focused control or a menu took the key), not movement keys passed on to the avatar
-    //if (gFocusMgr.getKeyboardFocus()) { fsNoteUIInput(); }
     // </FS:Trish>
     // hide tooltips on keypress
     LLToolTipMgr::instance().blockToolTips();

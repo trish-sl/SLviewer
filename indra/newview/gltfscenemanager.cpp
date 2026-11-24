@@ -795,7 +795,6 @@ void GLTFSceneManager::bindTexture(Asset& asset, TextureType texture_type, Textu
                 LL_PROFILE_ZONE_NAMED_CATEGORY_GLTF("gl bind texture");
                 // <FS:Trish> FSPerfGPUDrivenPBRBindless: its parameters are set below; a texture that had a bindless
                 // handle can't take them, its image moves to a copy first
-                //LLImageGL::fsUnlockTexture(tex->getTexName());
                 if (LLImageGL* gl = tex->getGLTexture())
                 {
                     gl->fsMakeWritable(true, channel);

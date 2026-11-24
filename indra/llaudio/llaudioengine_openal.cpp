@@ -1029,7 +1029,6 @@ LLAudioBuffer::ELoadState LLAudioBufferOpenAL::getLoadState()
 {
     if (!mLoadJob)
     {
-        //return mALBuffer != AL_NONE ? LOAD_READY : LOAD_FAILED;
         return (mALBuffer != AL_NONE || mFSReady) ? LOAD_READY : LOAD_FAILED; // <FS:Trish/> FSPerfAudioThread
     }
 
@@ -1453,13 +1452,6 @@ void LLAudioEngine_OpenAL::changeDeviceAL(std::optional<std::string> device_name
         alcMakeContextCurrent(mALContext);
 
         // <FS:Trish> Output device recovery fallback: restart sounds stopped by a disconnect
-        //for (LLAudioChannel* channel : mChannels)
-        //{
-        //    if (LLAudioChannelOpenAL* openal_channel = dynamic_cast<LLAudioChannelOpenAL*>(channel))
-        //    {
-        //        openal_channel->resumeAfterDeviceReopen();
-        //    }
-        //}
         mFSResumeChannels.store(true); // FSPerfAudioThread: done by changeDevice() or idle()
         // </FS:Trish>
     }

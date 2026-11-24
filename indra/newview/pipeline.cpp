@@ -3130,10 +3130,6 @@ void LLPipeline::updateCull(LLCamera& camera, LLCullResult& result, bool hud_att
         {
             // <FS:Trish> Avatars only snapshot: avatars, animesh, and the bridges attachments live in
             // (LLSpatialBridge::setVisible drops the bridges that belong to neither)
-            //if (avatars_only &&
-            //    i != LLViewerRegion::PARTITION_BRIDGE &&
-            //    i != LLViewerRegion::PARTITION_AVATAR &&
-            //    i != LLViewerRegion::PARTITION_CONTROL_AV)
             if (avatars_only && !isAvatarOnlyPartition(i))
             {
                 continue;
@@ -3713,7 +3709,6 @@ void LLPipeline::updateGeom(F32 max_dtime)
         bool keep = false;
     // </FS:Trish>
         // <FS:Trish> Always update at least one drawable, then stop once the time budget is used up
-        //if (rebuild_budget && drawablep && !drawablep->isDead() && num_updated > 0 && !over_budget)
         if (fs_budget_active && drawablep && !drawablep->isDead() && num_updated > 0 && !over_budget)
         {
             over_budget = update_timer.getElapsedTimeF32() > max_dtime ||
@@ -3722,9 +3717,6 @@ void LLPipeline::updateGeom(F32 max_dtime)
         // What only moves (child prims moving against their root, scale changes, snaps) never waits: it is
         // cheap, and a group rebuilt before it would take the object's old transform. Animated children
         // don't wait for the FSRenderMovingRebuildBudget cap: they would lag or jump until the camera stops
-        //if (over_budget && drawablep && !drawablep->isDead() && !fs_is_priority_drawable_rebuild(drawablep) &&
-        //    !(fs_loop_cap_s > 0.f && (drawablep->isState(LLDrawable::ANIMATED_CHILD) ||
-        //                              (drawablep->isState(LLDrawable::REBUILD_POSITION) && !drawablep->isState(LLDrawable::REBUILD_VOLUME)))))
         if (over_budget && drawablep && !drawablep->isDead() && !fs_is_priority_drawable_rebuild(drawablep) &&
             !(drawablep->isState(LLDrawable::REBUILD_POSITION) && !drawablep->isState(LLDrawable::REBUILD_VOLUME)) &&
             !(fs_loop_cap_s > 0.f && drawablep->isState(LLDrawable::ANIMATED_CHILD)))
@@ -11426,11 +11418,8 @@ void LLPipeline::renderFinalize()
         static LLCachedControl<bool> vignette_in_tonemap(gSavedSettings, "FSRenderVignetteInTonemap", false);
         const bool fs_vignette_wanted = vignette_in_tonemap && !avatars_only && RenderVignette.mV[0] > 0.f &&
                                         !RlvActions::hasBehaviour(RLV_BHVR_SETSPHERE);
-        //fs_cas_late = apply_cas && cas_after_aa;
         fs_cas_late = apply_cas && (cas_after_aa || fs_vignette_wanted);
         apply_cas = apply_cas && !fs_cas_late;
-        //sFSTonemapVignette = vignette_in_tonemap && !apply_cas && !avatars_only && RenderVignette.mV[0] > 0.f &&
-        //                     !RlvActions::hasBehaviour(RLV_BHVR_SETSPHERE);
         sFSTonemapVignette = fs_vignette_wanted && !apply_cas;
         // </FS:Trish>
         tonemap(tonemap_src, apply_cas ? &mRT->deferredLight : &mPostPingMap, !apply_cas);
@@ -11632,7 +11621,6 @@ void LLPipeline::renderFinalize()
     // Whatever is last in the above post processing chain should _always_ be rendered directly here.  If not, expect problems.
     present_shader.bindTexture(LLShaderMgr::DEFERRED_DIFFUSE, sourceBuffer);
     // <FS:Trish> FSNameTagIgnoreAlpha: the depth before alpha, taken this frame, for the UI over the world
-    //present_shader.bindTexture(LLShaderMgr::DEFERRED_DEPTH, &mRT->deferredScreen, true);
     const bool fs_tag_depth = !avatars_only && mFSTagDepth.isComplete() && mFSTagDepthFrame == LLFrameTimer::getFrameCount() &&
         mFSTagDepth.getWidth() == mRT->deferredScreen.getWidth() && mFSTagDepth.getHeight() == mRT->deferredScreen.getHeight();
     present_shader.bindTexture(LLShaderMgr::DEFERRED_DEPTH, fs_tag_depth ? &mFSTagDepth : &mRT->deferredScreen, true);
@@ -12010,7 +11998,6 @@ void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_
     // (shadowUtil.glsl), which used to invert a 3 x 3 matrix per pixel to find them
     {
         static LLStaticHashedString s_spot_eye("fs_spot_shadow_eye");
-        //const LLVector3 eye[2] = { fs_shadow_matrix_eye(mSunShadowMatrix[4]), fs_shadow_matrix_eye(mSunShadowMatrix[5]) };
         // Two inverses per bind otherwise: kept until the matrices change
         static glm::mat4 s_matrices[2];
         static LLVector3 eye[2];
@@ -12068,7 +12055,6 @@ void LLPipeline::bindDeferredShader(LLGLSLShader& shader, LLRenderTarget* light_
     {
         static LLCachedControl<F32> fade_length(gSavedSettings, "FSRenderShadowFadeLength", 0.2f);
         static const LLStaticHashedString sShadowFadeLength("fs_shadow_fade_length");
-        //shader.uniform1f(sShadowFadeLength, llclamp((F32)fade_length, 0.02f, 0.5f));
         // FSRenderShadowFitDepth: a shorter fade while the fit cuts the range, starting past what is in view
         F32 length = llclamp((F32)fade_length, 0.02f, 0.5f);
         if (!gCubeSnapshot)
@@ -12816,11 +12802,9 @@ static LLRenderTarget* fs_render_indirect(LLRenderTarget* screen)
         shader.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (GLfloat)full_x, (GLfloat)full_y);
         shader.uniform4f(s_params, llclamp((F32)radius, 0.25f, 8.f), llmin((F32)full_y * 0.2f, 256.f),
                          fmodf((F32)(frame % 4096) * 0.618034f, 1.f), 0.f);
-        // <FS:Trish> The scene map is last frame's: the bounce samples are looked up where they were then
-        static LLStaticHashedString s_ind_proj("fs_ind_proj");
-        shader.uniformMatrix4fv(s_ind_proj, 1, GL_FALSE, glm::value_ptr(get_current_projection()));
-        // The product with inv_modelview_delta (what bindDeferredShader set above, gGLInverseDeltaModelView)
-        // once here, not two matrix products per bounce sample. mat4 only (GLM_FORCE_DEFAULT_ALIGNED_GENTYPES).
+        // <FS:Trish> The scene map is last frame's: the bounce samples are looked up where they were then,
+        // through the projection times inv_modelview_delta (gGLInverseDeltaModelView), taken once here.
+        // mat4 only (GLM_FORCE_DEFAULT_ALIGNED_GENTYPES).
         static LLStaticHashedString s_ind_prev_clip("fs_ind_prev_clip");
         const glm::mat4 prev_clip = get_current_projection() * gGLInverseDeltaModelView;
         shader.uniformMatrix4fv(s_ind_prev_clip, 1, GL_FALSE, glm::value_ptr(prev_clip));
@@ -13019,13 +13003,11 @@ void LLPipeline::renderDeferredLighting()
                 // adding a per-fragment branch to the normal SSAO shader.
                 // <FS:Trish> PCSS soft shadows are built into gDeferredSunProgram alone, so with them on
                 // zero-strength SSAO keeps that program (its SSAO term is then a no-op)
-                //const bool skip_ssao = gCubeSnapshot || (RenderDeferredSSAO && RenderSSAOFactor == 0.f);
                 const bool skip_ssao = gCubeSnapshot || (RenderDeferredSSAO && RenderSSAOFactor == 0.f && !(RenderShadowPCSS && RenderShadowDetail > 0));
                 // </FS:Trish>
                 LLGLSLShader& sun_shader = skip_ssao ? gDeferredSunProbeProgram : gDeferredSunProgram;
                 // <FS:Trish> Half-resolution GTAO; zero-strength SSAO skips it as it skips stock SSAO
                 // (PCSS keeps the SSAO program then, its AO term unused)
-                //LLRenderTarget* fs_gtao_half = skip_ssao ? nullptr : fs_render_gtao_half(deferred_light_target);
                 LLRenderTarget* fs_gtao_half = (skip_ssao || RenderSSAOFactor == 0.f) ? nullptr : fs_render_gtao_half(deferred_light_target);
                 // </FS:Trish>
                 // <FS:Trish> FSRenderShadowScreenFilter: the light map plus penumbra target pair, made
@@ -13329,8 +13311,6 @@ void LLPipeline::renderDeferredLighting()
                 // <FS:Trish> FSRenderClusteredLights: the main view's point lights are handed over and
                 // shaded together after the loop; probe captures keep the stock passes. The point
                 // light glow (FSRenderPointLightScatter) takes the same lights, drawn or not.
-                //const bool fs_clustered = !gCubeSnapshot &&
-                //    gFSClusteredLights.begin(mat, get_current_projection(), screen_target->getWidth(), screen_target->getHeight());
                 const bool fs_clustered = fs_fast_lights &&
                     gFSClusteredLights.begin(mat, get_current_projection(), screen_target->getWidth(), screen_target->getHeight(), gCubeSnapshot);
                 // </FS:Trish>
@@ -13431,7 +13411,6 @@ void LLPipeline::renderDeferredLighting()
                         sFSLightStats.mBoxPoint += fs_count; // <FS:Trish/>
 
                         // <FS:Trish> Clustered: shaded with the others after the loop (kept for the glow either way)
-                        //if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
                         if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF), fs_lls_slot))
                         {
                             continue;
@@ -13440,7 +13419,6 @@ void LLPipeline::renderDeferredLighting()
 
                         // <FS:Trish> Batched: queue the light, drawn instanced after the loop. A light with a shadow
                         // map takes the stock light volume below, which samples it.
-                        //if (fs_batch_lights)
                         if (fs_batch_lights && fs_lls_slot < 0)
                         {
                             gFSPointLightBatch.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF));
@@ -13477,7 +13455,6 @@ void LLPipeline::renderDeferredLighting()
                         sFSLightStats.mInsidePoint += fs_count; // <FS:Trish/>
 
                         // <FS:Trish> Clustered: shaded with the others after the loop (kept for the glow either way)
-                        //if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF)))
                         if (fs_clustered && gFSClusteredLights.add(c, s, col, volume->getLightFalloff(DEFERRED_LIGHT_FALLOFF), fs_lls_slot))
                         {
                             continue;
@@ -13531,7 +13508,6 @@ void LLPipeline::renderDeferredLighting()
             // ones), exactly as setupSpotLight would have ranked it, and the stock loops skip that step.
             // Reflection probe captures keep the stock path throughout.
             // (and the probe faces with FSPerfProbeFastLights: ranking does nothing in them, as in setupSpotLight)
-            //const bool fs_batch_spots = !gCubeSnapshot && gFSSpotLightBatch.begin();
             const bool fs_batch_spots = fs_fast_lights && gFSSpotLightBatch.begin();
             if (fs_batch_spots)
             {
@@ -14672,7 +14648,6 @@ void LLPipeline::renderShadow(const glm::mat4& view, const glm::mat4& proj, LLCa
             }
 
             // <FS:Trish> With coloured shadows they tint this cascade instead of blocking light
-            //if (render_alpha_blend_shadows)
             if (render_alpha_blend_shadows && mColoredShadowCascade < 0 && mFSSpotColoredSlot < 0)
             // </FS:Trish>
             {
@@ -14789,7 +14764,6 @@ void LLPipeline::renderShadow(const glm::mat4& view, const glm::mat4& proj, LLCa
     }
 
     // <FS:Trish> coloured shadows: translucent casters of this sun cascade
-    //renderColoredShadowCasters();
     if (!fsShadowSinglePassDeferColored()) // FSPerfShadowSinglePass: after the merge, see fsShadowSinglePassFinish
     {
         renderColoredShadowCasters();
@@ -14833,7 +14807,6 @@ bool LLPipeline::fsRenderShadowOpaqueBatches(const U32* types, U32 type_count)
 
     const U32 filter = mFSShadowCasterFilter;
     // <FS:Trish> FSPerfGPUDrivenDraws: collect the list for the multi-draw too
-    //if (!merged_batches && filter == FS_SHADOW_ALL)
     const bool gpu_driven = fsGDDShadowEnabled(false);
     if (!merged_batches && filter == FS_SHADOW_ALL && !gpu_driven)
     // </FS:Trish>
@@ -15281,8 +15254,6 @@ void LLPipeline::fsShadowCacheBeginFrame(bool texel_snap)
             }
             // FSRenderMovingShadowCache: a group too small to cast into the map, before and after the change,
             // can't change it (the cascade cull leaves out whole groups by this size, isShadowCasterTooSmall)
-            //if (fs_filter && i / 2 < mFSShadowDirtySize.size() && mFSShadowDirtySize[i / 2] < cache.mMinCasterSize)
-            //if (fs_small_filter && i / 2 < mFSShadowDirtySize.size() && mFSShadowDirtySize[i / 2] < cache.mMinCasterSize)
             if (fs_small_filter && i / 2 < mFSShadowDirtySize.size() && mFSShadowDirtySize[i / 2] < fs_min_caster)
             {
                 ++motion_stats.mCacheSmallIgnored;
@@ -15596,7 +15567,6 @@ void LLPipeline::fsShadowCacheRenderStatic(LLCamera& shadow_cam, const U32* type
     // windows and depth ranges stay put while moving, so the next update mostly matches. Only with
     // FSPerfShadowStaticCacheStable: without it the window is placed again whenever the slice's centre crosses
     // a texel, so a map stored while moving never matched and its depth copy was wasted.
-    //const bool fs_moving_cache = FSMoving::shadowCacheEnabled() && FSMoving::moving();
     const bool fs_moving_cache = FSMoving::shadowCacheEnabled() && FSMoving::moving() && fs_shadow_cache_stable();
     const bool keep = cache.mMatch || cache.mStill || fs_moving_cache;
     // FSPerfShadowStaticCacheStable: by the index count per region matrix, which a rebuild that only
@@ -15745,7 +15715,6 @@ void LLPipeline::fsShadowCacheRenderStatic(LLCamera& shadow_cam, const U32* type
 
     if (batch_stats && stats_timer.getElapsedTimeF32() >= 10.f)
     {
-        //LL_INFOS("FSShadowBatches") << "Static shadow cache: " << hits << " reused, " << misses << " re-rendered far cascade updates" << LL_ENDL;
         std::string why;
         for (U32 r = 0; r < FS_SC_MISS_COUNT; ++r)
         {
@@ -17640,7 +17609,6 @@ void LLPipeline::renderSpotVolumetrics()
     const bool fs_points = FSClusteredLights::scatterWanted();
     // </FS:Trish>
 
-    //if (!enabled)
     if (!enabled && !fs_points) // <FS:Trish/>
     {
         mSpotVolumeMap.release();
@@ -17654,8 +17622,6 @@ void LLPipeline::renderSpotVolumetrics()
 
     // <FS:Trish> The projector cones only when their own settings ask for them (with the height
     // fog's air, their density setting is not used)
-    //if (strength <= 0.f || density <= 0.f || gSnapshotNoPost || sUnderWaterRender ||
-    //    !gFSSpotVolumetricProgram.isComplete() || !gFSSpotVolumetricCompositeProgram.isComplete())
     const bool fs_spots = enabled && strength > 0.f && (density > 0.f || spot_height_fog);
     if ((!fs_spots && !fs_points) || gSnapshotNoPost || sUnderWaterRender ||
         !gFSSpotVolumetricProgram.isComplete() || !gFSSpotVolumetricCompositeProgram.isComplete())
@@ -17681,7 +17647,6 @@ void LLPipeline::renderSpotVolumetrics()
     auto usable = [&](LLDrawable* drawable) -> LLVOVolume*
     {
         LLVOVolume* volume = drawable ? drawable->getVOVolume() : nullptr;
-        //if (!volume || !volume->isLightSpotlight() || (volume->isAttachment() && !sRenderAttachedLights))
         if (!fs_spots || !volume || !volume->isLightSpotlight() || (volume->isAttachment() && !sRenderAttachedLights)) // <FS:Trish/> no cones while only the glow runs
         {
             return nullptr;
@@ -17755,7 +17720,6 @@ void LLPipeline::renderSpotVolumetrics()
     lights.swap(drawn);
     // <FS:Trish> The point light glow's lists, from the light pass's lights
     const bool fs_points_drawn = fs_points && gFSClusteredLights.prepareScatter(point_max_lights);
-    //if (lights.empty())
     if (lights.empty() && !fs_points_drawn)
     // </FS:Trish>
     {
@@ -17816,7 +17780,6 @@ void LLPipeline::renderSpotVolumetrics()
 
         shader.bind();
         shader.bindTexture(LLShaderMgr::DEFERRED_DEPTH, &mRT->deferredScreen, true);
-        //shader.uniform1i(s_vol_steps, llclamp((S32)steps, 4, 64));
         shader.uniform1i(s_vol_steps, llclamp(march_steps, 4, 64)); // <FS:Trish/>
         shader.uniform1f(s_vol_frame_offset, temporal ? fmodf((F32)(LLFrameTimer::getFrameCount() % 4096) * 0.618034f, 1.f) : 0.f); // <FS:Trish/>
         shader.uniform1f(s_vol_density, (F32)density);
@@ -17826,7 +17789,6 @@ void LLPipeline::renderSpotVolumetrics()
         const S32 shadow_channel = shader.enableTexture(LLShaderMgr::DEFERRED_SHADOW0);
         const S32 proj_channel = shader.enableTexture(LLShaderMgr::DEFERRED_PROJECTION);
 
-        //bool first = true;
         bool first = !fs_glow_drawn; // <FS:Trish/> the glow wrote the distances
         for (const VolumeLight& light : lights)
         {
@@ -18074,10 +18036,8 @@ void LLPipeline::renderSpotVolumetrics()
         {
         // </FS:Trish>
         gFSSpotVolumetricCompositeProgram.bind();
-        //gFSSpotVolumetricCompositeProgram.bindTexture(LLShaderMgr::DEFERRED_DIFFUSE, &mSpotVolumeMap, false, LLTexUnit::TFO_POINT);
         gFSSpotVolumetricCompositeProgram.bindTexture(LLShaderMgr::DEFERRED_DIFFUSE, fs_volume, false, LLTexUnit::TFO_POINT); // <FS:Trish/>
         gFSSpotVolumetricCompositeProgram.bindTexture(LLShaderMgr::DEFERRED_DEPTH, &mRT->deferredScreen, true);
-        //gFSSpotVolumetricCompositeProgram.uniform1f(s_vol_strength, (F32)strength);
         gFSSpotVolumetricCompositeProgram.uniform1f(s_vol_strength, fs_spots ? (F32)strength : 1.f); // <FS:Trish/> the glow scales itself
         fs_draw_screen_triangle(mScreenTriangleVB);
         gFSSpotVolumetricCompositeProgram.unbind();
@@ -18301,7 +18261,6 @@ void LLPipeline::renderDustMotes()
     shader.uniform4fv(s_spot_color, FS_DUST_MAX_SPOTS, spot_color);
     shader.uniformMatrix4fv(s_view_to_world, 1, GL_FALSE, glm::value_ptr(view_to_world));
     // <FS:Trish> FSRenderReverseZ: the motes are rasterised with it, like everything syncMatrices projects
-    //shader.uniformMatrix4fv(s_proj, 1, GL_FALSE, glm::value_ptr(get_current_projection()));
     shader.uniformMatrix4fv(s_proj, 1, GL_FALSE, glm::value_ptr(FSReverseZ::rasterProjection(get_current_projection())));
     // </FS:Trish>
     shader.uniform3fv(s_cam_cell, 1, cam_cell);
@@ -18341,7 +18300,6 @@ void LLPipeline::renderDustMotes()
 // mask (each half resolution pixel hashing 27 noise cells) and copied in on the frames after,
 // one texel read per pixel, until the size or the strength changes. mask_strength: the strength
 // mask holds, -1 for none.
-//static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLVertexBuffer* vb)
 static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLRenderTarget& mask, F32& mask_strength, LLVertexBuffer* vb)
 // </FS:Trish>
 {
@@ -18392,11 +18350,6 @@ static void fs_apply_lens_dirt(LLRenderTarget& bloom, LLRenderTarget& mask, F32&
     gGL.blendFunc(LLRender::BF_DEST_COLOR, LLRender::BF_ONE);
     bloom.bindTarget();
     // <FS:Trish> The cached mask, texel for texel; the procedural pass if it could not be kept
-    //gFSLensDirtProgram.bind();
-    //gFSLensDirtProgram.uniform2f(LLShaderMgr::DEFERRED_SCREEN_RES, (F32)bloom.getWidth(), (F32)bloom.getHeight());
-    //gFSLensDirtProgram.uniform1f(s_strength, dirt);
-    //fs_draw_screen_triangle(vb);
-    //gFSLensDirtProgram.unbind();
     if (cached)
     {
         gCopyProgram.bind();
@@ -18427,6 +18380,10 @@ void LLPipeline::renderBloom()
     static LLCachedControl<F32> knee(gSavedSettings, "FSRenderBloomKnee", 0.5f);
     static LLCachedControl<S32> levels(gSavedSettings, "FSRenderBloomLevels", 6);
     static LLCachedControl<F32> exposure(gSavedSettings, "RenderExposure", 1.f);
+    // <FS:Trish> FSRenderBloomHQFilter, for the prefilter, down and up passes
+    static LLCachedControl<bool> bloom_hq(gSavedSettings, "FSRenderBloomHQFilter", true);
+    static LLStaticHashedString s_bloom_hq("fs_bloom_hq");
+    // </FS:Trish>
 
     mBloomLevelCount = 0;
     if (!enabled)
@@ -18493,9 +18450,7 @@ void LLPipeline::renderBloom()
         gFSBloomPrefilterProgram.uniform1f(s_threshold, llmax((F32)threshold, 0.f));
         gFSBloomPrefilterProgram.uniform1f(s_knee, llmax((F32)knee, 0.f));
         // <FS:Trish> FSRenderBloomHQFilter: firefly weights that keep the shape of evenly bright areas
-        static LLCachedControl<bool> bloom_hq_pre(gSavedSettings, "FSRenderBloomHQFilter", true);
-        static LLStaticHashedString s_bloom_hq_pre("fs_bloom_hq");
-        gFSBloomPrefilterProgram.uniform1i(s_bloom_hq_pre, bloom_hq_pre ? 1 : 0);
+        gFSBloomPrefilterProgram.uniform1i(s_bloom_hq, bloom_hq ? 1 : 0);
         // </FS:Trish>
         fs_draw_screen_triangle(mScreenTriangleVB);
         gFSBloomPrefilterProgram.unbind();
@@ -18504,8 +18459,6 @@ void LLPipeline::renderBloom()
         // Down the chain
         gFSBloomDownProgram.bind();
         // <FS:Trish> FSRenderBloomHQFilter: the 13 tap down and round 13 tap up kernels
-        static LLCachedControl<bool> bloom_hq(gSavedSettings, "FSRenderBloomHQFilter", true);
-        static LLStaticHashedString s_bloom_hq("fs_bloom_hq");
         gFSBloomDownProgram.uniform1i(s_bloom_hq, bloom_hq ? 1 : 0);
         // </FS:Trish>
         for (U32 i = 1; i < count; ++i)
@@ -18570,9 +18523,7 @@ void LLPipeline::renderBloom()
         gGL.setSceneBlendType(LLRender::BT_ADD);
         gFSBloomUpProgram.bind();
         // <FS:Trish> FSRenderBloomHQFilter
-        static LLCachedControl<bool> bloom_hq_up(gSavedSettings, "FSRenderBloomHQFilter", true);
-        static LLStaticHashedString s_bloom_hq_up("fs_bloom_hq");
-        gFSBloomUpProgram.uniform1i(s_bloom_hq_up, bloom_hq_up ? 1 : 0);
+        gFSBloomUpProgram.uniform1i(s_bloom_hq, bloom_hq ? 1 : 0);
         // </FS:Trish>
         for (S32 i = (S32)count - 1; i > 0; --i)
         {
@@ -18940,7 +18891,6 @@ bool LLPipeline::renderLensEffects(LLRenderTarget* src, LLRenderTarget* dst)
     // Scale with the target, so snapshots larger than the window and dynamic resolution look the
     // same. The world view, not the window, is what the main target covers; a large snapshot sets
     // the world view to the image size, so it takes the screen height from before the snapshot.
-    //ca *= (F32)dst->getHeight() / (F32)llmax(gViewerWindow->getWindowHeightRaw(), 1);
     const F32 target_scale = (F32)dst->getHeight() / llmax(gViewerWindow->getFSScreenEquivalentHeightRaw(), 1.f);
     ca *= target_scale;
 
@@ -18959,7 +18909,6 @@ bool LLPipeline::renderLensEffects(LLRenderTarget* src, LLRenderTarget* dst)
         if (!sun_up && !environment.getIsMoonUp())
         {
             // <FS:Trish> FSRenderLensFlareHQ: the bright lights on screen still flare
-            //flare = 0.f;
             if (!flare_hq)
             {
                 flare = 0.f;
@@ -18988,7 +18937,6 @@ bool LLPipeline::renderLensEffects(LLRenderTarget* src, LLRenderTarget* dst)
                 LLSettingsSky::ptr_t psky = environment.getCurrentSky();
                 const F32 moon_brightness = psky ? llclamp((F32)psky->getMoonBrightness(), 0.f, 1.f) : 1.f;
                 // <FS:Trish> FSRenderLensFlareHQ: only the moon's own flare, not that of the lights on screen
-                //flare *= llclamp((F32)moon_flare, 0.f, 1.f) * moon_brightness;
                 if (flare_hq)
                 {
                     flare_color *= llclamp((F32)moon_flare, 0.f, 1.f) * moon_brightness;
@@ -19282,8 +19230,6 @@ bool LLPipeline::fsFarCascadeStillFits(S32 cascade, const LLCamera& camera, F32 
             return false;
         }
         // <FS:Trish> FSRenderShadowCascadeBand: as the cascade loop
-        //frust[i] = eye + (delta * near_dist * 0.75f) / dp;
-        //frust[i + 4] = eye + (delta * far_dist * 1.25f) / dp;
         frust[i] = eye + (delta * near_dist * (1.f - FSShadowBias::cascadeBand())) / dp;
         frust[i + 4] = eye + (delta * far_dist * (1.f + FSShadowBias::cascadeBand())) / dp;
         // </FS:Trish>
@@ -19636,7 +19582,6 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
         // far part to the unused maps would leave the back of a room without shadows
         static LLCachedControl<bool> splits_full_range(gSavedSettings, "FSRenderShadowSplitsFullRange", false);
         const S32 fs_last_split = llclamp(RenderShadowSplits, 0, 3);
-        //const bool fs_full_range = splits_full_range && !gCubeSnapshot && fs_last_split < 3;
         const bool fs_full_range = (splits_full_range || fs_depth_fit) && !gCubeSnapshot && fs_last_split < 3;
         // </FS:Trish>
         for (U32 i = 0; i < 4; ++i)
@@ -19683,12 +19628,6 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
         ++mShadowFrame;
 
         // a FOV or aspect change moves the splits and frustum, and tiled snapshots render sub-frusta
-        //bool force = interval <= 1 || gSnapshot ||
-        //             dist_vec(camera.getOrigin(), mFarCascadeEye) > llmax(mSunClipPlanes.mV[3], 1.f) * 0.02f ||
-        //             camera.getAtAxis() * mFarCascadeAt < 0.9986f ||    // about 3 degrees
-        //             lightDir * mFarCascadeLight < 0.99999f ||          // about a quarter of a degree
-        //             fabsf(camera.getView() - mFarCascadeFov) > 1e-4f ||
-        //             fabsf(camera.getAspect() - mFarCascadeAspect) > 1e-4f;
         // FSRenderMovingShadowHold: moving or turning the camera doesn't render them all any more. A held map is
         // used for as long as the view's slice of it still fits inside it (fsFarCascadeStillFits, below): walking
         // with the follow camera moved 2% of the shadow range or turned 3 degrees within a few frames, so the far
@@ -20166,7 +20105,6 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
                 static bool fs_size_kept[4] = { false, false, false, false };
                 const bool fs_settle_size = fs_size_kept[j] && !fs_keep_size;
                 fs_size_kept[j] = fs_keep_size;
-                //if (radius > snap_radius[j] || (radius < snap_radius[j] * 0.7f && !fs_keep_size))
                 if (radius > snap_radius[j] || (radius < snap_radius[j] * 0.7f && !fs_keep_size) || fs_settle_size)
                 {
                     const F32 step = powf(2.f, floorf(log2f(radius)) - 4.f);
@@ -20449,8 +20387,6 @@ void LLPipeline::generateSunShadow(LLCamera& camera)
                 // show up in it. Not applied to probe shadows, which use their own path.
                 static LLCachedControl<F32> min_caster_texels(gSavedSettings, "RenderShadowMinCasterTexels", 1.f);
                 // ...and more of them in the far cascades, where small objects barely show
-                //static LLCachedControl<F32> far_caster_scale(gSavedSettings, "FSRenderShadowFarCascadeMinCasterScale", 1.f);
-                //const F32 cascade_caster_scale = j >= 2 ? llclamp((F32)far_caster_scale, 1.f, 16.f) : 1.f;
                 const F32 cascade_caster_scale = fs_shadow_cascade_caster_scale(j); // and in motion
                 const F32 min_caster_size = (!gCubeSnapshot && min_caster_texels > 0.f && llfinite(min_texel_size))
                     ? llmax(min_texel_size, 0.f) * min_caster_texels * cascade_caster_scale : 0.f;

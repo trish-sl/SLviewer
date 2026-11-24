@@ -45,7 +45,6 @@ namespace
 
     // the pass's values, from beginPass
     LLVector4 sParams;          // see fs_soft_particle in fsSoftParticlesF.glsl, x and w set per draw
-    F32 sInvDistance = 0.f;
     F32 sWaterInvDistance = 0.f;
 
     const LLStaticHashedString& params_name()
@@ -90,13 +89,13 @@ bool FSSoftParticles::beginPass()
     }
 
     static LLCachedControl<F32> distance(gSavedSettings, "FSRenderSoftParticlesDistance", 0.5f);
-    sInvDistance = 1.f / llclamp((F32)distance, 0.05f, 10.f);
-    sWaterInvDistance = water_drawn() ? sInvDistance : 0.f;
+    const F32 inv_distance = 1.f / llclamp((F32)distance, 0.05f, 10.f);
+    sWaterInvDistance = water_drawn() ? inv_distance : 0.f;
 
     // the camera's projection as the pass draws with it: [2][2] and [3][2] turn window depth into distance
     // (FSRenderReverseZ: the reversed depth row, which fsSoftParticlesF.glsl reads as such)
     const glm::mat4 proj = FSReverseZ::depthProjection(get_current_projection());
-    sParams.set(sInvDistance, proj[2][2], proj[3][2], 0.f);
+    sParams.set(inv_distance, proj[2][2], proj[3][2], 0.f);
     return true;
 }
 

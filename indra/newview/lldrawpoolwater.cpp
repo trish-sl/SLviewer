@@ -204,7 +204,6 @@ void LLDrawPoolWater::fsCaptureFoamDepth(LLRenderTarget& src)
     {
         sFSFoamDepth->release();
         // depth only: nothing reads a colour attachment (the shadow maps are allocated the same way)
-        //if (!sFSFoamDepth->allocate(width, height, GL_R8, true))
         if (!sFSFoamDepth->allocate(width, height, 0, true))
         {
             sFSFoamDepth->release();
@@ -405,7 +404,6 @@ void LLDrawPoolWater::renderPostDeferred(S32 pass)
         {
             //gGL.getTexUnit(channel)->bind(&gPipeline.mWaterDis, true);
             // <FS:Trish> The opaque depth, so alpha layers in the water don't stop the rays
-            //gGL.getTexUnit(channel)->bind(&water_dis, true);
             gGL.getTexUnit(channel)->bind(fs_water_opaque_depth(water_dis), true);
             // </FS:Trish>
         }
@@ -420,11 +418,6 @@ void LLDrawPoolWater::renderPostDeferred(S32 pass)
             // The camera is above water here, so it must be on the positive side. When it isn't
             // the plane is stale or for another surface: flipping it would clip the wrong half,
             // so a zero plane turns the clip off instead.
-            //if (plane.mV[VW] < 0.f)
-            //{
-            //    plane *= -1.f;
-            //}
-            //plane.mV[VW] += 0.05f;
             if (plane.mV[VW] < 0.f)
             {
                 plane.set(0.f, 0.f, 0.f, 0.f);
@@ -441,7 +434,6 @@ void LLDrawPoolWater::renderPostDeferred(S32 pass)
         shader->uniformMatrix4fv(LLShaderMgr::MODELVIEW_DELTA_MATRIX, 1, GL_FALSE, glm::value_ptr(identity));
         shader->uniformMatrix4fv(LLShaderMgr::INVERSE_MODELVIEW_DELTA_MATRIX, 1, GL_FALSE, glm::value_ptr(identity));
         // <FS:Trish> The main hi-Z pyramid is of mSceneMap, not this scene map: the water's own
-        //FSSSRHiZ::disable(*shader);
         if (water_hiz)
         {
             FSSSRHiZ::bindWater(*shader, water_dis);

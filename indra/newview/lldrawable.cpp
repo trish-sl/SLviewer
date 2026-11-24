@@ -1526,14 +1526,6 @@ void LLSpatialBridge::setVisible(LLCamera& camera_in, std::vector<LLDrawable*>* 
 
     // <FS:Trish> Avatars only snapshot: bridges also carry ordinary moving linksets, keep only
     // attachments and what the include options add (animesh, seats, the selection)
-    //if (LLPipeline::isAvatarOnlyRender())
-    //{
-    //    LLViewerObject* root = mDrawable->getVObj();
-    //    if (!root || !(root->isAvatar() || root->isAttachment() || root->isAnimatedObject()))
-    //    {
-    //        return;
-    //    }
-    //}
     if (LLPipeline::isAvatarOnlyRender() && !LLPipeline::isAvatarOnlyObject(mDrawable->getVObj()))
     {
         return;

@@ -449,7 +449,7 @@ namespace
                       OBJECT_WAKE_GAIN);
         }
 
-        const size_t max_sources = (size_t)llclamp(settings.mMaxSources, 1, MAX_SOURCES);
+        const size_t max_sources = (size_t)settings.mMaxSources; // clamped by readSettings
         if (out.size() > max_sources)
         {
             std::nth_element(out.begin(), out.begin() + max_sources, out.end(),
@@ -671,8 +671,9 @@ namespace
         GLfloat waterline_g[4] = { 0.f, 0.f, 0.f, 0.f };
         S64 mask_x = 0;
         S64 mask_y = 0;
-        LLRenderTarget* mask = FSWaterObstacles::enabled() ? FSWaterObstacles::mask(sCell, mask_x, mask_y) : nullptr;
-        if (FSWaterObstacles::enabled())
+        const bool obstacles = FSWaterObstacles::enabled();
+        LLRenderTarget* mask = obstacles ? FSWaterObstacles::mask(sCell, mask_x, mask_y) : nullptr;
+        if (obstacles)
         {
             FSWaterObstacles::noteSimulation(mask != nullptr);
         }

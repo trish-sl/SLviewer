@@ -51,6 +51,7 @@ namespace
     constexpr F64 LOD_DECREASE_HOLD_SECONDS = 3.0;
     constexpr U32 CATCH_UP_PER_FRAME = 256;
     constexpr U32 CATCH_UP_PER_HEAVY_FRAME = 32;    // while the last frame's group rebuilds took over 4 ms
+    std::unordered_map<LLUUID, F64> sHeldLOD;
     F32 sLastGroupMs = 0.f;
 
     // FSRenderMovingRebuildBudget: how long the budget stays on after the camera settles, so what the walk held
@@ -61,7 +62,6 @@ namespace
 
     // FSLimitFramerate's sleep at the end of the last frame, ms
     F32 sLimiterSleepMs = 0.f;
-    std::unordered_map<LLUUID, F64> sHeldLOD;
 
     // FSRenderMovingShadowCache: whether a drawable's last geometry update was a detail change only. Keyed by
     // pointer, only compared: an entry is taken when the drawable's group rebuilds, and a new drawable's first

@@ -45,8 +45,6 @@ public:
     void addFavorite(const LLUUID& avatar_id);
     void removeFavorite(const LLUUID& avatar_id);
     void toggleFavorite(const LLUUID& avatar_id);
-    const std::set<LLUUID>& getFavorites() const { return mFavoriteContacts; }
-    bool hasFavorites() const { return !mFavoriteContacts.empty(); }
     void loadFavorites();
     void saveFavorites();
 

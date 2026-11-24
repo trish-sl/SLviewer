@@ -148,7 +148,6 @@ void FSFloaterFindUses::searchObject(LLViewerObject* object, const LLVector3d& a
         return;
     }
 
-    // as the texture panel does: a face past either count has no data to read
     // The texture entries, not the drawn faces: an object not drawn yet (beyond the draw distance,
     // still loading) has no faces, but its entries say what it uses all the same
     const S32 face_count = (S32)object->getNumTEs();
