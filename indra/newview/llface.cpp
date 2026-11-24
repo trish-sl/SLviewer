@@ -1233,10 +1233,17 @@ bool LLFace::canRenderAsMask()
         return true;
     }
 
-    if (isState(LLFace::RIGGED))
+    // <FS:Trish> FSRenderAutoMaskRiggedAlpha: rigged faces may be auto masked like the others
+    //if (isState(LLFace::RIGGED))
+    //{ // never auto alpha-mask rigged faces
+    //    return false;
+    //}
+    static LLCachedControl<bool> fs_rigged_mask(gSavedSettings, "FSRenderAutoMaskRiggedAlpha", false);
+    if (isState(LLFace::RIGGED) && !fs_rigged_mask)
     { // never auto alpha-mask rigged faces
         return false;
     }
+    // </FS:Trish>
 
 
     LLMaterial* mat = te->getMaterialParams();

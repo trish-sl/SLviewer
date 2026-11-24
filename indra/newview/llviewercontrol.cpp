@@ -1615,6 +1615,7 @@ void settings_setup_listeners()
     setting_setup_signal_listener(gSavedSettings, "OctreeDistanceFactor", handleRepartition);
     setting_setup_signal_listener(gSavedSettings, "OctreeMaxNodeCapacity", handleRepartition);
     setting_setup_signal_listener(gSavedSettings, "FSRenderAvatarTintOpaqueAlpha", handleRepartition); // <FS:Trish/> every face's pool is chosen again
+    setting_setup_signal_listener(gSavedSettings, "FSRenderAutoMaskRiggedAlpha", handleRepartition); // <FS:Trish/> every face's pass is chosen again
     setting_setup_signal_listener(gSavedSettings, "OctreeAlphaDistanceFactor", handleRepartition);
     setting_setup_signal_listener(gSavedSettings, "OctreeAttachmentSizeFactor", handleRepartition);
     setting_setup_signal_listener(gSavedSettings, "RenderMaxTextureIndex", handleSetShaderChanged);

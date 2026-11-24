@@ -28573,6 +28573,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>0.0</real>
     </map>
+    <key>FSRenderAutoMaskRiggedAlpha</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. Rigged mesh faces are auto alpha masked like other faces: a rigged face with an alpha texture whose alpha is (nearly) all on or off, no blend material, a face colour alpha of 1 and no glow is drawn as a cutout in the deferred pass (as RenderAutoMaskAlphaDeferred does for unrigged faces) instead of blended in the forward alpha pass; the stock viewer never masks rigged faces. Changes the picture: the edges of such faces lose their soft fringe (the texture's alpha is cut at the mask threshold), and they take deferred lighting and shadows like opaque surfaces. The #FSAvatarCost# log's could-be-cutout count says how much this would move. Changing it rebuilds every object.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>Boolean</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>
