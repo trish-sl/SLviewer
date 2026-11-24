@@ -77,6 +77,7 @@ namespace
         { "FollowCamFollowSubjectRotation", CL, VN },
         { "FSReportCameraAtAvatar", CL, VN },
         { "FSMouseLookPassonFix", CL, VN },
+        { "FSGameControlAnalogMovement", CL, VN },
         { "FSRenderNeighborAdjacentOnly", CS, VN },
         { "FSExperimentalReleaseNonAdjacentRegions", CS, VN },
         { "FSFetchOfflineIMsWhileOnline", CL, VN },

@@ -27,6 +27,7 @@
 #include "llgamecontrol.h"
 
 #include <algorithm>
+#include <cmath> // <FS:Trish/> Game control: analog avatar movement (sqrtf)
 #include <unordered_map>
 
 #include "SDL3/SDL.h"
@@ -2262,6 +2263,11 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
     // action directions
     const auto& axis_bridge = avatarAxisBridge();
     S32 movement_magnitude = 0;
+    // <FS:Trish> Game control: analog avatar movement. Largest signed deflection
+    // seen on each ground movement axis this frame, for AgentActions::mMoveMagnitude.
+    S32 advance_value = 0;
+    S32 strafe_value = 0;
+    // </FS:Trish>
     S32 yaw_value = 0;
     S32 pitch_value = 0;
     S32 mouse_dx = 0;
@@ -2365,6 +2371,13 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
             // Largest deflection seen on a ground-movement axis (Strafe/Advance) this frame,
             // drives the analog "is running" hysteresis.
             movement_magnitude = std::max(movement_magnitude, std::abs(value));
+            // <FS:Trish> Game control: analog avatar movement
+            S32& ground_axis_value = (binding.label == "Advance forward/back") ? advance_value : strafe_value;
+            if (std::abs(value) > std::abs(ground_axis_value))
+            {
+                ground_axis_value = value;
+            }
+            // </FS:Trish>
         }
         else if (binding.label == "Turn left/right" && std::abs(value) > std::abs(yaw_value))
         {
@@ -2458,6 +2471,17 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
             {
                 pitch_value = -32767;
             }
+            // <FS:Trish> Game control: analog avatar movement. A held movement
+            // button counts as a fully pushed stick, like the Turn/Look buttons above.
+            else if (label == "Advance forward" || label == "Advance back")
+            {
+                advance_value = 32767;
+            }
+            else if (label == "Strafe left" || label == "Strafe right")
+            {
+                strafe_value = 32767;
+            }
+            // </FS:Trish>
             continue;
         }
         auto bit = mouse_button_bridge.find(label);
@@ -2506,6 +2530,27 @@ LLGameControl::AgentActions LLGameControllerManager::computeAgentActions()
     }
 
     result.mIsRunning = mIsAnalogRunning;
+
+    // <FS:Trish> Game control: analog avatar movement
+    // Circular deflection of the ground movement pair, so a full diagonal push on a
+    // round-gated stick (0.7, 0.7) still reads as all the way.
+    F32 advance_fraction = (F32)advance_value / 32767.f;
+    F32 strafe_fraction = (F32)strafe_value / 32767.f;
+    result.mMoveMagnitude = std::min(1.f, sqrtf(advance_fraction * advance_fraction + strafe_fraction * strafe_fraction));
+
+    // The left stick button toggles always-run (LLAgent decides whether to act on
+    // it) when nothing is bound to it in the active mode. The defaults leave it
+    // unbound in every mode, so a non-empty label means the user bound it to
+    // something in the Game Control preferences, and that binding wins. Not in
+    // FlyCam (or Cursor over FlyCam), which has no avatar movement to speed up.
+    if (mLookupMode != LLGameControl::CONTROL_MODE_FLYCAM
+        && !mLookupCursorOverFlycam
+        && mButtonActionLabels[LLGameControl::BUTTON_LEFT_STICK].empty()
+        && (pressed_edges & (1U << LLGameControl::BUTTON_LEFT_STICK)))
+    {
+        result.mMiscActionBits |= LLGameControl::AVATAR_ACTION_TOGGLE_RUN;
+    }
+    // </FS:Trish>
 
     result.mYawAmplitude = std::clamp((F32)yaw_value / 32767.f, -1.f, 1.f);
     result.mPitchAmplitude = std::clamp((F32)pitch_value / 32767.f, -1.f, 1.f);

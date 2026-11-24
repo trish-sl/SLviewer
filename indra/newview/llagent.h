@@ -664,6 +664,30 @@ private:
     U32 mPrevMouseButtonBits { 0 };
     bool mToggleRun { true };
 
+    // <FS:Trish> Game control: analog avatar movement (FSGameControlAnalogMovement).
+    // The left stick's deflection picks a speed tier for the controller-driven
+    // avatar: slow, walk, or (only with always-run on) run. Nothing else, not the
+    // flycam, the keyboard or the GameControlData sent to the server, goes through
+    // this.
+    enum EFSAnalogMoveTier : S32
+    {
+        FS_ANALOG_TIER_NONE = 0, // the controller isn't driving ground movement
+        FS_ANALOG_TIER_SLOW,
+        FS_ANALOG_TIER_WALK,
+        FS_ANALOG_TIER_RUN
+    };
+    // Picks this frame's tier from actions.mMoveMagnitude (with hysteresis) and
+    // keeps the server's run state in step with it (see mFSAnalogWalkHold).
+    // 'moving' is whether the controller set a forward/back/strafe flag this frame.
+    EFSAnalogMoveTier fsUpdateAnalogMoveTier(const LLGameControl::AgentActions& actions, bool moving);
+    EFSAnalogMoveTier mFSAnalogMoveTier { FS_ANALOG_TIER_NONE };
+    // While the stick is in the slow or walk tier, the server is told the avatar
+    // is not running even if always-run (or a keyboard temp run) is on, so the
+    // tier below run really walks; mbAlwaysRun itself is left alone, and the
+    // normal state is sent again as soon as the tier is run or the stick is released.
+    bool mFSAnalogWalkHold { false };
+    // </FS:Trish>
+
     // CONTROL_MODE_CURSOR: toggled by AVATAR_ACTION_TOGGLE_MOUSE_CURSOR, same pattern
     // as LLAgentCamera's flycam toggle. mLastMouseCursorUpdate is the previous frame's
     // timestamp used to compute the cursor's per-frame movement delta; reset to 0

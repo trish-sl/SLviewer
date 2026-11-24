@@ -4071,7 +4071,11 @@ void LLAgent::sendWalkRun()
         msgsys->addUUIDFast(_PREHASH_SessionID, getSessionID());
 //      msgsys->addBOOLFast(_PREHASH_AlwaysRun, bool(running) );
 // [RLVa:KB] - Checked: 2011-05-11 (RLVa-1.3.0i) | Added: RLVa-1.3.0i
-        msgsys->addBOOLFast(_PREHASH_AlwaysRun, getRunning());
+//        msgsys->addBOOLFast(_PREHASH_AlwaysRun, getRunning());
+        // <FS:Trish> Game control: analog avatar movement. A lightly pushed stick
+        // walks even with always-run on: see mFSAnalogWalkHold.
+        msgsys->addBOOLFast(_PREHASH_AlwaysRun, getRunning() && !mFSAnalogWalkHold);
+        // </FS:Trish>
 // [/RLVa:KB]
         sendReliableMessage();
     }
@@ -6340,6 +6344,24 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
         resetToAvatarMode();
     }
 
+    // <FS:Trish> Game control: analog avatar movement. The unbound left stick
+    // button toggles always-run, the same as the keyboard's toggle_run action
+    // (llviewerinput.cpp), so RLVa's @alwaysrun restriction applies through
+    // setAlwaysRun(). Edge-triggered by computeAgentActions(): one toggle per press.
+    static LLCachedControl<bool> fs_analog_movement(gSavedSettings, "FSGameControlAnalogMovement");
+    if ((misc_actions & LLGameControl::AVATAR_ACTION_TOGGLE_RUN) && fs_analog_movement && !isUsingFlycam())
+    {
+        if (getAlwaysRun())
+        {
+            clearAlwaysRun();
+        }
+        else
+        {
+            setAlwaysRun();
+        }
+    }
+    // </FS:Trish>
+
     // CONTROL_MODE_CURSOR: drive the actual on-screen cursor from
     // actions.mMouseCursorDX/DY (the analog deflection of whatever's bound to "Mouse
     // left/right"/"Mouse up/down") BEFORE the click dispatch below, so a synthesized
@@ -6416,8 +6438,15 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
     // every frame even though the player is moving with the keyboard instead.
     constexpr U32 CONTROLLER_MOVEMENT_FLAGS = AGENT_CONTROL_AT_POS | AGENT_CONTROL_AT_NEG
                                              | AGENT_CONTROL_LEFT_POS | AGENT_CONTROL_LEFT_NEG;
-    if ((actions.mControlFlags & CONTROLLER_MOVEMENT_FLAGS)
+//    if ((actions.mControlFlags & CONTROLLER_MOVEMENT_FLAGS)
+//        && actions.mIsRunning != getRunning())
+    // <FS:Trish> Game control: analog avatar movement. With the option on the
+    // stick never starts a run by itself: the speed tiers below only ever run
+    // when always-run is toggled on, so the full-deflection temp run stays off.
+    if (!fs_analog_movement
+        && (actions.mControlFlags & CONTROLLER_MOVEMENT_FLAGS)
         && actions.mIsRunning != getRunning())
+    // </FS:Trish>
     {
 //        if (actions.mIsRunning)
 //        {
@@ -6461,11 +6490,36 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
         return;
     }
 
+    // <FS:Trish> Game control: analog avatar movement. One speed tier for the
+    // whole ground movement (forward/back and strafe share the stick): slow is
+    // moveAt() plus AGENT_CONTROL_STOP, which is what holding the space bar
+    // (stop_moving) while walking does and slows the avatar without a hop, or
+    // the nudge flags with FSGameControlSlowUsesStop off; walk is the plain
+    // moveAt(); run is the plain moveAt() with the server's run state restored.
+    static LLCachedControl<bool> fs_slow_uses_stop(gSavedSettings, "FSGameControlSlowUsesStop");
+    EFSAnalogMoveTier fs_tier = fsUpdateAnalogMoveTier(actions, (mExternalActionFlags & CONTROLLER_MOVEMENT_FLAGS) != 0);
+    bool fs_nudge = (fs_tier == FS_ANALOG_TIER_SLOW) && !fs_slow_uses_stop;
+    if (fs_tier == FS_ANALOG_TIER_SLOW && fs_slow_uses_stop)
+    {
+        setControlFlags(AGENT_CONTROL_STOP);
+    }
+    // </FS:Trish>
+
     S32 direction = (S32)(mExternalActionFlags & AGENT_CONTROL_AT_POS)
         - (S32)((mExternalActionFlags & AGENT_CONTROL_AT_NEG) >> 1);
     if (direction != 0)
     {
-        moveAt(direction);
+//        moveAt(direction);
+        // <FS:Trish> Game control: analog avatar movement
+        if (fs_nudge)
+        {
+            moveAtNudge(direction);
+        }
+        else
+        {
+            moveAt(direction);
+        }
+        // </FS:Trish>
     }
 
     static U32 last_non_fly_frame = 0;
@@ -6512,7 +6566,17 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
         - (S32)((mExternalActionFlags & AGENT_CONTROL_LEFT_NEG) >> 1);
     if (direction != 0)
     {
-        moveLeft(direction);
+//        moveLeft(direction);
+        // <FS:Trish> Game control: analog avatar movement
+        if (fs_nudge)
+        {
+            moveLeftNudge(direction);
+        }
+        else
+        {
+            moveLeft(direction);
+        }
+        // </FS:Trish>
     }
 
     direction = (S32)(mExternalActionFlags & AGENT_CONTROL_YAW_POS)
@@ -6618,6 +6682,83 @@ void LLAgent::applyExternalActions(const LLGameControl::AgentActions& actions)
         standUp();
     }
 }
+
+// <FS:Trish> Game control: analog avatar movement
+LLAgent::EFSAnalogMoveTier LLAgent::fsUpdateAnalogMoveTier(const LLGameControl::AgentActions& actions, bool moving)
+{
+    static LLCachedControl<bool> fs_analog_movement(gSavedSettings, "FSGameControlAnalogMovement");
+    static LLCachedControl<F32> fs_slow_below(gSavedSettings, "FSGameControlSlowBelow");
+    static LLCachedControl<F32> fs_run_at(gSavedSettings, "FSGameControlRunAt");
+    // A tier is only dropped once the stick comes back this much past its
+    // threshold, so a stick resting right on a boundary doesn't flip between
+    // two sets of control flags every frame.
+    constexpr F32 TIER_HYSTERESIS = 0.05f;
+
+    // Only the avatar's own ground/fly movement: not a vehicle or seat (Captive),
+    // not the cursor mode's D-pad, never the flycam (applyExternalActions()
+    // returns before getting here while it is engaged).
+    LLGameControl::AgentControlMode mode = LLGameControl::getAgentControlMode();
+    bool applies = fs_analog_movement && moving
+        && (mode == LLGameControl::CONTROL_MODE_AVATAR || mode == LLGameControl::CONTROL_MODE_MOUSELOOK);
+
+    EFSAnalogMoveTier tier = FS_ANALOG_TIER_NONE;
+    if (applies)
+    {
+        F32 slow_below = llclamp((F32)fs_slow_below, 0.f, 1.f);
+        F32 run_at = llclamp((F32)fs_run_at, slow_below, 1.f);
+        // The dead zone and the 12.5% on/off threshold are already applied: no
+        // movement flag is set below them, so 'moving' is false there.
+        F32 magnitude = llclamp(actions.mMoveMagnitude, 0.f, 1.f);
+
+        tier = FS_ANALOG_TIER_SLOW;
+        if (magnitude >= slow_below)
+        {
+            tier = FS_ANALOG_TIER_WALK;
+        }
+        if (magnitude >= run_at)
+        {
+            tier = FS_ANALOG_TIER_RUN;
+        }
+        if (tier < mFSAnalogMoveTier)
+        {
+            F32 drop_below = (mFSAnalogMoveTier == FS_ANALOG_TIER_RUN ? run_at : slow_below) - TIER_HYSTERESIS;
+            if (magnitude >= drop_below)
+            {
+                tier = mFSAnalogMoveTier;
+            }
+        }
+        // The stick never runs on its own: run only when always-run is toggled
+        // on (L3, the keyboard toggle or the menu).
+        if (tier == FS_ANALOG_TIER_RUN && !getAlwaysRun())
+        {
+            tier = FS_ANALOG_TIER_WALK;
+        }
+        // In the air the slow tier is not used: the stop flag hovers rather than
+        // creeps and a nudge is a ground step. Flying has normal speed below the
+        // run threshold and, with always-run on, the faster run flight above it.
+        if (tier == FS_ANALOG_TIER_SLOW && getFlying())
+        {
+            tier = FS_ANALOG_TIER_WALK;
+        }
+    }
+    mFSAnalogMoveTier = tier;
+
+    // Below the run tier the server must see "not running", or always-run (or a
+    // keyboard temp run) would turn the walk tiers into a run. Only send when
+    // the value on the wire actually changes.
+    bool hold = applies && tier != FS_ANALOG_TIER_RUN;
+    if (hold != mFSAnalogWalkHold)
+    {
+        bool was_running = getRunning() && !mFSAnalogWalkHold;
+        mFSAnalogWalkHold = hold;
+        if (was_running != (getRunning() && !mFSAnalogWalkHold))
+        {
+            sendWalkRun();
+        }
+    }
+    return tier;
+}
+// </FS:Trish>
 
 bool LLAgent::isUsingFlycam() const
 {

@@ -101,6 +101,50 @@
     <key>Value</key>
     <integer>1</integer>
   </map>
+  <key>FSGameControlAnalogMovement</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller: how far the left stick is pushed sets the avatar's speed. A light push walks slowly (the slow walk of holding the space bar while walking), further walks, and all the way runs only when always-run is on; the stick never starts a run by itself. Pressing the left stick (L3) toggles always-run, like the keyboard's toggle-run, as long as nothing is bound to that button in the Game Control preferences. Affects only the controller's avatar movement: not the flycam, the keyboard or the data sent to the server. Thresholds: FSGameControlSlowBelow and FSGameControlRunAt; slow walk mechanism: FSGameControlSlowUsesStop.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>Boolean</string>
+    <key>Value</key>
+    <integer>1</integer>
+  </map>
+  <key>FSGameControlSlowBelow</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller, with FSGameControlAnalogMovement: left stick deflection (0 to 1 of full travel) below which the avatar walks slowly instead of walking. The dead zone still applies underneath. Clamped to 0..1.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>F32</string>
+    <key>Value</key>
+    <real>0.45</real>
+  </map>
+  <key>FSGameControlRunAt</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller, with FSGameControlAnalogMovement: left stick deflection (0 to 1 of full travel) at or above which the avatar runs, only while always-run is on; below it the avatar walks even with always-run on. Clamped to FSGameControlSlowBelow..1.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>F32</string>
+    <key>Value</key>
+    <real>0.9</real>
+  </map>
+  <key>FSGameControlSlowUsesStop</key>
+  <map>
+    <key>Comment</key>
+    <string>Game controller, with FSGameControlAnalogMovement: how the slow walk tier is sent. On: walk with the stop flag held, which is what holding the space bar while walking does. Off: the nudge movement flags instead.</string>
+    <key>Persist</key>
+    <integer>1</integer>
+    <key>Type</key>
+    <string>Boolean</string>
+    <key>Value</key>
+    <integer>1</integer>
+  </map>
   <key>FSLandmarkCreatedNotification</key>
   <map>
     <key>Comment</key>

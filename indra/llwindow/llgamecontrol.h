@@ -558,6 +558,12 @@ public:
         // straight back to plain Avatar mode, clearing whichever of Mouselook/
         // Cursor (and FlyCam, via FLYCAM_ACTION_ESCAPE below) got it there.
         AVATAR_ACTION_ESCAPE              = 1u << 6,
+        // <FS:Trish> Game control: analog avatar movement. Set on the frame the
+        // left stick button (BUTTON_LEFT_STICK) is pressed while nothing is bound
+        // to it in the active mode (the default), so LLAgent can use it as the
+        // always-run toggle when FSGameControlAnalogMovement is on.
+        AVATAR_ACTION_TOGGLE_RUN          = 1u << 7,
+        // </FS:Trish>
     };
 
     enum FlycamMiscAction : U32
@@ -616,6 +622,14 @@ public:
         // data. Consumed by LLAgent::applyExternalActions() via
         // LLAgentCamera::scrollCamera(). Positive scrolls in (camera moves closer).
         F32 mScrollAmplitude { 0.f };
+
+        // <FS:Trish> Game control: analog avatar movement. How far the ground
+        // movement input is pushed, [0, 1]: the combined (circular) deflection of
+        // the "Advance forward/back" and "Strafe left/right" axes, or 1 when a
+        // movement button ("Advance forward" etc.) is held. Consumed by
+        // LLAgent::applyExternalActions() for the slow/walk/run speed tiers.
+        F32 mMoveMagnitude { 0.f };
+        // </FS:Trish>
     };
 
     // Keyboard presses produce action_flags which can be translated into State
