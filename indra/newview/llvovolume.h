@@ -458,6 +458,11 @@ public:
     F32 mLODDistance;
     F32 mLODAdjustedDistance;
     F32 mLODRadius;
+    // <FS:Trish> FSRenderAvatarTriangleBudget (fsavatartribudget.cpp): levels of detail taken off the one calcLOD
+    // computes for a rigged mesh, and that level itself (-1 until calcLOD computed one)
+    S32 mFSLODBias = 0;
+    S32 mFSUnbiasedLOD = -1;
+    // </FS:Trish>
 
     F32 mVolumeSurfaceArea; // ZK LBG
 

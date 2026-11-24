@@ -2106,6 +2106,14 @@ bool LLVOVolume::calcLOD()
     else
     {
         cur_detail = computeLODDetail(ll_round(distance, 0.01f), ll_round(radius, 0.01f), lod_factor);
+        // <FS:Trish> FSRenderAvatarTriangleBudget: the budget pass reads the level the distance gives this mesh and sets
+        // the levels to take off it
+        mFSUnbiasedLOD = cur_detail;
+        if (mFSLODBias > 0)
+        {
+            cur_detail = llmax(cur_detail - mFSLODBias, 0);
+        }
+        // </FS:Trish>
     }
 
     if (gPipeline.hasRenderDebugMask(LLPipeline::RENDER_DEBUG_TRIANGLE_COUNT) && mDrawable->getFace(0))

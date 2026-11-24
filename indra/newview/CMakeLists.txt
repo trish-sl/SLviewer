@@ -110,6 +110,7 @@ set(viewer_SOURCE_FILES
     fsassetblacklist.cpp
     fsavataralpha.cpp
     fsavatarrenderpersistence.cpp
+    fsavatartribudget.cpp
     fsavatarsearchmenu.cpp
     fsblocklistmenu.cpp
     fscameralinks.cpp
@@ -1068,6 +1069,7 @@ set(viewer_HEADER_FILES
     fsassetblacklist.h
     fsavataralpha.h
     fsavatarrenderpersistence.h
+    fsavatartribudget.h
     fsavatarsearchmenu.h
     fsblocklistmenu.h
     fscameralinks.h

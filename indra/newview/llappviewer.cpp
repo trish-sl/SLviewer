@@ -37,6 +37,7 @@
 #include "fsavatarcostlog.h" // <FS:Trish/> FSRenderGPUTimings
 #include "fsparticlerender.h" // <FS:Trish/> FSRenderGPUTimings: the particle line
 #include "fsavataralpha.h" // <FS:Trish/> FSRenderGPUTimings: the avatar alpha line
+#include "fsavatartribudget.h" // <FS:Trish/> FSRenderAvatarTriangleBudget
 #include "fsgpuworkdiag.h" // <FS:Trish/> FSDiagnosticsGPUWork
 #include "fsnativepopout.h"
 
@@ -1996,6 +1997,7 @@ bool LLAppViewer::doFrame()
         FSAvatarCostLog::frame(gpu_timings && LLStartUp::getStartupState() >= STATE_STARTED, gpu_timings_interval);
         FSParticleRender::frame(gpu_timings && LLStartUp::getStartupState() >= STATE_STARTED, gpu_timings_interval);
         FSAvatarAlpha::frame(gpu_timings && LLStartUp::getStartupState() >= STATE_STARTED, gpu_timings_interval);
+        FSAvatarTriangleBudget::frame(gpu_timings && LLStartUp::getStartupState() >= STATE_STARTED, gpu_timings_interval); // runs whenever its setting is on, logs with the timings
         if (LLStartUp::getStartupState() >= STATE_STARTED)
         {
             FSGPUWorkDiag::frame(); // FSDiagnosticsGPUWork

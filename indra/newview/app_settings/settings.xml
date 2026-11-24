@@ -28595,6 +28595,17 @@ Change of this parameter will affect the layout of buttons in notification toast
       <key>Value</key>
       <real>0.0</real>
     </map>
+    <key>FSRenderAvatarTriangleBudget</key>
+    <map>
+      <key>Comment</key>
+      <string>EXPERIMENTAL. 0 is off. Otherwise about this many triangles per other avatar (not you, not animesh): once a frame the rigged meshes of each avatar drawn in full are summed at the detail level the camera's distance gives them (the mesh header's estimate per level), and while the sum is over the budget the mesh with the most triangles is stepped down one level, as if it were farther away. The steps depend only on the camera distance and the meshes, so they don't flap. Meshes already at their lowest level go no further; a mesh whose header hasn't loaded counts at its current size and isn't stepped. Changes the picture: the heaviest bodies, hair and clothing of nearby avatars show at a lower detail. A heavy avatar runs 300k to 1M triangles; try 300000. With FSRenderGPUTimings on, the #FSAvatarCost# log reports what was stepped down.</string>
+      <key>Persist</key>
+      <integer>1</integer>
+      <key>Type</key>
+      <string>U32</string>
+      <key>Value</key>
+      <integer>0</integer>
+    </map>
     <key>FSRenderSoftParticles</key>
     <map>
       <key>Comment</key>
