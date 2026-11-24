@@ -31,6 +31,10 @@
 
 #include "llgl.h"
 #include "llrender.h"
+// <FS:Trish>
+#include <atomic>
+#include <memory>
+// </FS:Trish>
 
 /*
  Wrapper around OpenGL framebuffer objects for use in render-to-texture
@@ -148,6 +152,7 @@ public:
     U32 getNumTextures() const;
 
     U32 getDepth(void) const { return mDepth; }
+    U32 getFSDepthFormat() const { return mFSDepthFormat; } // <FS:Trish/> mDepth's internal format, 0 without one
 
     void bindTexture(U32 index, S32 channel, LLTexUnit::eTextureFilterOptions filter_options = LLTexUnit::TFO_BILINEAR);
 
@@ -190,6 +195,14 @@ protected:
 
     U32 mDepth;
     U32 mFSDepthFormat = 0; // <FS:Trish/> FSRenderReverseZ: mDepth's internal format (float or 24 bit)
+    // <FS:Trish> FSRenderThread: set on the render thread when the check of this allocation, made
+    // there after the fact, finds it failed; isComplete() is then false and allocate() makes it
+    // again. Shared with the queued check, so the check may run after the target is gone. Replaced
+    // with each allocation (release() drops it), so a late check can't mark a newer one.
+    std::shared_ptr<std::atomic<bool>> mFSAllocFailed;
+    const std::shared_ptr<std::atomic<bool>>& fsAllocFlag();
+    bool fsAllocFailed() const { return mFSAllocFailed && mFSAllocFailed->load(std::memory_order_acquire); }
+    // </FS:Trish>
     bool mUseDepth;
     LLTexUnit::eTextureMipGeneration mGenerateMipMaps;
     U32 mMipLevels;

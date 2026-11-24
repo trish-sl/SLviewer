@@ -141,15 +141,18 @@ float fsPointShadowFactor(int slot, vec3 pos_agent, vec3 n_agent)
     float ref = 0.5 * (dp.x - dp.y / max(m - texel * FS_LLS_DEPTH_BIAS, dp.z)) + 0.5;
     vec2 du = fs_lls_atlas.xy / fs_lls_atlas.w;         // one texel of the atlas
 
-    float s = 4.0 * texture(fs_lls_map, vec3(uv, ref));
-    s += 2.0 * (texture(fs_lls_map, vec3(uv + vec2(du.x, 0.0), ref)) +
-                texture(fs_lls_map, vec3(uv - vec2(du.x, 0.0), ref)) +
-                texture(fs_lls_map, vec3(uv + vec2(0.0, du.y), ref)) +
-                texture(fs_lls_map, vec3(uv - vec2(0.0, du.y), ref)));
-    s += texture(fs_lls_map, vec3(uv + du, ref)) +
-         texture(fs_lls_map, vec3(uv - du, ref)) +
-         texture(fs_lls_map, vec3(uv + vec2(du.x, -du.y), ref)) +
-         texture(fs_lls_map, vec3(uv + vec2(-du.x, du.y), ref));
+    // Explicit level 0 (the atlas has no other): this runs per light inside the light passes'
+    // per pixel loops, after early returns, where implicit derivatives are undefined. AMD's
+    // compiler can hang the GPU on implicit LOD lookups there.
+    float s = 4.0 * textureLod(fs_lls_map, vec3(uv, ref), 0.0);
+    s += 2.0 * (textureLod(fs_lls_map, vec3(uv + vec2(du.x, 0.0), ref), 0.0) +
+                textureLod(fs_lls_map, vec3(uv - vec2(du.x, 0.0), ref), 0.0) +
+                textureLod(fs_lls_map, vec3(uv + vec2(0.0, du.y), ref), 0.0) +
+                textureLod(fs_lls_map, vec3(uv - vec2(0.0, du.y), ref), 0.0));
+    s += textureLod(fs_lls_map, vec3(uv + du, ref), 0.0) +
+         textureLod(fs_lls_map, vec3(uv - du, ref), 0.0) +
+         textureLod(fs_lls_map, vec3(uv + vec2(du.x, -du.y), ref), 0.0) +
+         textureLod(fs_lls_map, vec3(uv + vec2(-du.x, du.y), ref), 0.0);
     s *= 1.0 / 16.0;
 
     return mix(1.0, s, clamp(light.w, 0.0, 1.0));

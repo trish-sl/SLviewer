@@ -117,7 +117,7 @@ vec3 fsPointShadowMapAgent(int slot, vec3 pos_agent, vec3 n_agent, vec3 shading_
 // the pixel's position and normal along the agent axes
 vec3 fsLocalShadow(int idx, vec3 pos_agent, vec3 n_agent, vec3 shading_light)
 {
-    if (idx < fs_lls_count)
+    if (idx < min(fs_lls_count, FS_LLS_MAX)) // never past the end of fs_lls_index
     {
         return fsPointShadowMapAgent(fs_lls_index[idx], pos_agent, n_agent, shading_light);
     }
@@ -148,10 +148,13 @@ void main()
     // The sky has no surface to light. It fell in the last depth slice, so it walked that
     // slice's lights only to find every one out of range (or a far plane at infinity). The
     // debug heat map still covers it.
+    // Nothing added instead of discard (the pass blends additively, without depth): a discard
+    // ahead of the light loop's texture lookups can hang AMD GPUs.
     float depth      = getDepth(tc);
     if (isFarDepth(depth) && fs_cl_debug == 0)
     {
-        discard;
+        frag_color = vec4(0.0);
+        return;
     }
     vec3 pos         = getPositionWithDepth(tc, depth).xyz;
 
@@ -163,7 +166,8 @@ void main()
 
     if (count <= 0)
     {
-        discard;
+        frag_color = vec4(0.0);
+        return;
     }
 
     // Debug view: blue for one light in the cluster, through green to red at 32 or more

@@ -114,7 +114,12 @@ void main()
     vec3 pos         = getPosition(tc).xyz;
     if (pos.z < far_z)
     {
-        discard;
+        // <FS:Trish> Nothing added instead of discard (the pass blends additively, without depth):
+        // a discard ahead of the light loop's shadow map lookups can hang AMD GPUs
+        //discard;
+        frag_color = vec4(0.0);
+        return;
+        // </FS:Trish>
     }
 
     GBufferInfo gb = getGBuffer(tc);

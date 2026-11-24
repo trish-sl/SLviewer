@@ -58,32 +58,57 @@ void check_framebuffer_status()
 // resolution). While it records, the check runs on the render thread in stream order and only logs.
 // Once one such check has found a failure, video memory is short and more are likely: from then on
 // the check waits for its answer, so the callers see the failure and take their fallbacks.
-namespace
+// A failure found after the fact marks its target (LLRenderTarget::mFSAllocFailed): isComplete()
+// is false from then on and allocate() makes it again, instead of the owner drawing into and
+// sampling a texture without storage.
+static std::atomic<bool> sFSAllocFailedSeen{ false };
+
+// What the render thread checks: the target's flag (shared, so it outlives the target) and which buffer
+struct FSAllocCheck
 {
-    std::atomic<bool> sFSAllocFailedSeen{ false };
+    std::shared_ptr<std::atomic<bool>> mFailed;
+    bool mDepth;
+};
 
-    void fs_check_alloc_error(U64 depth)
+// Render thread, in stream order. Owns and frees the check.
+static void fs_check_alloc_error(U64 value)
+{
+    FSAllocCheck* check = reinterpret_cast<FSAllocCheck*>(value);
+    if (glGetError() != GL_NO_ERROR)
     {
-        if (glGetError() != GL_NO_ERROR)
+        LL_WARNS() << (check->mDepth ? "Unable to allocate depth buffer for render target."
+                                     : "Could not allocate color buffer for render target.")
+                   << " Found after the fact (render thread): that target is incomplete until it is allocated again;"
+                   << " later allocations are checked at once." << LL_ENDL;
+        if (check->mFailed)
         {
-            LL_WARNS() << (depth ? "Unable to allocate depth buffer for render target."
-                                 : "Could not allocate color buffer for render target.")
-                       << " Found after the fact (render thread): that target stays empty until it is allocated again;"
-                       << " later allocations are checked at once." << LL_ENDL;
-            sFSAllocFailedSeen.store(true, std::memory_order_relaxed);
+            check->mFailed->store(true, std::memory_order_release);
         }
+        sFSAllocFailedSeen.store(true, std::memory_order_relaxed);
     }
+    delete check;
+}
 
-    // True when the allocation just made failed (while recording, false until a failure has been seen once)
-    bool fs_alloc_failed(bool depth)
+// True when the allocation just made failed (while recording, false until a failure has been seen
+// once; a failure found later sets flag)
+static bool fs_alloc_failed(bool depth, const std::shared_ptr<std::atomic<bool>>& flag)
+{
+    if (FSGLStream::isRecording() && !sFSAllocFailedSeen.load(std::memory_order_relaxed))
     {
-        if (FSGLStream::isRecording() && !sFSAllocFailedSeen.load(std::memory_order_relaxed))
-        {
-            FSGLStream::recordCall(&fs_check_alloc_error, depth ? 1 : 0);
-            return false;
-        }
-        return glGetError() != GL_NO_ERROR;
+        FSGLStream::recordCall(&fs_check_alloc_error, reinterpret_cast<U64>(new FSAllocCheck{ flag, depth }));
+        return false;
     }
+    return glGetError() != GL_NO_ERROR;
+}
+
+// This allocation's flag, made with its first buffer
+const std::shared_ptr<std::atomic<bool>>& LLRenderTarget::fsAllocFlag()
+{
+    if (!mFSAllocFailed)
+    {
+        mFSAllocFailed = std::make_shared<std::atomic<bool>>(false);
+    }
+    return mFSAllocFailed;
 }
 // </FS:Trish>
 
@@ -152,8 +177,9 @@ bool LLRenderTarget::allocate(U32 resx, U32 resy, U32 color_fmt, bool depth, LLT
 
     // <FS:Trish> FSRenderReverseZ: and a depth buffer of the format the depth convention now wants
     //if(mResX == resx && mResY == resy && mUsage == usage && depth == mUseDepth && mGenerateMipMaps == generateMipMaps)
+    // and again when the render thread found the last allocation failed (FSRenderThread)
     if(mResX == resx && mResY == resy && mUsage == usage && depth == mUseDepth && mGenerateMipMaps == generateMipMaps &&
-       (!depth || !mDepth || mFSDepthFormat == (U32)FSReverseZ::depthFormat()))
+       (!depth || !mDepth || mFSDepthFormat == (U32)FSReverseZ::depthFormat()) && !fsAllocFailed())
     // </FS:Trish>
     {
         return true;
@@ -285,7 +311,7 @@ bool LLRenderTarget::addColorAttachment(U32 color_fmt)
         LLImageGL::setManualImage(LLTexUnit::getInternalType(mUsage), 0, color_fmt, mResX, mResY, GL_RGBA, GL_UNSIGNED_BYTE, NULL, false);
         // <FS:Trish> FSRenderThread
         //if (glGetError() != GL_NO_ERROR)
-        if (fs_alloc_failed(false))
+        if (fs_alloc_failed(false, fsAllocFlag()))
         // </FS:Trish>
         {
             LL_WARNS() << "Could not allocate color buffer for render target." << LL_ENDL;
@@ -367,7 +393,7 @@ bool LLRenderTarget::allocateDepth()
 
     // <FS:Trish> FSRenderThread
     //if (glGetError() != GL_NO_ERROR)
-    if (fs_alloc_failed(true))
+    if (fs_alloc_failed(true, fsAllocFlag()))
     // </FS:Trish>
     {
         LL_WARNS() << "Unable to allocate depth buffer for render target." << LL_ENDL;
@@ -475,6 +501,7 @@ void LLRenderTarget::release()
 
     mTex.clear();
     mInternalFormat.clear();
+    mFSAllocFailed.reset(); // <FS:Trish/> the next allocation gets a flag of its own
 
     mResX = mResY = 0;
 }
@@ -690,7 +717,10 @@ void LLRenderTarget::copyContentsToFramebuffer(LLRenderTarget& source, S32 srcX0
 
 bool LLRenderTarget::isComplete() const
 {
-    return !mTex.empty() || mDepth;
+    // <FS:Trish> Not when the render thread found its allocation failed (FSRenderThread)
+    //return !mTex.empty() || mDepth;
+    return (!mTex.empty() || mDepth) && !fsAllocFailed();
+    // </FS:Trish>
 }
 
 void LLRenderTarget::getViewport(S32* viewport)
@@ -739,4 +769,5 @@ void LLRenderTarget::swapFBORefs(LLRenderTarget& other)
 
     std::swap(mFBO, other.mFBO);
     std::swap(mTex, other.mTex);
+    std::swap(mFSAllocFailed, other.mFSAllocFailed); // <FS:Trish/> with the textures it marks
 }

@@ -192,6 +192,17 @@ void FSPointLightShadows::clearSlot(U32 slot)
     }
 }
 
+// Whether depth can be blitted between the atlas and its static copy: both allocated (isComplete
+// is false once the render thread found an allocation failed), of one size and one depth format.
+// A depth blit between formats that differ is an error, and one from or to a texture without
+// storage is undefined.
+static bool fs_lls_static_matches(const LLRenderTarget& atlas, const LLRenderTarget& copy)
+{
+    return atlas.isComplete() && copy.isComplete() && atlas.getDepth() && copy.getDepth() &&
+           atlas.getWidth() == copy.getWidth() && atlas.getHeight() == copy.getHeight() &&
+           atlas.getFSDepthFormat() == copy.getFSDepthFormat();
+}
+
 // The copy of the static casters' depth (renderFace with split), the atlas's size and format.
 // Allocated the first time a face keeps its static casters.
 bool FSPointLightShadows::ensureStaticAtlas()
@@ -200,7 +211,7 @@ bool FSPointLightShadows::ensureStaticAtlas()
     {
         return false;
     }
-    if (mStaticAtlas.isComplete() && mStaticAtlas.getWidth() == mAtlas.getWidth() && mStaticAtlas.getHeight() == mAtlas.getHeight())
+    if (fs_lls_static_matches(mAtlas, mStaticAtlas))
     {
         return true;
     }
@@ -210,7 +221,7 @@ bool FSPointLightShadows::ensureStaticAtlas()
         mStaticAtlas.release();
         return false;
     }
-    return true;
+    return fs_lls_static_matches(mAtlas, mStaticAtlas);
 }
 
 // The atlas: six faces across, one slot per row, depth only and compared in hardware. Allocated
@@ -481,8 +492,9 @@ void FSPointLightShadows::renderFace(U32 slot, U32 face, LLCamera& camera, bool 
     else
     {
         // the kept static casters, while nothing the change notes see changed and not too old
+        // (and the copy still matches the atlas: otherwise the face is drawn whole below)
         const bool keep = state.mStaticCached && !state.mDirty && state.mStaticTex == mAtlas.getDepth() &&
-                          mStaticAtlas.isComplete() && gFrameTimeSeconds >= state.mRenderTime &&
+                          fs_lls_static_matches(mAtlas, mStaticAtlas) && gFrameTimeSeconds >= state.mRenderTime &&
                           gFrameTimeSeconds - state.mRenderTime <= FS_LLS_MAX_AGE &&
                           gPipeline.fsSpotMasksUnchanged(state);
         if (keep)
