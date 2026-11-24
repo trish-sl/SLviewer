@@ -57,11 +57,13 @@ uniform mat4 inv_proj;
 uniform sampler2D sceneMap;     // the last frame, lit
 uniform mat4 inv_modelview_delta; // this frame's view space to the last frame's (bindDeferredShader)
 uniform mat4 fs_ind_proj;       // the projection, to find a point in the last frame's image
+uniform mat4 fs_ind_prev_clip;  // fs_ind_proj * inv_modelview_delta: this frame's view space to the last frame's clip space, one product
 uniform vec4 fs_ind_params;     // x: radius (m), y: max radius in full-resolution pixels, z: frame offset 0-1, w: unused
 
 float getDepth(vec2 pos_screen);
 bool isFarDepth(float d);
 vec4 getPositionWithDepth(vec2 pos_screen, float depth);
+vec3 fsPositionWithDepthPersp(vec2 pos_screen, float depth); // deferredUtil.glsl: the camera's perspective inverse, seven terms
 vec4 getNorm(vec2 pos_screen);
 vec3 getGeoNorm(vec2 pos_screen);
 
@@ -102,7 +104,8 @@ bool fsIndNeighbour(vec2 tc, out vec3 p)
         p = vec3(0.0);
         return false;
     }
-    p = getPositionWithDepth(tc, d).xyz;
+    //p = getPositionWithDepth(tc, d).xyz;
+    p = fsPositionWithDepthPersp(tc, d);
     return true;
 }
 
@@ -229,7 +232,8 @@ void main()
                 {
                     continue;
                 }
-                vec3 delta = getPositionWithDepth(stc, sd).xyz - pos;
+                //vec3 delta = getPositionWithDepth(stc, sd).xyz - pos;
+                vec3 delta = fsPositionWithDepthPersp(stc, sd) - pos;
                 float dist = length(delta);
                 if (dist < 1e-4 || dist > radius)
                 {
@@ -249,12 +253,15 @@ void main()
                 // back toward the pixel
                 float share = abs(fsIndArc(h, n_ang, cos_n, sin_n) - fsIndArc(sample_h, n_ang, cos_n, sin_n));
                 vec3 ldir = -delta / dist;
-                float facing = clamp(dot(getNorm(stc).xyz, ldir), 0.0, 1.0);
+                // the sample's normal is fetched only where it is used, under the tests below
+                //float facing = clamp(dot(getNorm(stc).xyz, ldir), 0.0, 1.0);
                 // fades out toward the edge of the radius, so the bounce has no hard edge there
                 float falloff = 1.0 - smoothstep(0.6 * radius, radius, dist);
                 // the sample is fetched where it was in the last frame's image: at its own place in
-                // this frame's, the colour bleed smeared behind the camera as it moved
-                vec4 prev = fs_ind_proj * (inv_modelview_delta * vec4(pos + delta, 1.0));
+                // this frame's, the colour bleed smeared behind the camera as it moved. One matrix
+                // (fs_ind_prev_clip, the product taken on the CPU), not two
+                //vec4 prev = fs_ind_proj * (inv_modelview_delta * vec4(pos + delta, 1.0));
+                vec4 prev = fs_ind_prev_clip * vec4(pos + delta, 1.0);
                 vec2 ptc = prev.w > 0.0 ? prev.xy / prev.w * 0.5 + 0.5 : vec2(-1.0);
                 // Off the last frame's image (behind its camera, or past its edge, as camera turns
                 // bring in every frame): no light from it. Reading this frame's position in last
@@ -265,6 +272,7 @@ void main()
                 bool lifts = dot(delta, n) > 0.02 * dist;
                 if (lifts && all(greaterThanEqual(ptc, vec2(0.0))) && all(lessThanEqual(ptc, vec2(1.0))))
                 {
+                    float facing = clamp(dot(getNorm(stc).xyz, ldir), 0.0, 1.0);
                     vec3 light = textureLod(sceneMap, ptc, 0.0).rgb;
                     // a single very bright sample (a lamp, the sun's glint) would speckle the result
                     float lum = dot(light, vec3(0.2126, 0.7152, 0.0722));
@@ -280,7 +288,8 @@ void main()
         // the middle of the open arc against the middle of the unoccluded one (the normal)
         float h_mid = 0.5 * (h_side[0] + h_side[1]);
         vec3 bent_dir = v * cos(h_mid) + ortho_dir * sin(h_mid);
-        vec3 normal_dir = v * cos(n_ang) + ortho_dir * sin(n_ang);
+        //vec3 normal_dir = v * cos(n_ang) + ortho_dir * sin(n_ang);
+        vec3 normal_dir = v * cos(n_ang) + ortho_dir * sin_n; // sin_n is sin(n_ang) above
         bend += (bent_dir - normal_dir) * proj_n_len;
     }
 

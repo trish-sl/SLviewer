@@ -247,6 +247,16 @@ vec3 getGeoNorm(vec2 screenpos)
                                                          : decodeNormal(raw).xyz;
 }
 
+// <FS:Trish> getNorm and getGeoNorm of the same pixel from one fetch of the normal attachment
+vec4 getNormAndGeoNorm(vec2 screenpos, out vec3 geo)
+{
+    vec4 raw = getNormRaw(screenpos);
+    vec4 norm = decodeNormal(raw);
+    geo = GET_GBUFFER_FLAG(raw.w, GBUFFER_FLAG_HAS_PBR) ? unpackGeoNormal(raw.b) : norm.xyz;
+    return norm;
+}
+// </FS:Trish>
+
 // Convert a stored screen-depth sample to its NDC z under the active depth convention.
 // Under reverse-Z the C++ side sets glClipControl(GL_ZERO_TO_ONE) and feeds reversed
 // zero-to-one projections, so the buffer already holds ndc z; the legacy convention needs
@@ -435,6 +445,29 @@ vec4 getPositionWithDepth(vec2 pos_screen, float depth)
     vec3 ndc = vec3(sc.x, sc.y, ndcZFromScreenDepth(depth));
     return vec4(getPositionWithNDC(ndc), 1.0);
 }
+
+// <FS:Trish> getPositionWithNDC for the camera's perspective projection, whose inverse has seven
+// terms: with P = (a 0 e 0 / 0 b f 0 / 0 0 c d / 0 0 -1 0) (columns; e, f the off-centre terms of a
+// jittered or tiled view, c and d those of reverse-Z and an infinite far plane alike), inverse(P)
+// has 1/a, 1/b, e/a, f/b, -1, 1/d and c/d and nothing else, so x = ndc.x / a + e / a, y likewise,
+// z = -1, w = ndc.z / d + c / d. The full product multiplied the other nine entries by their
+// inputs and added them, as zeros. For the screen passes that unproject a neighbour per sample
+// (GTAO, crease AO, SSGI, the light map blur's plane, the SSR hit normal); never for a shadow or
+// an orthographic matrix.
+vec3 fsUnprojectPersp(vec3 ndc)
+{
+    float w = inv_proj[2][3] * ndc.z + inv_proj[3][3];
+    float iw = 1.0 / w;
+    return vec3(inv_proj[0][0] * ndc.x + inv_proj[3][0], inv_proj[1][1] * ndc.y + inv_proj[3][1], inv_proj[3][2]) * iw;
+}
+
+// getPositionWithDepth(pos_screen, depth).xyz, as fsUnprojectPersp
+vec3 fsPositionWithDepthPersp(vec2 pos_screen, float depth)
+{
+    vec2 sc = getScreenCoordinate(pos_screen);
+    return fsUnprojectPersp(vec3(sc.x, sc.y, ndcZFromScreenDepth(depth)));
+}
+// </FS:Trish>
 
 vec2 getScreenCoord(vec4 clip)
 {

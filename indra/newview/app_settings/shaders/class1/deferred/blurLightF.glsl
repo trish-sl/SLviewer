@@ -57,6 +57,7 @@ bool isFarDepth(float d);
 float ndcZFromScreenDepth(float d);
 vec4 getNorm(vec2 pos_screen);
 vec3 getGeoNorm(vec2 pos_screen); // <FS:Trish/> deferredUtil.glsl
+vec3 fsPositionWithDepthPersp(vec2 pos_screen, float depth); // <FS:Trish/> deferredUtil.glsl: the camera's perspective inverse, seven terms
 #if defined(FS_CONTACT_SHADOWS)
 float fsContactShadowTerm(float shadow, vec3 pos, vec3 norm); // fsShadowExtrasF.glsl, applied after the blur
 #endif
@@ -74,7 +75,8 @@ bool fsBlurNeighbour(vec2 tc, out vec3 p)
         p = vec3(0.0);
         return false;
     }
-    p = getPositionWithDepth(tc, d).xyz;
+    //p = getPositionWithDepth(tc, d).xyz;
+    p = fsPositionWithDepthPersp(tc, d);
     return true;
 }
 

@@ -12819,6 +12819,11 @@ static LLRenderTarget* fs_render_indirect(LLRenderTarget* screen)
         // <FS:Trish> The scene map is last frame's: the bounce samples are looked up where they were then
         static LLStaticHashedString s_ind_proj("fs_ind_proj");
         shader.uniformMatrix4fv(s_ind_proj, 1, GL_FALSE, glm::value_ptr(get_current_projection()));
+        // The product with inv_modelview_delta (what bindDeferredShader set above, gGLInverseDeltaModelView)
+        // once here, not two matrix products per bounce sample. mat4 only (GLM_FORCE_DEFAULT_ALIGNED_GENTYPES).
+        static LLStaticHashedString s_ind_prev_clip("fs_ind_prev_clip");
+        const glm::mat4 prev_clip = get_current_projection() * gGLInverseDeltaModelView;
+        shader.uniformMatrix4fv(s_ind_prev_clip, 1, GL_FALSE, glm::value_ptr(prev_clip));
         // </FS:Trish>
         gPipeline.mScreenTriangleVB->setBuffer();
         gPipeline.mScreenTriangleVB->drawArrays(LLRender::TRIANGLES, 0, 3);

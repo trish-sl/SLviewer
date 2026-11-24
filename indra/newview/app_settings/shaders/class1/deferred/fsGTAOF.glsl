@@ -57,6 +57,7 @@ uniform float ssao_factor;       // RenderSSAOFactor: AO strength, as the stock 
 float getDepth(vec2 pos_screen);
 bool isFarDepth(float d);
 vec4 getPositionWithDepth(vec2 pos_screen, float depth);
+vec3 fsPositionWithDepthPersp(vec2 pos_screen, float depth); // deferredUtil.glsl: the camera's perspective inverse, seven terms
 float screenNoise(vec2 frag_px);
 
 // acos to about 1e-3 radians (Lagarde), plenty for a horizon angle
@@ -78,7 +79,8 @@ float fsGTAOHorizon(vec2 tc, vec3 pos, vec3 v, float low_cos, float falloff_mul,
 
     // A sky depth unprojects to infinity (a division by zero under reverse-Z), and a zero
     // weight times that is still NaN, so a dropped sample is unprojected at a finite depth.
-    vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
+    //vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
+    vec3 delta = fsPositionWithDepthPersp(ctc, valid ? d : 0.5) - pos;
     float dist = max(length(delta), 1e-5);
     float raw_cos = dot(delta, v) / dist;
 
@@ -106,7 +108,8 @@ bool fsGTAONeighbour(vec2 tc, out vec3 p)
         p = vec3(0.0);
         return false;
     }
-    p = getPositionWithDepth(tc, d).xyz;
+    //p = getPositionWithDepth(tc, d).xyz;
+    p = fsPositionWithDepthPersp(tc, d);
     return true;
 }
 
@@ -204,10 +207,17 @@ float fsCalcGTAO(vec3 pos, vec3 norm, vec2 pos_screen)
         float sign_n = sign(dot(ortho_dir, proj_n));
         float cos_n = clamp(dot(proj_n, v) / max(proj_n_len, 1e-4), 0.0, 1.0);
         float n_ang = sign_n * fsGTAOAcos(cos_n);
+        // sin of the normal's angle, for the tangent plane here and the arcs below. Not
+        // sqrt(1 - cos_n^2): fsGTAOAcos is an approximation, and the arcs take the sine of its
+        // result, so this stays what the arcs always used
+        float sin_n = sin(n_ang);
 
         // Start each side at the tangent plane: anything below it cannot occlude.
-        float low_cos0 = cos(n_ang + FS_GTAO_HALF_PI);
-        float low_cos1 = cos(n_ang - FS_GTAO_HALF_PI);
+        // cos(a + pi/2) = -sin(a) and cos(a - pi/2) = sin(a): no second and third transcendental
+        //float low_cos0 = cos(n_ang + FS_GTAO_HALF_PI);
+        //float low_cos1 = cos(n_ang - FS_GTAO_HALF_PI);
+        float low_cos0 = -sin_n;
+        float low_cos1 = sin_n;
         float horizon_cos0 = low_cos0;
         float horizon_cos1 = low_cos1;
 
@@ -232,7 +242,7 @@ float fsCalcGTAO(vec3 pos, vec3 norm, vec2 pos_screen)
 
         // Cosine-weighted visible arc (Jimenez 2016, eq. 10), weighted by how much of the normal
         // lies in this slice
-        float sin_n = sin(n_ang);
+        //float sin_n = sin(n_ang);
         float arc0 = cos_n + 2.0 * h0 * sin_n - cos(2.0 * h0 - n_ang);
         float arc1 = cos_n + 2.0 * h1 * sin_n - cos(2.0 * h1 - n_ang);
         visibility += proj_n_len * 0.25 * (arc0 + arc1);

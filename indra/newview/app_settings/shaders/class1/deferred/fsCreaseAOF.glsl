@@ -40,6 +40,7 @@ uniform vec4 fs_crease_ao;   // x: radius (m), y: strength 0-1, z: largest radiu
 float getDepth(vec2 pos_screen);
 bool isFarDepth(float d);
 vec4 getPositionWithDepth(vec2 pos_screen, float depth);
+vec3 fsPositionWithDepthPersp(vec2 pos_screen, float depth); // deferredUtil.glsl: the camera's perspective inverse, seven terms
 
 #define FS_CREASE_SLICES 2
 #define FS_CREASE_STEPS  4
@@ -62,7 +63,8 @@ bool fsCreaseNeighbour(vec2 tc, out vec3 p)
         p = vec3(0.0);
         return false;
     }
-    p = getPositionWithDepth(tc, d).xyz;
+    //p = getPositionWithDepth(tc, d).xyz;
+    p = fsPositionWithDepthPersp(tc, d);
     return true;
 }
 
@@ -104,7 +106,8 @@ float fsCreaseHorizon(vec2 tc, vec3 pos, vec3 v, float radius, float low_cos, fl
     float d = getDepth(ctc);
     bool valid = ctc == tc && !isFarDepth(d);
     // a sky depth unprojects to infinity (a division by zero under reverse-Z): use a finite one
-    vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
+    //vec3 delta = getPositionWithDepth(ctc, valid ? d : 0.5).xyz - pos;
+    vec3 delta = fsPositionWithDepthPersp(ctc, valid ? d : 0.5) - pos;
     float dist = max(length(delta), 1e-5);
     float raw_cos = dot(delta, v) / dist;
     float weight = valid ? clamp(2.0 - 2.0 * dist / radius, 0.0, 1.0) : 0.0;
@@ -168,9 +171,14 @@ float fsCreaseAO(vec3 pos, vec3 norm, vec2 tc)
         float sign_n = sign(dot(ortho_dir, proj_n));
         float cos_n = clamp(dot(proj_n, v) / max(proj_n_len, 1e-4), 0.0, 1.0);
         float n_ang = sign_n * fsCreaseAcos(cos_n);
+        // the sine of the normal's angle, as the arcs below take it (sin of the approximate acos,
+        // not sqrt(1 - cos_n^2)); cos(a + pi/2) = -sin(a) and cos(a - pi/2) = sin(a)
+        float sin_n = sin(n_ang);
 
-        float low_cos0 = cos(n_ang + FS_CREASE_HALF_PI);
-        float low_cos1 = cos(n_ang - FS_CREASE_HALF_PI);
+        //float low_cos0 = cos(n_ang + FS_CREASE_HALF_PI);
+        //float low_cos1 = cos(n_ang - FS_CREASE_HALF_PI);
+        float low_cos0 = -sin_n;
+        float low_cos1 = sin_n;
         float horizon_cos0 = low_cos0;
         float horizon_cos1 = low_cos1;
 
@@ -192,7 +200,7 @@ float fsCreaseAO(vec3 pos, vec3 norm, vec2 tc)
         h0 = max(h0 - FS_CREASE_ANGLE_BIAS, n_ang - FS_CREASE_HALF_PI);
         h1 = min(h1 + FS_CREASE_ANGLE_BIAS, n_ang + FS_CREASE_HALF_PI);
 
-        float sin_n = sin(n_ang);
+        //float sin_n = sin(n_ang);
         float arc0 = cos_n + 2.0 * h0 * sin_n - cos(2.0 * h0 - n_ang);
         float arc1 = cos_n + 2.0 * h1 * sin_n - cos(2.0 * h1 - n_ang);
         visibility += proj_n_len * 0.25 * (arc0 + arc1);

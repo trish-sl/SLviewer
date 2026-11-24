@@ -630,11 +630,16 @@ vec3 fsSSRScreen(vec3 v, vec2 res)
     return vec3((c.xy / c.w * 0.5 + 0.5) * res, 1.0 / c.w);
 }
 
+vec3 fsUnprojectPersp(vec3 ndc); // <FS:Trish/> deferredUtil.glsl: the camera's perspective inverse, seven terms
+
 vec3 fsSSRViewPosAt(ivec2 px, vec2 res)
 {
     float d = texelFetch(sceneDepth, px, 0).r;
-    vec4 p = inv_proj * vec4((vec2(px) + 0.5) / res * 2.0 - 1.0, ndcZFromScreenDepth(d), 1.0);
-    return p.xyz / p.w;
+    // <FS:Trish> Four of these per hit normal, in the march
+    //vec4 p = inv_proj * vec4((vec2(px) + 0.5) / res * 2.0 - 1.0, ndcZFromScreenDepth(d), 1.0);
+    //return p.xyz / p.w;
+    return fsUnprojectPersp(vec3((vec2(px) + 0.5) / res * 2.0 - 1.0, ndcZFromScreenDepth(d)));
+    // </FS:Trish>
 }
 
 // Normal of the surface at a hit, rebuilt from the depth buffer (the scene map has no normals),
@@ -739,6 +744,7 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
     float tEps = 0.01 / spanPx; // a hundredth of a pixel
     int maxLevel = int(floor(log2(max(res.x, res.y))));
     ivec2 lastPx = ivec2(res) - 1;
+    ivec2 ires = ivec2(res); // <FS:Trish/> the pyramid's level 0 size: a level's is max(ires >> level, 1), as GL sizes mips
 
     // <FS:Trish> The surface the ray starts on, as the depth buffer describes it, when it is in the
     // depth buffer (opaque; alpha surfaces and water are not). Its normal-mapped shading normal can
@@ -785,12 +791,22 @@ bool fsTraceHiZ(vec3 position, vec3 dir, out vec2 hitUV, out float confidence, o
             break;
         }
         vec3 p = s0 + sd * t;
-        float cellSize = exp2(float(level));
-        vec2 cell = floor(p.xy / cellSize);
+        // <FS:Trish> The cell size as an exact power of two from a shift, its reciprocal (exact too:
+        // only the exponent changes, so the floor of the product is the floor of the quotient) in
+        // place of two divides, and the level's size from the level 0 size (max(res >> level, 1),
+        // as GL sizes a mip chain and fsssrhiz.cpp allocates it) in place of a textureSize query
+        // per step
+        //float cellSize = exp2(float(level));
+        //vec2 cell = floor(p.xy / cellSize);
+        float cellSize = float(1 << level);
+        float invCellSize = 1.0 / cellSize;
+        vec2 cell = floor(p.xy * invCellSize);
         vec2 tb = ((cell + cellStep) * cellSize - s0.xy) * invD;
         float tExit = min(tb.x, tb.y);
 
-        ivec2 lastTexel = textureSize(ssrHiZMap, level) - 1;
+        //ivec2 lastTexel = textureSize(ssrHiZMap, level) - 1;
+        ivec2 lastTexel = max(ires >> level, ivec2(1)) - 1;
+        // </FS:Trish>
         float zNear = texelFetch(ssrHiZMap, clamp(ivec2(cell), ivec2(0), lastTexel), level).a;
         float izNear = 1.0 / max(zNear, 1e-4);
         // farthest point of the ray inside this cell (1/z shrinks with distance)

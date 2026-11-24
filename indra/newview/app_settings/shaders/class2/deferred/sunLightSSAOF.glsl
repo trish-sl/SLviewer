@@ -69,6 +69,7 @@ float fsCreaseAO(vec3 pos, vec3 norm, vec2 tc);
 #endif
 // </FS:Trish>
 vec3 getGeoNorm(vec2 pos_screen);
+vec4 getNormAndGeoNorm(vec2 screenpos, out vec3 geo); // <FS:Trish/> deferredUtil.glsl: both from one fetch
 
 void main()
 {
@@ -88,7 +89,12 @@ void main()
     }
 
     vec4 pos  = getPositionWithDepth(pos_screen, depth);
-    vec4 norm = getNorm(pos_screen);
+    // <FS:Trish> The shading and the geometric normal from one fetch of the normal attachment, not
+    // one for getNorm and one per getGeoNorm below
+    //vec4 norm = getNorm(pos_screen);
+    vec3 fs_geo_norm;
+    vec4 norm = getNormAndGeoNorm(pos_screen, fs_geo_norm);
+    // </FS:Trish>
 
     vec4 col;
     // <FS:Trish> FSRenderShadowSlopeBias: the sun shadow's bias and offset follow the surface as
@@ -107,13 +113,16 @@ void main()
     // against this plane, and depth knows nothing about normal-mapped detail -- testing against a
     // perturbed normal makes a flat wall occlude itself wherever its map has texture.
 #ifdef FS_GTAO
-    col.g = fsCalcGTAO(pos.xyz, getGeoNorm(pos_screen), pos_screen);
+    //col.g = fsCalcGTAO(pos.xyz, getGeoNorm(pos_screen), pos_screen);
+    col.g = fsCalcGTAO(pos.xyz, fs_geo_norm, pos_screen); // <FS:Trish/>
 #else
-    col.g = calcAmbientOcclusion(pos, getGeoNorm(pos_screen), pos_screen);
+    //col.g = calcAmbientOcclusion(pos, getGeoNorm(pos_screen), pos_screen);
+    col.g = calcAmbientOcclusion(pos, fs_geo_norm, pos_screen); // <FS:Trish/>
 #endif
     // <FS:Trish> FSRenderCreaseAO: the corners and creases the wider search above barely sees, on top
 #ifdef FS_CREASE_AO
-    col.g *= fsCreaseAO(pos.xyz, getGeoNorm(pos_screen), pos_screen);
+    //col.g *= fsCreaseAO(pos.xyz, getGeoNorm(pos_screen), pos_screen);
+    col.g *= fsCreaseAO(pos.xyz, fs_geo_norm, pos_screen);
 #endif
     // </FS:Trish>
     col.b = spot_shadow_inactive.x != 0 ? 1.0 : sampleSpotShadow(pos.xyz, norm.xyz, 0, pos_screen);
