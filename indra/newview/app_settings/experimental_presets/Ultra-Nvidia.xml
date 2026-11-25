@@ -400,8 +400,8 @@
     <real>0.15</real>
     <key>FSRenderLighterWhileMoving</key>
     <boolean>0</boolean>
-    <key>FSRenderLocalLightShadows</key>
-    <integer>6</integer>
+    <key>FSRenderLocalLightShadowResolution</key>
+    <integer>2048</integer>
     <key>FSRenderMergePostPasses</key>
     <boolean>1</boolean>
     <key>FSRenderMicroShadows</key>
@@ -773,9 +773,9 @@
     <key>RenderScreenSpaceReflectionGlossySamples</key>
     <integer>2</integer>
     <key>RenderScreenSpaceReflectionIterations</key>
-    <integer>48</integer>
+    <integer>16</integer>
     <key>RenderScreenSpaceReflectionMaxRoughness</key>
-    <real>1.0</real>
+    <real>0.7</real>
     <key>RenderScreenSpaceReflections</key>
     <boolean>1</boolean>
     <key>RenderScreenSpaceReflectionsResolutionMultiplier</key>

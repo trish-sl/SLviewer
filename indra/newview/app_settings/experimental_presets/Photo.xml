@@ -60,6 +60,12 @@
     <real>1.0</real>
     <key>FSRenderGTAOSlices</key>
     <integer>4</integer>
+    <key>FSRenderLocalLightShadowFacesPerFrame</key>
+    <integer>36</integer>
+    <key>FSRenderLocalLightShadowResolution</key>
+    <integer>2048</integer>
+    <key>FSRenderLocalLightShadows</key>
+    <integer>6</integer>
     <key>FSRenderMultiscatter</key>
     <boolean>1</boolean>
     <key>FSRenderProbeBlendSmooth</key>
