@@ -57,6 +57,10 @@
 std::string NONE_LABEL;
 std::string SHIFT_LABEL;
 std::string CTRL_LABEL;
+std::string ALT_LABEL;
+std::string CTRL_SHIFT_LABEL;
+std::string CTRL_ALT_LABEL;
+std::string ALT_SHIFT_LABEL;
 
 // <FS:PP> FIRE-36169 Gestures enable/disable switch
 static bool are_gestures_enabled()
@@ -327,6 +331,10 @@ LLPreviewGesture::LLPreviewGesture(const LLSD& key)
     NONE_LABEL =  LLTrans::getString("---");
     SHIFT_LABEL = LLTrans::getString("KBShift");
     CTRL_LABEL = LLTrans::getString("KBCtrl");
+    ALT_LABEL = LLTrans::getString("KBAlt");
+    CTRL_SHIFT_LABEL = CTRL_LABEL + "+" + SHIFT_LABEL;
+    CTRL_ALT_LABEL = CTRL_LABEL + "+" + ALT_LABEL;
+    ALT_SHIFT_LABEL = ALT_LABEL + "+" + SHIFT_LABEL;
 }
 
 
@@ -506,6 +514,10 @@ void LLPreviewGesture::addModifiers()
     combo->add( NONE_LABEL,  ADD_BOTTOM );
     combo->add( SHIFT_LABEL, ADD_BOTTOM );
     combo->add( CTRL_LABEL,  ADD_BOTTOM );
+    combo->add( ALT_LABEL,   ADD_BOTTOM );
+    combo->add( CTRL_SHIFT_LABEL, ADD_BOTTOM );
+    combo->add( CTRL_ALT_LABEL,   ADD_BOTTOM );
+    combo->add( ALT_SHIFT_LABEL,  ADD_BOTTOM );
     combo->setCurrentByIndex(0);
 }
 
@@ -959,6 +971,18 @@ void LLPreviewGesture::loadUIFromGesture(LLMultiGesture* gesture)
       case MASK_CONTROL:
         mModifierCombo->setSimple( CTRL_LABEL );
         break;
+      case MASK_ALT:
+        mModifierCombo->setSimple( ALT_LABEL );
+        break;
+      case MASK_CONTROL | MASK_SHIFT:
+        mModifierCombo->setSimple( CTRL_SHIFT_LABEL );
+        break;
+      case MASK_CONTROL | MASK_ALT:
+        mModifierCombo->setSimple( CTRL_ALT_LABEL );
+        break;
+      case MASK_ALT | MASK_SHIFT:
+        mModifierCombo->setSimple( ALT_SHIFT_LABEL );
+        break;
     }
 
     // <FS:Ansariel> Allow CTRL-F10 shortcut for gestures
@@ -1296,6 +1320,22 @@ LLMultiGesture* LLPreviewGesture::createGesture()
     else if (modifier == SHIFT_LABEL)
     {
         gesture->mMask = MASK_SHIFT;
+    }
+    else if (modifier == ALT_LABEL)
+    {
+        gesture->mMask = MASK_ALT;
+    }
+    else if (modifier == CTRL_SHIFT_LABEL)
+    {
+        gesture->mMask = MASK_CONTROL | MASK_SHIFT;
+    }
+    else if (modifier == CTRL_ALT_LABEL)
+    {
+        gesture->mMask = MASK_CONTROL | MASK_ALT;
+    }
+    else if (modifier == ALT_SHIFT_LABEL)
+    {
+        gesture->mMask = MASK_ALT | MASK_SHIFT;
     }
     else
     {
