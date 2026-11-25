@@ -1257,8 +1257,7 @@
 		 height="18"
 		 label="Email me IMs when I'm offline ([EMAIL])"
 		 name="send_im_to_email" />
-		<!-- <FS:Trish> FIRE-33025 A button, so it looks clickable (it was a link styled as plain text); the address is
-		     the email_settings_url string of this panel, translations can give their own -->
+		<!-- <FS:Trish> FIRE-33025 Make this label a button, so it looks clickable -->
 		<!--
 		<text
 		 font="SansSerifSmall"
@@ -1276,6 +1275,7 @@
 		</text>
 		-->
 		<button
+		 auto_resize="true"
 		 follows="left|top"
 		 height="20"
 		 label="Open email notification settings for offline IMs..."
@@ -1288,7 +1288,7 @@
 			 function="Pref.OpenEmailSettings" />
 		</button>
 		<!-- </FS:Trish> -->
-		<!-- <FS:Trish> FIRE-33025 top_delta 0 -> 2: the same place as before, below the button's top -->
+		<!-- <FS:Trish> FIRE-33025 top_delta 0 -> 2 -->
 		<text
 		 font="SansSerifSmall"
 		 follows="left|top"
@@ -1302,7 +1302,7 @@
 		 width="400">
 		 Login to change offline IMs to Email settings
 		</text>
-		<!-- <FS:Trish> FIRE-33025 top_pad -1 -> 2: two pixels below the email settings button -->
+		<!-- <FS:Trish> FIRE-33025 top_pad -1 -> 2 -->
 		<check_box
 		 layout="topleft"
 		 follows="left|top"

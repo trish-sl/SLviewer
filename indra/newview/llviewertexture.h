@@ -491,6 +491,7 @@ public:
     bool        isFullyLoaded() const;
 
     bool        hasFetcher() const { return mHasFetcher;}
+    bool        needsCreateTexture() const { return mNeedsCreateTexture.CurrentValue(); }
     bool        isFetching() const { return mIsFetching;}
     void        setIsFetching(bool fetching); // <FS:Trish/> keeps gTextureList's fetching set current
     void        setCanUseHTTP(bool can_use_http) {mCanUseHTTP = can_use_http;}

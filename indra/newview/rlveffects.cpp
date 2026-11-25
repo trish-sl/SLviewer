@@ -116,7 +116,7 @@ void RlvOverlayEffect::run(const LLVisualEffectParams*)
     {
         gUIProgram.bind();
 
-        // A snapshot larger than the window renders into an enlarged world view (the window rect stays the same size)
+        // FIRE-29451 / FIRE-35026: A snapshot can be larger than the window, overlay must cover the snapshot
         const LLRect& rctWorldView = gViewerWindow->getWorldViewRectRaw();
 
         // A tiled high-res snapshot renders each tile with a zoomed and offset projection (see LLViewerCamera::setPerspective)
@@ -145,7 +145,7 @@ void RlvOverlayEffect::run(const LLVisualEffectParams*)
         gGL.matrixMode(LLRender::MM_MODELVIEW);
         gGL.pushMatrix();
         gGL.loadIdentity();
-        // Map the unit square onto the full frame
+        // Map the unit onto the full frame
         gGL.translatef(-1.f, -1.f, 0.f);
         gGL.scalef(2.f, 2.f, 1.f);
 

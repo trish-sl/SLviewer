@@ -1091,16 +1091,6 @@ void LLAgent::toggleFlying()
         LLToolPie::instance().stopClickToWalk();
     }
 
-    // <FS:Ansariel> Chalice Yao's crouch toggle
-    // <FS:Trish> The FSCrouchToggleStatus setting is gone (the crouch toggle is mCrouch now, and
-    // setFlying() clears it): reading it warned about a missing control at every fly toggle.
-    //if (gSavedPerAccountSettings.getBOOL("FSCrouchToggleStatus"))
-    //{
-    //    gSavedPerAccountSettings.setBOOL("FSCrouchToggleStatus", false);
-    //}
-    // </FS:Trish>
-    // </FS:Ansariel>
-
     bool fly = !gAgent.getFlying();
 
     gAgent.mMoveTimer.reset();

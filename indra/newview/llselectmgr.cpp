@@ -8428,12 +8428,13 @@ void LLObjectSelection::deleteAllNodes()
     mSelectNodeMap.clear();
     mPrimaryObject = NULL;
 
+    std::for_each(mRemovedNodes.begin(), mRemovedNodes.end(), DeletePointer());
+    mRemovedNodes.clear();
+
     // <FS:Zi> Fix for crash while selecting objects with derendered child prims
     std::for_each(mFailedNodesList.begin(),mFailedNodesList.end(),DeletePointer());
     mFailedNodesList.clear();
     // </FS:Zi>
-    std::for_each(mRemovedNodes.begin(), mRemovedNodes.end(), DeletePointer());
-    mRemovedNodes.clear();
 }
 
 LLSelectNode* LLObjectSelection::findNode(LLViewerObject* objectp)

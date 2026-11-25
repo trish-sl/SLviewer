@@ -201,7 +201,7 @@ void FSToolHudMove::finish()
 
     if (!moved || object.isNull() || object->isDead() || !object->getRegion() || object->getPosition() == mStartPosition)
     {
-        // Nothing to send: never moved, or gone or detached while dragging
+        // Gone or detached while dragging
         return;
     }
 

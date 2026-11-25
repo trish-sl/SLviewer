@@ -89,9 +89,9 @@ public:
     // flycam); this just forwards.
     bool getOverrideCamera();
     bool toggleFlycam();
-    // [RLVa:Trish]
+// [RLVa:Trish] - False while @setcam or @setcam_unlock forbids entering (or staying in) flycam
     static bool isFlycamAllowedByRlv();
-    // [/RLVa:Trish]
+// [/RLVa:Trish]
     void setSNDefaults();
     bool isDeviceUUIDSet();
     LLSD getDeviceUUID(); //unconverted, OS dependent value wrapped into LLSD, for comparison/search
@@ -117,9 +117,9 @@ protected:
     void agentJump();
     void resetDeltas(S32 axis[]);
     void loadDeviceIdFromSettings();
-    // [RLVa:Trish]
+// [RLVa:Trish]
     void onRlvBehaviourToggle(ERlvBehaviour behaviour, ERlvParamType type);
-    // [/RLVa:Trish]
+// [/RLVa:Trish]
     // Call after a successful ndof_init_first(): marks the driver initialized
     // only if the device is a 3Dconnexion one.  Returns true if accepted.
     bool acceptInitializedDevice();

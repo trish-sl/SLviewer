@@ -6648,20 +6648,6 @@ bool LLViewerWindow::rawSnapshot(LLImageRaw *raw, S32 image_width, S32 image_hei
             // This is the colour attachment, and it needs a colour format whatever the layer is.
             if (scratch_space.allocate(image_width, image_height, GL_RGBA8, true))
             {
-                // mRT->width/height, not the attachment's dimensions. allocateScreenBuffer
-                // takes a LOGICAL size, records it in mRT->width/height, and only then applies
-                // RenderResolutionDivisor / RenderResolutionMultiplier to arrive at the texture
-                // size. Reading the texture size back and handing it in as a logical size
-                // therefore applies the scale a second time, squaring it: at multiplier 2.0 the
-                // viewer comes back from a snapshot rendering four times the pixels, sixteen
-                // after the second, and at divisor 2 it halves away instead.
-                //
-                // Nothing corrects it afterwards either. resizeScreenTexture() would notice,
-                // but it is gated on gResizeScreenTexture, and the restore below assigns
-                // mWorldViewRectRaw directly rather than going through updateWorldViewRect(),
-                // which is what sets that flag. The wrong size survives until a window resize.
-                //
-                // resizeShadowTexture() already reads these two for the same reason.
                 original_width = (S32)gPipeline.mRT->width;
                 original_height = (S32)gPipeline.mRT->height;
 
@@ -7137,8 +7123,6 @@ bool LLViewerWindow::simpleSnapshot(LLImageRaw* raw, S32 image_width, S32 image_
 
     LLRect window_rect = getWorldViewRectRaw();
 
-    // The logical size, not the attachment's -- see rawSnapshot for why handing a scaled
-    // texture size back to allocateScreenBuffer squares the resolution scale.
     S32 original_width = LLPipeline::sRenderDeferred ? (S32)gPipeline.mRT->width : gViewerWindow->getWorldViewWidthRaw();
     S32 original_height = LLPipeline::sRenderDeferred ? (S32)gPipeline.mRT->height : gViewerWindow->getWorldViewHeightRaw();
 

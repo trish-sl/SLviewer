@@ -1691,11 +1691,13 @@ F32 LLViewerTextureList::updateImagesCreateTextures(F32 max_time)
             // </FS:Trish>
             // <FS:Trish> FSTextureReleaseFaceless: one back on a face since it was queued is left alone,
             // and what the others free is counted for the log
-            //if (img && img->getHasGLTexture())
+            //// don't scale down while a new texture is being created, the pending upload would replace the result
+            //if (img && img->getHasGLTexture() && !image->needsCreateTexture())
             //{
             //    img->scaleDown(image->getDesiredDiscardLevel());
             //}
-            if (img && img->getHasGLTexture() && !(image->mFSFacelessRelease && image->getTotalNumFaces() > 0))
+            // don't scale down while a new texture is being created, the pending upload would replace the result
+            if (img && img->getHasGLTexture() && !image->needsCreateTexture() && !(image->mFSFacelessRelease && image->getTotalNumFaces() > 0))
             {
                 const S64 before = img->mTextureMemory.value();
                 if (img->scaleDown(image->getDesiredDiscardLevel()) && image->mFSFacelessRelease)

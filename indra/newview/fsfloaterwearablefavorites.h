@@ -91,7 +91,6 @@ public:
 
     static LLUUID sFolderID;
 
-    // Called by the inventory observer and by pending fetches
     void onInventoryChanged();
     void onPendingFetchDone();
 
@@ -99,7 +98,8 @@ private:
     void initialize();
 
     void updateList(const LLUUID& folder_id);
-    void checkPendingItems(const LLUUID& folder_id, S32& resolved_count, S32& incomplete_count);
+    void checkPendingItems(const LLUUID& folder_id, uuid_set_t& resolved_ids, uuid_set_t& incomplete_ids);
+    void setWaitingForItems(bool waiting);
     void refreshFolderCombo();
 
     void onItemDAD(const LLUUID& item_id);
@@ -127,14 +127,12 @@ private:
 
     LLInventoryCategoriesObserver*  mCategoriesObserver;
 
-    // Favorites are links. Keep refreshing the list while the
-    // favorite folders or the items they point to are still being fetched.
     LLInventoryObserver*            mInventoryObserver;
     bool                            mWaitingForItems;
     bool                            mRefreshPending;
     S32                             mPendingFetches;
-    S32                             mLastResolvedCount;
-    S32                             mLastIncompleteCount;
+    uuid_set_t                      mLastResolvedIDs;   // links whose target is loaded
+    uuid_set_t                      mLastIncompleteIDs; // folders not fully fetched
     LLFrameTimer                    mRefreshThrottleTimer;
     uuid_set_t                      mRequestedFolderIDs;
     uuid_set_t                      mRequestedItemIDs;

@@ -91,7 +91,7 @@ bool FSWearableFavoritesItemsList::handleDragAndDrop(S32 x, S32 y, MASK mask,
 }
 
 // Favorites are links whose targets may still be loading after login, so the list refreshes as they arrive
-static constexpr F32 FAVORITES_REFRESH_THROTTLE = 0.5f; // seconds
+static constexpr F32 FAVORITES_REFRESH_THROTTLE = 2.0f; // seconds
 
 class FSWearableFavoritesInventoryObserver : public LLInventoryObserver
 {
@@ -143,9 +143,7 @@ FSFloaterWearableFavorites::FSFloaterWearableFavorites(const LLSD& key)
     mRlvBehaviorCallbackConnection(),
     mWaitingForItems(false),
     mRefreshPending(false),
-    mPendingFetches(0),
-    mLastResolvedCount(0),
-    mLastIncompleteCount(0)
+    mPendingFetches(0)
 {
     mCategoriesObserver = new LLInventoryCategoriesObserver();
     mInventoryObserver = new FSWearableFavoritesInventoryObserver(this);
@@ -268,7 +266,7 @@ void FSFloaterWearableFavorites::initialize()
     }
 
     gInventory.addObserver(mCategoriesObserver);
-    gInventory.addObserver(mInventoryObserver);
+    // mInventoryObserver is only registered while favorites are still loading, see setWaitingForItems()
     mCategoriesObserver->addCategory(sFolderID, boost::bind(&FSFloaterWearableFavorites::refreshFolderCombo, this));
     mCategoriesObserver->addCategory(
         cof,
@@ -291,18 +289,18 @@ void FSFloaterWearableFavorites::draw()
 {
     LLFloater::draw();
 
-    // Pick up favorites that arrived while the inventory was still loading.
-    // Throttled so the big login fetch doesn't rebuild the list every frame.
+    // Favorites that arrived while the inventory was still loading may cause the floater to need a refresh.
+    // Throttled so the login fetch doesn't rebuild the list every frame.
     if (mRefreshPending && mRefreshThrottleTimer.getElapsedTimeF32() >= FAVORITES_REFRESH_THROTTLE)
     {
         mRefreshPending = false;
         mRefreshThrottleTimer.reset();
 
         const LLUUID folder_id = mSelectedFolderID.notNull() ? mSelectedFolderID : sFolderID;
-        S32 resolved_count = 0;
-        S32 incomplete_count = 0;
-        checkPendingItems(folder_id, resolved_count, incomplete_count);
-        if (resolved_count != mLastResolvedCount || incomplete_count != mLastIncompleteCount)
+        uuid_set_t resolved_ids;
+        uuid_set_t incomplete_ids;
+        checkPendingItems(folder_id, resolved_ids, incomplete_ids);
+        if (resolved_ids != mLastResolvedIDs || incomplete_ids != mLastIncompleteIDs)
         {
             updateList(folder_id);
         }
@@ -425,17 +423,30 @@ void FSFloaterWearableFavorites::onPendingFetchDone()
     mRefreshPending = true;
 }
 
-// Count the favorites that can be shown, find folders that are not
-// fully loaded and links whose target is not in the inventory model yet, and
-// request those once. mWaitingForItems stays set while they may still arrive.
-void FSFloaterWearableFavorites::checkPendingItems(const LLUUID& folder_id, S32& resolved_count, S32& incomplete_count)
+void FSFloaterWearableFavorites::setWaitingForItems(bool waiting)
 {
-    resolved_count = 0;
-    incomplete_count = 0;
+    mWaitingForItems = waiting;
+
+    // Only listen to inventory changes while something is still loading
+    const bool registered = gInventory.containsObserver(mInventoryObserver);
+    if (waiting && !registered)
+    {
+        gInventory.addObserver(mInventoryObserver);
+    }
+    else if (!waiting && registered)
+    {
+        gInventory.removeObserver(mInventoryObserver);
+    }
+}
+
+void FSFloaterWearableFavorites::checkPendingItems(const LLUUID& folder_id, uuid_set_t& resolved_ids, uuid_set_t& incomplete_ids)
+{
+    resolved_ids.clear();
+    incomplete_ids.clear();
 
     if (folder_id.isNull())
     {
-        mWaitingForItems = false;
+        setWaitingForItems(false);
         return;
     }
 
@@ -450,7 +461,7 @@ void FSFloaterWearableFavorites::checkPendingItems(const LLUUID& folder_id, S32&
     {
         if (!gInventory.isCategoryComplete(cat_id))
         {
-            ++incomplete_count;
+            incomplete_ids.insert(cat_id);
             folders_to_fetch.push_back(cat_id);
         }
     };
@@ -474,20 +485,19 @@ void FSFloaterWearableFavorites::checkPendingItems(const LLUUID& folder_id, S32&
 
         if (item->getIsLinkType() && !item->getLinkedItem() && !item->getLinkedCategory())
         {
-            // Link target not loaded yet, or deleted
+            // Link target not loaded yet (or deleted)
             missing_targets = true;
             folders_to_fetch.push_back(item->getParentUUID());
             items_to_fetch.push_back(item->getLinkedUUID());
         }
         else
         {
-            ++resolved_count;
+            resolved_ids.insert(item->getUUID());
         }
     }
 
     if (AISAPI::isAvailable())
     {
-        // One request per folder fetches the folder together with the items its links point to
         for (const auto& cat_id : folders_to_fetch)
         {
             if (mRequestedFolderIDs.insert(cat_id).second)
@@ -542,10 +552,10 @@ void FSFloaterWearableFavorites::checkPendingItems(const LLUUID& folder_id, S32&
         }
     }
 
-    // Once the inventory is fully fetched and our own requests have returned,
-    // links that still don't resolve point to deleted items. Stop waiting for them.
-    mWaitingForItems = (incomplete_count > 0 || missing_targets)
-        && (mPendingFetches > 0 || !LLInventoryModelBackgroundFetch::instance().isEverythingFetched());
+    // If the inventory is fully fetched and the item wasn't loaded
+    // ... the link is probably dead.
+    setWaitingForItems((!incomplete_ids.empty() || missing_targets)
+        && (mPendingFetches > 0 || !LLInventoryModelBackgroundFetch::instance().isEverythingFetched()));
 }
 
 void FSFloaterWearableFavorites::updateList(const LLUUID& folder_id)
@@ -556,7 +566,7 @@ void FSFloaterWearableFavorites::updateList(const LLUUID& folder_id)
     }
 
     // Fetch whatever is still missing and keep watching until it arrives
-    checkPendingItems(folder_id, mLastResolvedCount, mLastIncompleteCount);
+    checkPendingItems(folder_id, mLastResolvedIDs, mLastIncompleteIDs);
 
     // Favorite Wearables folders are implemented as inventory links.
     // The root view collects descendants recursively, which means the same

@@ -268,10 +268,9 @@ private:
     // flycam's view, so it doesn't pop into existence on screen. Called after
     // each flycam transform update.
     void            updateFlycamAvatarVisibility();
-    // [RLVa:Trish] Keeps the flycam inside the @setcam_avdistmin/max, @setcam_origindistmin/max
-    // and @setcam_fovmin/max limits, after either input source moved it
+// [RLVa:Trish]
     void            applyRlvFlycamLimits();
-    // [/RLVa:Trish]
+// [/RLVa:Trish]
 
     LLFlycam        mFlycam;
     bool            mUsingFlycam { false };
