@@ -1184,7 +1184,9 @@ void LLViewerTextureList::updateImageDecodePriority(LLViewerFetchedTexture* imag
                     //    vsize /= bias;
                     //}
                     // FSTextureBiasDistanceScale: far faces give memory back first (the Alchemy viewer's rule)
-                    vsize /= face_bias.faceDivisor(in_view, face->mImportanceToCamera, bias, fs_bias_level,
+                    // FSRenderKeepSelfLoaded: your own avatar's faces count as the most important to the camera
+                    const F32 fs_importance = face_bias.importance(face, face->mImportanceToCamera);
+                    vsize /= face_bias.faceDivisor(in_view, fs_importance, bias, fs_bias_level,
                                                    LLViewerTexture::sDesiredDiscardBias, face->getFSCameraDistance(), max_discard);
                     vsize *= face_bias.materialMapScale(i, face, objp, fs_map_reducible, fs_occluded);
                     // </FS:Trish>
@@ -1198,7 +1200,7 @@ void LLViewerTextureList::updateImageDecodePriority(LLViewerFetchedTexture* imag
                         static LLCachedControl<F32> texture_camera_boost(gSavedSettings, "TextureCameraBoost", 8.f);
                         // <FS:Trish> FSTextureCameraBoostMaxLevels: the boost's effect on the size is capped
                         //vsize *= llmax(face->mImportanceToCamera*texture_camera_boost, 1.f);
-                        vsize *= face_bias.cameraBoost(face->mImportanceToCamera, texture_camera_boost);
+                        vsize *= face_bias.cameraBoost(fs_importance, texture_camera_boost); // FSRenderKeepSelfLoaded
                         // </FS:Trish>
                         vsize = face_bias.avatarFloor(objp, vsize); // <FS:Trish/> FSTextureAvatarSmallParts
                     }

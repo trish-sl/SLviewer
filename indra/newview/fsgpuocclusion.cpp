@@ -766,6 +766,13 @@ namespace
         {
             return false;
         }
+        // FSRenderKeepSelfLoaded: your own attachments are never culled by the test, like your rigged meshes
+        // (a batch made while the setting was off keeps its box until its group is rebuilt)
+        static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+        if (keep_self_loaded && LLVOAvatar::fsIsSelfPart(vobj))
+        {
+            return false;
+        }
         box[0] = facep->mExtents[0];
         box[1] = facep->mExtents[1];
         if (!drawable->isActive())

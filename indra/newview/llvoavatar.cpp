@@ -3355,6 +3355,17 @@ void LLVOAvatar::idleUpdate(LLAgent &agent, const F64 &time)
     // store off last frame's root position to be consistent with camera position
     mLastRootPos = mRoot->getWorldPosition();
     bool detailed_update = updateCharacter(agent);
+    // <FS:Trish> FSRenderKeepSelfLoaded: your own avatar gets the detailed update (attachment moves, lip sync,
+    // wind) out of view too, so nothing has to catch up the frame it comes back into view. updateCharacter
+    // already poses it in full when out of view.
+    {
+        static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+        if (keep_self_loaded && isSelf() && mIsBuilt)
+        {
+            detailed_update = true;
+        }
+    }
+    // </FS:Trish>
 
     static LLUICachedControl<bool> visualizers_in_calls("ShowVoiceVisualizersInCalls", false);
     bool voice_enabled = (visualizers_in_calls || LLVoiceClient::getInstance()->inProximalChannel()) &&
@@ -3614,6 +3625,16 @@ void LLVOAvatar::idleUpdateMisc(bool detailed_update)
     LLJoint::sNumTouches = 0;
 
     bool visible = isVisible() || mNeedsAnimUpdate;
+    // <FS:Trish> FSRenderKeepSelfLoaded: your own small attachments follow the joints out of view too, so their
+    // place in the octree is current and they aren't culled at a stale place when you come back into view
+    {
+        static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+        if (keep_self_loaded && isSelf())
+        {
+            visible = true;
+        }
+    }
+    // </FS:Trish>
 
     // update attachments positions
     // <FS:Trish> FSPerfParallelAvatarUpdate: a queued pose is not evaluated yet, the moves below
@@ -6443,7 +6464,12 @@ void LLVOAvatar::updateVisibility()
     }
     else
     {
-        if (mMeshValid &&
+        // <FS:Trish> FSRenderKeepSelfLoaded: your own avatar keeps its mesh data (and its attachments stay
+        // shown) while out of view
+        static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+        //if (mMeshValid &&
+        if (mMeshValid && !(keep_self_loaded && isSelf()) &&
+        // </FS:Trish>
             (isControlAvatar() || mMeshInvisibleTime.getElapsedTimeF32() > TIME_BEFORE_MESH_CLEANUP))
         {
             releaseMeshData();
@@ -12703,6 +12729,30 @@ S32 LLVOAvatar::getUnbakedPixelAreaRank()
     llassert(0);
     return 0;
 }
+
+// <FS:Trish> FSRenderKeepSelfLoaded
+//static
+bool LLVOAvatar::fsIsSelfPart(const LLViewerObject* objp)
+{
+    if (!objp)
+    {
+        return false;
+    }
+    LLViewerObject* obj = const_cast<LLViewerObject*>(objp);
+    if (LLVOAvatar* avatar = obj->asAvatar())
+    {
+        return avatar->isSelf();
+    }
+    // an attachment's prims (and an animesh worn) have the wearer up their parent chain; a world object has none
+    LLVOAvatar* wearer = obj->getAvatarAncestor();
+    if (!wearer || !wearer->isSelf())
+    {
+        return false;
+    }
+    const LLViewerObject* root = obj->getRootEdit();
+    return !(root && root->isHUDAttachment());
+}
+// </FS:Trish>
 
 // static, gets called once per frame from updateApparentAngles.
 void LLVOAvatar::cullAvatarsByPixelArea()

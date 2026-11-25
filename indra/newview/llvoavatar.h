@@ -856,6 +856,10 @@ public:
     static void setCullNeedsUpdate() { sAvatarCullNeedsUpdate = true; }
     static void cullAvatarsByPixelArea();
     bool        isCulled() const { return mCulled; }
+    // <FS:Trish> FSRenderKeepSelfLoaded: objp is your own avatar, or a prim of one of its world (not HUD)
+    // attachments, animesh included
+    static bool fsIsSelfPart(const LLViewerObject* objp);
+    // </FS:Trish>
 private:
     bool        mCulled;
     static bool sAvatarCullNeedsUpdate;

@@ -81,6 +81,7 @@
 #include "llviewerobject.h"
 #include "llviewertexture.h"
 #include "llviewertextureanim.h"
+#include "llvoavatarself.h"
 #include "llvovolume.h"
 
 #include <atomic>
@@ -382,7 +383,20 @@ FSTextureFaceBias FSTextureFaceBias::current()
         const F32 side = (F32)llclamp((U32)avatar_small_parts_size, 16U, 512U);
         bias.mAvatarFloor = side * side;
     }
+    static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+    bias.mKeepSelf = keep_self_loaded && isAgentAvatarValid();
     return bias;
+}
+
+bool FSTextureFaceBias::keepSelf(const LLFace* face) const
+{
+    // The prepare() workers run while the main thread waits for them, so the parent chain holds still
+    return mKeepSelf && LLVOAvatar::fsIsSelfPart(face->getViewerObject());
+}
+
+F32 FSTextureFaceBias::importance(const LLFace* face, F32 importance) const
+{
+    return keepSelf(face) ? 1.f : importance;
 }
 
 F32 FSTextureFaceBias::avatarFloor(const LLViewerObject* objp, F32 vsize) const
@@ -396,6 +410,10 @@ F32 FSTextureFaceBias::avatarFloor(const LLViewerObject* objp, F32 vsize) const
 
 bool FSTextureFaceBias::inView(const LLFace* face) const
 {
+    if (keepSelf(face))
+    {
+        return true;
+    }
     if (!face->mInFrustum)
     {
         return false;
@@ -412,7 +430,7 @@ bool FSTextureFaceBias::inView(const LLFace* face) const
 
 bool FSTextureFaceBias::occluded(const LLFace* face) const
 {
-    if (!mOccludedDiscard || !face->mInFrustum)
+    if (!mOccludedDiscard || !face->mInFrustum || keepSelf(face))
     {
         return false;
     }
@@ -595,7 +613,9 @@ void FSParallelTexture::reduceFaces(LLViewerFetchedTexture* imagep, const Params
                 vsize /= p.mFaceBias.scale(objp, te, te_offset, i, p.mScaleMin, p.mScaleMax);
 
                 // FSTextureBiasRamp, FSTextureBiasDistanceScale: as in updateImageDecodePriority
-                vsize /= p.mFaceBias.faceDivisor(in_view, face->mImportanceToCamera, bias, bias_level, p.mDiscardBias,
+                // FSRenderKeepSelfLoaded: as in updateImageDecodePriority
+                const F32 importance = p.mFaceBias.importance(face, face->mImportanceToCamera);
+                vsize /= p.mFaceBias.faceDivisor(in_view, importance, bias, bias_level, p.mDiscardBias,
                                                  face->getFSCameraDistance(), max_discard);
                 // FSTextureMaterialMapReduce: as in updateImageDecodePriority
                 vsize *= p.mFaceBias.materialMapScale(i, face, objp, map_reducible, occluded);
@@ -603,7 +623,7 @@ void FSParallelTexture::reduceFaces(LLViewerFetchedTexture* imagep, const Params
                 if (in_view)
                 {
                     // FSTextureCameraBoostMaxLevels: as in updateImageDecodePriority
-                    vsize *= p.mFaceBias.cameraBoost(face->mImportanceToCamera, p.mCameraBoost);
+                    vsize *= p.mFaceBias.cameraBoost(importance, p.mCameraBoost);
                     vsize = p.mFaceBias.avatarFloor(objp, vsize); // FSTextureAvatarSmallParts: as in updateImageDecodePriority
                 }
                 if (occluded)

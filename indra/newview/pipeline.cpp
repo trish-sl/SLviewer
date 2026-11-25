@@ -3107,6 +3107,100 @@ bool LLPipeline::getVisibleExtents(LLCamera& camera, LLVector3& min, LLVector3& 
 
 static LLTrace::BlockTimerStatHandle FTM_CULL("Object Culling");
 
+// <FS:Trish> FSRenderKeepSelfLoaded: your own avatar and its world attachments are never occlusion culled by the
+// main camera, and keep their detail current while out of view. Out of the view they are not drawn; in it they
+// are drawn the frame they come into it, whatever a query from a frame or two before found.
+// The groups of the region partitions holding your avatar's bridge and its attachments' bridges, with all their
+// parents (an occluded parent culls its whole branch), for the main camera this frame. LLPipeline::doOcclusion
+// issues no query for them. Only compared, never followed.
+static std::vector<const LLSpatialGroup*> sFSKeepSelfGroups;
+
+static void fs_keep_self_group(LLDrawable* drawable)
+{
+    if (!drawable || drawable->isDead())
+    {
+        return;
+    }
+    LLSpatialBridge* bridge = drawable->getSpatialBridge();
+    LLSpatialGroup* group = bridge ? bridge->getSpatialGroup() : drawable->getSpatialGroup();
+    for (; group; group = group->getParent())
+    {
+        if (std::find(sFSKeepSelfGroups.begin(), sFSKeepSelfGroups.end(), group) != sFSKeepSelfGroups.end())
+        {
+            break; // its parents are in already
+        }
+        sFSKeepSelfGroups.push_back(group);
+        if (group->isDead() || LLPipeline::sUseOcclusion < 2)
+        {
+            continue;
+        }
+        // Drop a query in flight (its answer may be "hidden"), as LLOcclusionCullingGroup::doOcclusion does for a
+        // group around the camera: checkOcclusion then releases it without reading it. And clear the hidden state
+        // of this group alone (its other branches keep theirs).
+        if (group->isOcclusionState(LLSpatialGroup::QUERY_PENDING))
+        {
+            group->setOcclusionState(LLSpatialGroup::DISCARD_QUERY);
+        }
+        group->clearOcclusionState(LLSpatialGroup::OCCLUDED);
+    }
+}
+
+static void fs_keep_self_loaded(LLCamera& camera)
+{
+    sFSKeepSelfGroups.clear();
+    static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+    if (!keep_self_loaded || !isAgentAvatarValid() || gAgentAvatarp->mDrawable.isNull() || gCubeSnapshot ||
+        LLViewerCamera::sCurCameraID != LLViewerCamera::CAMERA_WORLD || LLPipeline::sShadowRender ||
+        LLPipeline::sReflectionRender || LLPipeline::sImpostorRender || gShiftFrame)
+    {
+        return;
+    }
+    LLVOAvatarSelf* self = gAgentAvatarp;
+    // Out of view, the detail of your avatar and attachments follows the camera as in view (stateSort only
+    // updates it for what it sees), so a mesh LOD the camera moved to is built before you look back
+    const bool update_detail = !self->mDrawable->isRecentlyVisible();
+    if (update_detail)
+    {
+        LLSpatialBridge* bridge = self->mDrawable->getSpatialBridge();
+        if (bridge && !bridge->isDead())
+        {
+            bridge->updateDistance(camera, false);
+        }
+    }
+    fs_keep_self_group(self->mDrawable);
+    for (const auto& [attachment_point_id, attachment] : self->mAttachmentPoints)
+    {
+        if (!attachment || attachment->getIsHUDAttachment())
+        {
+            continue;
+        }
+        for (const LLPointer<LLViewerObject>& attached_object : attachment->mAttachedObjects)
+        {
+            if (attached_object.isNull() || attached_object->isDead() || attached_object->mDrawable.isNull())
+            {
+                continue;
+            }
+            LLDrawable* drawable = attached_object->mDrawable;
+            if (update_detail)
+            {
+                LLSpatialBridge* bridge = drawable->getSpatialBridge();
+                if (bridge && !bridge->isDead())
+                {
+                    bridge->updateDistance(camera, false);
+                }
+            }
+            fs_keep_self_group(drawable);
+            // an animesh worn is drawn from its control avatar's bridge
+            LLControlAvatar* control_avatar = attached_object->getControlAvatar();
+            if (control_avatar && control_avatar->mDrawable.notNull())
+            {
+                fs_keep_self_group(control_avatar->mDrawable);
+            }
+        }
+    }
+}
+// </FS:Trish>
+
 // static
 bool LLPipeline::isWaterClip()
 {
@@ -3159,6 +3253,13 @@ void LLPipeline::updateCull(LLCamera& camera, LLCullResult& result, bool hud_att
     grabReferences(result);
 
     sCull->clear();
+
+    // <FS:Trish> FSRenderKeepSelfLoaded
+    if (!hud_attachments)
+    {
+        fs_keep_self_loaded(camera);
+    }
+    // </FS:Trish>
 
     const bool avatars_only = !hud_attachments && isAvatarOnlyRender(); // <FS:Trish/> Avatars only snapshot
 
@@ -3353,7 +3454,14 @@ void LLPipeline::doOcclusion(LLCamera& camera)
             LLSpatialGroup* group = *iter;
             if (!group->isDead())
             {
-                group->doOcclusion(&camera);
+                // <FS:Trish> FSRenderKeepSelfLoaded: no query for the groups holding your own avatar
+                //group->doOcclusion(&camera);
+                if (sFSKeepSelfGroups.empty() || LLViewerCamera::sCurCameraID != LLViewerCamera::CAMERA_WORLD ||
+                    std::find(sFSKeepSelfGroups.begin(), sFSKeepSelfGroups.end(), group) == sFSKeepSelfGroups.end())
+                {
+                    group->doOcclusion(&camera);
+                }
+                // </FS:Trish>
                 group->clearOcclusionState(LLSpatialGroup::ACTIVE_OCCLUSION);
             }
         }

@@ -76,12 +76,22 @@ struct FSTextureFaceBias
     F32 mDistanceScale = 0.f; // FSTextureBiasDistanceScale: per metre, 0 when off
     F32 mCameraBoostCap = 0.f; // FSTextureCameraBoostMaxLevels as a multiplier (4 for one level), 0 when off
     F32 mMapReduceDistance = -1.f; // FSTextureMaterialMapReduce: metres, below 0 when off
+    bool mKeepSelf = false; // FSRenderKeepSelfLoaded
 
     static FSTextureFaceBias current();
-    // face->mInFrustum, unless hidden as above
+    // face->mInFrustum, unless hidden as above. FSRenderKeepSelfLoaded: always for a face of your own avatar or
+    // its world attachments (keepSelf()).
     bool inView(const LLFace* face) const;
-    // FSTextureOccludedDiscard: in the frustum, but in a group hidden for the grace
+    // FSTextureOccludedDiscard: in the frustum, but in a group hidden for the grace. Never a keepSelf() face.
     bool occluded(const LLFace* face) const;
+    // FSRenderKeepSelfLoaded: a face of your own avatar or of one of its world attachments. Its textures are
+    // prioritised as if it were in view, unoccluded and of the highest importance to the camera (importance()),
+    // wherever the camera looks, so they are at full size the moment you see yourself again. They still give way
+    // to real video memory shortage like anything in view.
+    bool keepSelf(const LLFace* face) const;
+    // The face's importance to the camera for the corrections below: importance (face->mImportanceToCamera), or 1
+    // for a keepSelf() face
+    F32 importance(const LLFace* face, F32 importance) const;
     // What the virtual size of a face in view is multiplied by for its importance to the camera: importance x
     // boost (TextureCameraBoost), at least 1, and with FSTextureCameraBoostMaxLevels at most that many
     // discard levels (4 per level), so a texture inside a large object's bounding sphere (importance 1) isn't

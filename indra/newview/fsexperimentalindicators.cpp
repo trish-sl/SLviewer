@@ -465,6 +465,7 @@ namespace
         { "FSAvatarRetryEmptyAppearance", CL, VN },
         { "FSAvatarDropStaleAppearance", CL, VN },
         { "FSFastSelfRez", CL, VN },
+        { "FSRenderKeepSelfLoaded", CL, VN },
         { "FSPerfAvatarRankHysteresis", CS, VN },
         { "FSPerfRiggedPaletteCache", CS, VN },
         { "FSPerfAttachmentExtentsCache", CS, VN },

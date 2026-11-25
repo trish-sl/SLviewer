@@ -1173,7 +1173,12 @@ void LLVOVolume::updateTextureVirtualSize(bool forced)
 
     if(!forced)
     {
-        if(!isVisible())
+        // <FS:Trish> FSRenderKeepSelfLoaded: the faces of your own attachments keep their pixel area out of view,
+        // so their textures aren't reduced while you look away
+        //if(!isVisible())
+        static LLCachedControl<bool> keep_self_loaded(gSavedSettings, "FSRenderKeepSelfLoaded", true);
+        if(!isVisible() && !(keep_self_loaded && LLVOAvatar::fsIsSelfPart(this)))
+        // </FS:Trish>
         { //don't load textures for non-visible faces
             const S32 num_faces = mDrawable->getNumFaces();
             for (S32 i = 0; i < num_faces; i++)
