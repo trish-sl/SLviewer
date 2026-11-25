@@ -7536,7 +7536,11 @@ void LLVOAvatar::processAnimationStateChanges()
         //
         //    ++anim_it;
         //}
-        std::vector<std::pair<S32, LLUUID>> to_start;
+        // Jump and landing transitions start after the rest of the same update, though. Jumping or
+        // landing while moving, the sim swaps walk for stand in the same update as the pre-jump or
+        // landing, and the stand may come later in its order; started last, it made the AO's stand
+        // the state it played, over its pre-jump or landing (the AO plays the state started last).
+        std::vector<std::tuple<bool, S32, LLUUID>> to_start;
         for (const auto& [signaled_id, sequence] : mSignaledAnimations)
         {
             AnimIterator found_anim = mPlayingAnimations.find(signaled_id);
@@ -7544,11 +7548,13 @@ void LLVOAvatar::processAnimationStateChanges()
             // signaled but not playing, or different sequence id, start motion
             if (found_anim == mPlayingAnimations.end() || found_anim->second != sequence)
             {
-                to_start.emplace_back(sequence, signaled_id);
+                const bool transition = signaled_id == ANIM_AGENT_PRE_JUMP || signaled_id == ANIM_AGENT_LAND ||
+                                        signaled_id == ANIM_AGENT_MEDIUM_LAND || signaled_id == ANIM_AGENT_STANDUP;
+                to_start.emplace_back(transition, sequence, signaled_id);
             }
         }
         std::sort(to_start.begin(), to_start.end());
-        for (const auto& [sequence, start_id] : to_start)
+        for (const auto& [transition, sequence, start_id] : to_start)
         {
             if (processSingleAnimationStateChange(start_id, true))
             {
