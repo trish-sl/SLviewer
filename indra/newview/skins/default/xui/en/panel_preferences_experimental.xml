@@ -805,7 +805,7 @@
              bottom="-1">
                 <panel
                  follows="left|top"
-                 height="320"
+                 height="348"
                  layout="topleft"
                  left="0"
                  name="experimental_photo_settings"
@@ -834,7 +834,7 @@
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
-                         parameter="RenderResolutionMultiplier,FSSnapshotWaitForTextures,FSSnapshotTextureWaitTimeout,RenderScreenSpaceReflections,RenderScreenSpaceReflectionIterations,RenderScreenSpaceReflectionsResolutionMultiplier,RenderScreenSpaceReflectionMaxThickness,RenderScreenSpaceReflectionMaxRoughness,RenderScreenSpaceReflectionMaxDepth,RenderScreenSpaceReflectionsFilterScale" />
+                         parameter="RenderResolutionMultiplier,FSSnapshotWaitForTextures,FSSnapshotTextureWaitTimeout,RenderScreenSpaceReflections,RenderScreenSpaceReflectionIterations,RenderScreenSpaceReflectionsResolutionMultiplier,RenderScreenSpaceReflectionMaxThickness,RenderScreenSpaceReflectionMaxRoughness,RenderScreenSpaceReflectionMaxDepth,RenderScreenSpaceReflectionsFilterScale,FSRenderSSRPrecise" />
                     </button>
                     <text
                      follows="left|top"
@@ -1065,6 +1065,18 @@
                      tool_tip="EXPERIMENTAL. How widely the reflections are blurred for rough surfaces. 0 turns the blur off. Default 2."
                      top="278"
                      width="100" />
+                    <check_box
+                     control_name="FSRenderSSRPrecise"
+                     enabled_control="RenderScreenSpaceReflections"
+                     follows="left|top"
+                     height="20"
+                     label="Precise reflections behind avatars"
+                     layout="topleft"
+                     left="35"
+                     name="ssr_precise"
+                     tool_tip="EXPERIMENTAL. The screen does not show what is behind your avatar, so its reflection had a hole beside it showing the duller reflection probes. With this on, a reflection ray that passes behind an avatar and comes out behind the wall or floor beyond it takes that surface's colour where it shows again beside the avatar."
+                     top="306"
+                     width="455" />
                 </panel>
             </scroll_container>
         </panel>

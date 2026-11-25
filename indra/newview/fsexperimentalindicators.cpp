@@ -123,6 +123,7 @@ namespace
         { "RenderScreenSpaceReflectionMaxRoughness", CM, VM },
         { "RenderScreenSpaceReflectionMaxDepth", CM, VL },
         { "RenderScreenSpaceReflectionsFilterScale", CL, VL },
+        { "FSRenderSSRPrecise", CL, VM },
 
         // Effects: sun rays and dust
         { "FSRenderSunRays", CL, VL },

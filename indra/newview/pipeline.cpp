@@ -15055,6 +15055,13 @@ void LLPipeline::bindReflectionProbes(LLGLSLShader& shader)
 
             static LLStaticHashedString sHiZMipCount("hizMipCount");
             shader.uniform1i(sHiZMipCount, (GLint)mSceneMap.getMipLevels());
+
+            // <FS:Trish> Rays that pass behind an avatar and come out behind the wall or floor beyond
+            // it count as hitting that surface (screenSpaceReflUtil.glsl)
+            static LLCachedControl<bool> fsSSRPrecise(gSavedSettings, "FSRenderSSRPrecise", true);
+            static LLStaticHashedString sSSRPrecise("ssrPrecise");
+            shader.uniform1i(sSSRPrecise, fsSSRPrecise ? 1 : 0);
+            // </FS:Trish>
         }
 
         channel = shader.enableTexture(LLShaderMgr::SCENE_DEPTH);

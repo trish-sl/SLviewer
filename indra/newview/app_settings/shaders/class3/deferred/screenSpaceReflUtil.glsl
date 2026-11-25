@@ -43,6 +43,7 @@ uniform float maxZDepth;
 uniform float maxRoughness;
 uniform vec2 ssrJitterOffset;
 uniform int hizMipCount;
+uniform int ssrPrecise; // <FS:Trish/> FSRenderSSRPrecise
 
 vec4 getPositionWithDepth(vec2 pos_screen, float depth);
 
@@ -101,7 +102,9 @@ float projectDepth(vec3 viewPos)
 
 // <FS:Trish> Validate candidates while marching, so rejecting a foreground surface does not terminate
 // the entire reflection ray. Depth and normals belong to the scene map's camera space.
-float ssrHitConfidence(vec3 hit, vec3 viewRay)
+// crossed: the ray went behind a nearer surface in front of this one and came out behind this one,
+// so it passed through it where the screen cannot show (FSRenderSSRPrecise); no thickness test.
+float ssrHitConfidence(vec3 hit, vec3 viewRay, bool crossed)
 {
     if (any(lessThan(hit.xy, vec2(0.0))) || any(greaterThanEqual(hit.xy, vec2(1.0))))
         return 0.0;
@@ -118,6 +121,8 @@ float ssrHitConfidence(vec3 hit, vec3 viewRay)
     vec3 ray = getPositionWithDepth(hit.xy, ssrStdDepth(hit.z)).xyz;
     float confidence = 1.0 - smoothstep(0.0, maxThickness, length(surface - ray));
     confidence *= confidence;
+    if (crossed)
+        confidence = 1.0;
     if (confidence < 0.95)
         return 0.0;
 
@@ -193,7 +198,13 @@ vec4 hiZTrace(vec3 origin, vec3 dir, vec3 viewRay, int maxIterations)
 
     int curLevel = 0;
     float t = 0.0;
-    float hitConfidence = 0.0; // <FS:Trish/>
+    // <FS:Trish>
+    float hitConfidence = 0.0;
+    // FSRenderSSRPrecise: whether the ray is behind a surface nearer the camera (an avatar standing
+    // before a wall, say), and that surface's view depth at the last cell it covered
+    bool occluded = false;
+    float occluderZ = 0.0;
+    // </FS:Trish>
 
     // Compute t_max: parametric T to the screen edge where we stop tracing.
     vec2 t0 = (vec2(0.0) - origin.xy) / rayDir.xy;
@@ -244,6 +255,12 @@ vec4 hiZTrace(vec3 origin, vec3 dir, vec3 viewRay, int maxIterations)
 
         int mipOffset = hit ? -1 : 1;
 
+        // <FS:Trish> FSRenderSSRPrecise: in front of everything in this cell, so no longer behind anything
+        bool crossed = false;
+        if (!hit)
+            occluded = false;
+        // </FS:Trish>
+
         // Thickness gate at mip 0 (matches Godot depth_tolerance check):
         // Linearize depths and reject if surface is too far behind ray.
         if (curLevel == 0 && hit)
@@ -254,18 +271,38 @@ vec4 hiZTrace(vec3 origin, vec3 dir, vec3 viewRay, int maxIterations)
             float z0 = getPositionWithDepth(pos.xy, ssrStdDepth(cellDepth)).z;
             float z1 = getPositionWithDepth(pos.xy, ssrStdDepth(pos.z)).z;
             // </FS:Trish>
+            // <FS:Trish> FSRenderSSRPrecise: a ray that passes behind a nearer surface and comes out
+            // behind a farther one went through the farther one somewhere the nearer one hides. That
+            // is a hit on the farther surface, taken where it shows again, rather than a miss that
+            // showed the probes in the outline of the nearer surface: a hole in the shape of an avatar
+            // behind its reflection.
+            //if ((z0 - z1) > maxThickness)
+            //{
+            //    hit = false;
+            //    mipOffset = 0;  // Stay at mip 0, march cell-by-cell.
+            //}
             if ((z0 - z1) > maxThickness)
             {
-                hit = false;
-                mipOffset = 0;  // Stay at mip 0, march cell-by-cell.
+                if (ssrPrecise != 0 && occluded && z0 < occluderZ - max(maxThickness, 0.5))
+                {
+                    crossed = true;
+                }
+                else
+                {
+                    hit = false;
+                    mipOffset = 0;  // Stay at mip 0, march cell-by-cell.
+                    occluded = true;
+                    occluderZ = z0;
+                }
             }
+            // </FS:Trish>
         }
 
         // <FS:Trish>
         if (curLevel == 0 && hit)
         {
             float candidateT = facingCamera ? t : max(t, depthT);
-            hitConfidence = ssrHitConfidence(origin + rayDir * candidateT, viewRay);
+            hitConfidence = ssrHitConfidence(origin + rayDir * candidateT, viewRay, crossed);
             if (hitConfidence <= 0.0)
             {
                 // The ray may pass behind a camera-visible foreground surface without
