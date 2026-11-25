@@ -445,7 +445,7 @@
     <key>FSRenderPointLightScatterDensity</key>
     <real>0.02</real>
     <key>FSRenderPointLightScatterMaxLights</key>
-    <integer>16</integer>
+    <integer>64</integer>
     <key>FSRenderPointLightScatterStrength</key>
     <real>1.0</real>
     <key>FSRenderPointLightScatterVariation</key>
@@ -457,6 +457,8 @@
     <key>FSRenderProbeRefreshBlend</key>
     <boolean>1</boolean>
     <key>FSRenderReverseZ</key>
+    <boolean>0</boolean>
+    <key>FSRenderSSRPrecise</key>
     <boolean>0</boolean>
     <key>FSRenderSeaHorizon</key>
     <boolean>0</boolean>
@@ -773,7 +775,7 @@
     <key>RenderScreenSpaceReflectionGlossySamples</key>
     <integer>2</integer>
     <key>RenderScreenSpaceReflectionIterations</key>
-    <integer>16</integer>
+    <integer>56</integer>
     <key>RenderScreenSpaceReflectionMaxRoughness</key>
     <real>0.7</real>
     <key>RenderScreenSpaceReflections</key>
