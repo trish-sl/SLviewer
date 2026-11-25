@@ -1071,19 +1071,6 @@
     <key>description</key><string>Rigged alpha faces that can never fail the alpha test are drawn without it, so the graphics card can skip the hidden hair and clothing layers behind them early.</string>
   </map>
   <map>
-    <key>id</key><string>vrs_rigged_alpha</string>
-    <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:alpha avatars</string></array>
-    <key>min_ms</key><real>0.5</real>
-    <key>fraction</key><real>0.35</real>
-    <key>when</key><array><string>$nvidia eq 1</string><string>FSRenderVRSRiggedAlpha eq 0</string></array>
-    <key>set</key><array>
-      <map><key>setting</key><string>FSRenderVRSRiggedAlpha</string><key>value</key><string>1</string></map>
-    </array>
-    <key>looks</key><string>Blended hair and sheer clothing a little blockier up close</string>
-    <key>description</key><string>NVIDIA RTX and GTX 16xx only: the avatar alpha pass shades once per 2x2 pixels, a quarter of the lighting work. Edges stay sharp.</string>
-  </map>
-  <map>
     <key>id</key><string>auto_mask_rigged_alpha</string>
     <key>bound</key><string>gpu</string>
     <key>zones</key><array><string>gpu:alpha avatars</string></array>
