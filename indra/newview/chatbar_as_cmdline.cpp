@@ -701,7 +701,7 @@ void cmdline_track(std::string_view params)
 // Camera bookmarks from the chat bar:
 //   cmd add [name]          the current view
 //   cmd follow [name]       the current view, following a target
-//   cmd followturn [name]   the same, turning with the target
+//   cmd followturn [name]
 //   cmd go <name>           go to a bookmark (an exact name, else the first containing it)
 //   cmd print [name]        say the link to the current view (or to a bookmark) in nearby chat
 //   cmd tour <name>         play a tour
@@ -763,6 +763,12 @@ static void cmdline_camera_bookmark(std::string params)
     }
     else if (action == "print")
     {
+        // A link names its region, which RLVa may be hiding
+        if (RlvActions::isRlvEnabled() && !RlvActions::canShowLocation())
+        {
+            FSCommon::report_cmdline_result(LLTrans::getString("FSCmdLineCamBookmarkRlvLocation"));
+            return;
+        }
         std::string link;
         if (name.empty())
         {
@@ -813,7 +819,7 @@ static void cmdline_camera_bookmark(std::string params)
             bookmarks += (bookmarks.empty() ? "" : ", ") + store.mBookmarks[i]["name"].asString();
         }
         std::string tours;
-        for (const FSCameraTour& tour : store.mTours)
+        for (const FSCameraBookmarkTour& tour : store.mTours)
         {
             tours += (tours.empty() ? "" : ", ") + tour.mName;
         }

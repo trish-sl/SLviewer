@@ -45,7 +45,7 @@ LLUrlRegistry::LLUrlRegistry()
 {
 //  mUrlEntry.reserve(20);
 // [RLVa:KB] - Checked: 2010-11-01 (RLVa-1.2.2a) | Added: RLVa-1.2.2a
-    mUrlEntry.reserve(39); // <FS:Trish> 38 + upstream's one more entry
+    mUrlEntry.reserve(38);
 // [/RLVa:KB]
 
     // Urls are matched in the order that they were registered
@@ -93,8 +93,7 @@ LLUrlRegistry::LLUrlRegistry()
     registerUrl(new LLUrlEntryRegion());
     registerUrl(new LLUrlEntryWorldMap());
     registerUrl(new LLUrlEntryObjectIM());
-    // <FS:Trish> Camera links: before LLUrlEntryPlace, whose pattern also takes a camera link up to its
-    // last "digits/digits" (where the two start at the same place, the one registered first wins)
+    // <FS:Trish> Camera links: must be before LLUrlEntryPlace
     registerUrl(new FSUrlEntryCamera());
     // </FS:Trish>
     registerUrl(new LLUrlEntryPlace());
@@ -119,7 +118,6 @@ LLUrlRegistry::LLUrlRegistry()
     registerUrl(new LLUrlEntryIPv6());
     // parse jira issue names to links -KC
     registerUrl(new LLUrlEntryJira());
-    //registerUrl(new FSUrlEntryCamera()); // <FS:Trish/> Camera links, moved up before LLUrlEntryPlace
 }
 
 LLUrlRegistry::~LLUrlRegistry()

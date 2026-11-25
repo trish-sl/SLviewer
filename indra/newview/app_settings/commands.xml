@@ -717,7 +717,6 @@
          />
   <!-- </FS:Trish> -->
 
-  <!-- <FS:Trish> Camera bookmarks -->
   <command name="camera_bookmarks"
         available_in_toybox="true"
         icon="Command_View_Icon"
@@ -728,6 +727,5 @@
         is_running_function="Floater.IsOpen"
         is_running_parameters="fs_camera_bookmarks"
          />
-  <!-- </FS:Trish> -->
 
 </commands>

@@ -46,14 +46,14 @@ struct FSCameraBookmarkStop
 {
     std::string             mName;
     std::string             mLink;
-    F32                     mTravel = 4.f;          
+    F32                     mTravel = 4.f;
     F32                     mHold = 5.f;
     FSCameraLinks::TourMove mMove = FSCameraLinks::TourMove::NONE;
     F32                     mAmount = 0.f;
     FSCameraLinks::TourEase mEase = FSCameraLinks::TourEase::SMOOTH;
 };
 
-struct FSCameraTour
+struct FSCameraBookmarkTour
 {
     std::string                         mName;
     FSCameraLinks::TourOptions          mOptions;
@@ -69,7 +69,7 @@ class FSCameraBookmarkStore : public LLSingleton<FSCameraBookmarkStore>
 
 public:
     LLSD                        mBookmarks;         // array of maps: name, link, target
-    std::vector<FSCameraTour>   mTours;
+    std::vector<FSCameraBookmarkTour>   mTours;
     S32                         mCurrentTour = -1;  // the tour shown in the UI
     S32                         mPlayingTour = -1;  // the tour in action
     std::vector<S32>            mPlayingStops;      // the stops of the playing tour
@@ -104,7 +104,7 @@ public:
     bool onBookmarkMenuEnable(const std::string& action);
 
     typedef FSCameraBookmarkStop Stop;
-    typedef FSCameraTour Tour;
+    typedef FSCameraBookmarkTour Tour;
 
 private:
     void save() const;

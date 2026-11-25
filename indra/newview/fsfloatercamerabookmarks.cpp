@@ -143,28 +143,7 @@ namespace
     // Full mode
     const char* const BOOKMARK_BUTTONS[] = { "add_following", "follow_turns", "add", "paste", "go", "copy", "rename",
                                              "update_view", "delete", "move_up", "move_down", "tours_toggle" };
-    constexpr F32 MAX_TRAVEL = 60.f;
-    constexpr F32 MAX_HOLD = 600.f;
-    constexpr F32 MAX_AMOUNT = 1000.f;
-    constexpr F32 MIN_SPEED = 0.1f;
-    constexpr F32 MAX_SPEED = 10.f;
     const std::string TOUR_HEADER = "Camera tour:";
-
-    bool parse_float(const std::string& text, F32& value)
-    {
-        if (text.empty())
-        {
-            return false;
-        }
-        char* end = nullptr;
-        const F32 parsed = strtof(text.c_str(), &end);
-        if (!end || *end != '\0' || !std::isfinite(parsed))
-        {
-            return false;
-        }
-        value = parsed;
-        return true;
-    }
 
     // Stop settings include: fly=4 hold=5 ease=linear move=orbit_left amount=30 (any order, all optional)
     void parse_stop_settings(const std::string& line, FSCameraBookmarkStop& stop)
@@ -183,17 +162,17 @@ namespace
             LLStringUtil::toLower(key);
             const std::string value = token.substr(equals + 1);
             F32 number = 0.f;
-            if (key == "fly" && parse_float(value, number))
+            if (key == "fly" && FSCameraLinks::parseNumber(value, number))
             {
-                stop.mTravel = llclamp(number, 0.f, MAX_TRAVEL);
+                stop.mTravel = llclamp(number, 0.f, FSCameraLinks::TOUR_MAX_TRAVEL);
             }
-            else if (key == "hold" && parse_float(value, number))
+            else if (key == "hold" && FSCameraLinks::parseNumber(value, number))
             {
-                stop.mHold = llclamp(number, 0.f, MAX_HOLD);
+                stop.mHold = llclamp(number, 0.f, FSCameraLinks::TOUR_MAX_HOLD);
             }
-            else if (key == "amount" && parse_float(value, number))
+            else if (key == "amount" && FSCameraLinks::parseNumber(value, number))
             {
-                stop.mAmount = llclamp(number, 0.f, MAX_AMOUNT);
+                stop.mAmount = llclamp(number, 0.f, FSCameraLinks::TOUR_MAX_AMOUNT);
                 has_amount = true;
             }
             else if (key == "move")
@@ -248,9 +227,9 @@ namespace
             {
                 options.mCurved = value == "curved";
             }
-            else if (key == "speed" && parse_float(value, number))
+            else if (key == "speed" && FSCameraLinks::parseNumber(value, number))
             {
-                options.mSpeed = llclamp(number, MIN_SPEED, MAX_SPEED);
+                options.mSpeed = llclamp(number, FSCameraLinks::TOUR_MIN_SPEED, FSCameraLinks::TOUR_MAX_SPEED);
             }
             else if (key == "hide_ui")
             {
@@ -282,17 +261,17 @@ namespace
         stop.mLink = data["link"].asString();
         if (data.has("fly"))
         {
-            stop.mTravel = llclamp((F32)data["fly"].asReal(), 0.f, MAX_TRAVEL);
+            stop.mTravel = llclamp((F32)data["fly"].asReal(), 0.f, FSCameraLinks::TOUR_MAX_TRAVEL);
         }
         if (data.has("hold"))
         {
-            stop.mHold = llclamp((F32)data["hold"].asReal(), 0.f, MAX_HOLD);
+            stop.mHold = llclamp((F32)data["hold"].asReal(), 0.f, FSCameraLinks::TOUR_MAX_HOLD);
         }
         if (!FSCameraLinks::parseTourMove(data["move"].asString(), stop.mMove))
         {
             stop.mMove = FSCameraLinks::TourMove::NONE;
         }
-        stop.mAmount = data.has("amount") ? llclamp((F32)data["amount"].asReal(), 0.f, MAX_AMOUNT)
+        stop.mAmount = data.has("amount") ? llclamp((F32)data["amount"].asReal(), 0.f, FSCameraLinks::TOUR_MAX_AMOUNT)
                                           : FSCameraLinks::defaultTourMoveAmount(stop.mMove);
         if (!FSCameraLinks::parseTourEase(data["ease"].asString(), stop.mEase))
         {
@@ -406,7 +385,7 @@ void FSCameraBookmarkStore::load()
         {
             continue;
         }
-        FSCameraTour tour;
+        FSCameraBookmarkTour tour;
         tour.mName = clean_name(entry["name"].asString());
         if (tour.mName.empty())
         {
@@ -414,7 +393,7 @@ void FSCameraBookmarkStore::load()
         }
         FSCameraLinks::parseTourRepeat(entry["repeat"].asString(), tour.mOptions.mRepeat);
         tour.mOptions.mCurved = entry["curved"].asBoolean();
-        tour.mOptions.mSpeed = entry.has("speed") ? llclamp((F32)entry["speed"].asReal(), MIN_SPEED, MAX_SPEED) : 1.f;
+        tour.mOptions.mSpeed = entry.has("speed") ? llclamp((F32)entry["speed"].asReal(), FSCameraLinks::TOUR_MIN_SPEED, FSCameraLinks::TOUR_MAX_SPEED) : 1.f;
         tour.mOptions.mHideUI = entry["hide_ui"].asBoolean();
         const LLSD& stops = entry["stops"];
         for (size_t j = 0; stops.isArray() && j < stops.size(); ++j)
@@ -438,7 +417,7 @@ void FSCameraBookmarkStore::save() const
     LLSD data;
     data["bookmarks"] = mBookmarks;
     LLSD& tours = data["tours"] = LLSD::emptyArray();
-    for (const FSCameraTour& tour : mTours)
+    for (const FSCameraBookmarkTour& tour : mTours)
     {
         LLSD entry;
         entry["name"] = tour.mName;
@@ -539,7 +518,7 @@ bool FSCameraBookmarkStore::playTour(S32 tour_index, S32 from_stop)
     {
         return false;
     }
-    const FSCameraTour& tour = mTours[tour_index];
+    const FSCameraBookmarkTour& tour = mTours[tour_index];
 
     // In order, minus invalid links
     std::vector<FSCameraLinks::TourStop> stops;
@@ -998,7 +977,7 @@ void FSFloaterCameraBookmarks::onClickGo()
     {
         return;
     }
-    
+
     FSCameraLinks::View view;
     if (!FSCameraLinks::parseLink(mBookmarks[index]["link"].asString(), view))
     {
@@ -1100,7 +1079,7 @@ void FSFloaterCameraBookmarks::onClickUpdateView()
     {
         return;
     }
-    
+
     FSCameraLinks::View old_view;
     const bool follows = FSCameraLinks::parseLink(mBookmarks[index]["link"].asString(), old_view) && old_view.hasTarget();
     FSCameraLinks::View view;
@@ -1310,7 +1289,7 @@ void FSFloaterCameraBookmarks::setCompact(bool compact)
     {
         getChild<LLView>(name)->setVisible(!compact);
     }
-    
+
     LLRect list_rect = mList->getRect();
     list_rect.mBottom = compact ? LIST_BOTTOM_COMPACT : LIST_BOTTOM_COMPACT + mButtonRowsHeight;
     const S32 delta = compact ? -mButtonRowsHeight : mButtonRowsHeight;
@@ -1321,7 +1300,7 @@ void FSFloaterCameraBookmarks::setCompact(bool compact)
     const S32 height = llmax(rect.getHeight() + delta, min_height);
     reshape(rect.getWidth(), height);
     setOrigin(rect.mLeft, rect.mTop - height);
-    
+
     list_rect.mTop = mList->getRect().mTop;
     mList->setShape(list_rect);
 
@@ -1353,7 +1332,7 @@ void FSFloaterCameraBookmarks::layoutPanels()
     {
         return;
     }
-    
+
     const S32 width = getRect().getWidth();
     const S32 height = llmax(getRect().getHeight() - getHeaderHeight(), 0);
     const S32 tours_width = mToursPanel->getVisible() ? llmin(mToursWidth, llmax(width - BOOKMARKS_MIN_WIDTH, 0)) : 0;
@@ -1396,7 +1375,7 @@ FSFloaterCameraBookmarks::Stop FSFloaterCameraBookmarks::newStop(const std::stri
     Stop stop;
     stop.mName = name;
     stop.mLink = link;
-    
+
     if (!tour.mStops.empty())
     {
         stop.mTravel = tour.mStops.back().mTravel;
@@ -1444,9 +1423,9 @@ void FSFloaterCameraBookmarks::onCommitTourOptions()
     }
     FSCameraLinks::parseTourRepeat(mTourRepeat->getValue().asString(), tour->mOptions.mRepeat);
     tour->mOptions.mCurved = mTourPath->getValue().asString() == "curved";
-    tour->mOptions.mSpeed = llclamp(mTourSpeed->getValueF32(), MIN_SPEED, MAX_SPEED);
+    tour->mOptions.mSpeed = llclamp(mTourSpeed->getValueF32(), FSCameraLinks::TOUR_MIN_SPEED, FSCameraLinks::TOUR_MAX_SPEED);
     tour->mOptions.mHideUI = mTourHideUI->getValue().asBoolean();
-    
+
     save();
     updateTourStatus();
 }
@@ -1460,7 +1439,7 @@ std::string FSFloaterCameraBookmarks::durationText(const Tour& tour) const
     }
     LLStringUtil::format_map_t args;
     args["COUNT"] = llformat("%d", (S32)tour.mStops.size());
-    const S32 total = ll_round(seconds / llmax(tour.mOptions.mSpeed, MIN_SPEED));
+    const S32 total = ll_round(seconds / llmax(tour.mOptions.mSpeed, FSCameraLinks::TOUR_MIN_SPEED));
     LLStringUtil::format_map_t time_args;
     time_args["MINUTES"] = llformat("%d", total / 60);
     time_args["SECONDS"] = total >= 60 ? llformat("%02d", total % 60) : llformat("%d", total);
@@ -1601,11 +1580,11 @@ void FSFloaterCameraBookmarks::onCommitStopEditor(const std::string& field)
         Stop& stop = tour->mStops[index];
         if (field == "travel")
         {
-            stop.mTravel = llclamp(mStopTravel->getValueF32(), 0.f, MAX_TRAVEL);
+            stop.mTravel = llclamp(mStopTravel->getValueF32(), 0.f, FSCameraLinks::TOUR_MAX_TRAVEL);
         }
         else if (field == "hold")
         {
-            stop.mHold = llclamp(mStopHold->getValueF32(), 0.f, MAX_HOLD);
+            stop.mHold = llclamp(mStopHold->getValueF32(), 0.f, FSCameraLinks::TOUR_MAX_HOLD);
         }
         else if (field == "move")
         {
@@ -1617,14 +1596,14 @@ void FSFloaterCameraBookmarks::onCommitStopEditor(const std::string& field)
         }
         else if (field == "amount")
         {
-            stop.mAmount = llclamp(mStopAmount->getValueF32(), 0.f, MAX_AMOUNT);
+            stop.mAmount = llclamp(mStopAmount->getValueF32(), 0.f, FSCameraLinks::TOUR_MAX_AMOUNT);
         }
         else if (field == "ease")
         {
             stop.mEase = ease;
         }
     }
-    
+
     save();
     refreshStops(selected);
 }
@@ -1723,7 +1702,7 @@ void FSFloaterCameraBookmarks::onClickDeleteTour()
             {
                 return;
             }
-            
+
             if (self->mPlayingTour == index)
             {
                 FSCameraLinks::stopTour();
@@ -1746,7 +1725,7 @@ void FSFloaterCameraBookmarks::onClickAddStops()
     {
         return;
     }
-    
+
     Tour* tour = currentOrNewTour();
     stopTourIfPlaying(mCurrentTour);
     std::vector<S32> added;
@@ -1830,7 +1809,7 @@ void FSFloaterCameraBookmarks::onClickMoveStop(S32 offset)
         return;
     }
     stopTourIfPlaying(mCurrentTour);
-    
+
     if (offset > 0)
     {
         std::reverse(selected.begin(), selected.end());
@@ -1881,7 +1860,7 @@ void FSFloaterCameraBookmarks::onClickPlayTour()
     {
         return;
     }
-    
+
     const std::vector<S32> selected = selectedStops();
     FSCameraBookmarkStore::instance().playTour(mCurrentTour, selected.empty() ? 0 : selected.front());
     updateTourStatus();

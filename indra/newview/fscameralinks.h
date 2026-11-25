@@ -42,7 +42,7 @@ class LLSD;
 // Camera links. A link of the form
 //   secondlife:///app/camera/<Region>/<x>/<y>/<z>?focus=<fx>,<fy>,<fz>&fov=<degrees>&roll=<degrees>
 // holds a camera position and focus point in region coordinates. Clicking it moves the clicker's
-// camera there like an alt-click focus would (Esc or walking brings the camera back). 
+// camera there like an alt-click focus would (Esc or walking brings the camera back).
 // The fov and roll parts are optional. Including tp in the querystrings also marks where the avatar
 // stood when taking the link. This position is used in case a user must be teleported to view the link.
 //
@@ -108,6 +108,9 @@ namespace FSCameraLinks
         F32         roll = 0.f;
         bool        has_roll = false;
     };
+    // A whole string as a finite number, surrounding spaces allowed
+    bool parseNumber(std::string text, F32& value);
+
     bool parseCamPos(const std::string& text, CamPos& out);
     std::string formatCamPos(const LLVector3& pos, const LLVector3& focus, F32 roll);
 
@@ -159,12 +162,19 @@ namespace FSCameraLinks
     std::string tourRepeatName(TourRepeat repeat);
     bool parseTourRepeat(const std::string& name, TourRepeat& repeat);
 
+    // Limits of tour stops and options, shared by playback and the bookmarks floater
+    constexpr F32 TOUR_MAX_TRAVEL = 60.f;       // seconds
+    constexpr F32 TOUR_MAX_HOLD = 600.f;        // seconds
+    constexpr F32 TOUR_MAX_AMOUNT = 1000.f;     // degrees, percent or metres
+    constexpr F32 TOUR_MIN_SPEED = 0.1f;
+    constexpr F32 TOUR_MAX_SPEED = 10.f;
+
     struct TourOptions
     {
         TourRepeat  mRepeat = TourRepeat::ONCE;
         bool        mCurved = false;    // a smooth curve through the stops instead of straight lines
         F32         mSpeed = 1.f;       // playback speed (multiplies all stops and motions)
-        bool        mHideUI = false;    
+        bool        mHideUI = false;
     };
 
     // Camera tour helpers
