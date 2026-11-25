@@ -1112,8 +1112,8 @@ void LLDrawPoolAlpha::renderAlpha(U32 mask, bool depth_only, bool rigged, EWBOIT
 
     // <FS:Trish> Program switches are what this loop does most besides drawing: draws stay in their
     // sorted order, so the program goes back and forth between the legacy, material, fullbright,
-    // PBR and rigged variants, and around every glow pass. Each switch used to set the pass's probe,
-    // SSR and hi-Z uniforms again (and rebind the probe uniform buffer); they don't change within a
+    // PBR and rigged variants, and around every glow pass. Each switch used to set the pass's probe
+    // and SSR uniforms again (and rebind the probe uniform buffer); they don't change within a
     // pass, so a program gets them once here and only its textures afterwards. The switch back after
     // a group's glow pass waits for the next draw, which often wants another program anyway.
     std::vector<LLGLSLShader*> fs_pass_programs;    // fully bound in this pass

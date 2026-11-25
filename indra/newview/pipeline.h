@@ -153,6 +153,13 @@ public:
     void bindScreenToTexture();
     void renderFinalize();
     void copyScreenSpaceReflections(LLRenderTarget* src, LLRenderTarget* dst);
+    // <FS:Trish> GCP: screen-space reflections
+    void buildHiZBuffer();
+    void renderSSRTrace();
+    void renderSSRAlpha();
+    void renderSSRWater();
+    void filterSSRBuffer();
+    // </FS:Trish>
     void generateLuminance(LLRenderTarget* src, LLRenderTarget* dst);
     void generateExposure(LLRenderTarget* src, LLRenderTarget* dst, bool use_history = true);
     void getExposureRange(F32& exp_min, F32& exp_max); // <FS:Trish/>
@@ -450,7 +457,7 @@ public:
     // if setup is true, wil lset texture compare mode function and filtering options
     void bindShadowMaps(LLGLSLShader& shader);
     void bindShadowDepthFetch(LLGLSLShader& shader, bool bind); // <Vulkanstorm/> PCSS raw depth units
-    // <FS:Trish> fs_uniforms_set: this program already got the pass's probe, SSR and hi-Z uniforms
+    // <FS:Trish> fs_uniforms_set: this program already got the pass's probe and SSR uniforms
     // (they don't change within a pass); only its textures are bound again, other programs having
     // put theirs on the same units meanwhile
     //void bindDeferredShaderFast(LLGLSLShader& shader);
@@ -938,6 +945,23 @@ public:
     // copy of the color/depth buffer just before gamma correction
     // for use by SSR
     LLRenderTarget          mSceneMap;
+    // <FS:Trish> The scene before the post-water alpha pass, colour and depth together, for the
+    // screen-space reflections. copyScreenSpaceReflections copies it into mSceneMap at the end of
+    // the frame, and only it: never the finished scene.
+    LLRenderTarget          mFSSSRStage;
+    U32                     mFSSSRStageFrame = 0;
+    void fsStageScreenSpaceReflections();
+    // </FS:Trish>
+
+    // <FS:Trish> GCP: screen-space reflections, traced before the lighting pass. Opaque surfaces,
+    // then alpha and water over them, then blurred into its mips for rough surfaces; the lighting
+    // pass and the water read it back by roughness.
+    LLRenderTarget          mSSRBuffer;
+    std::vector<LLRenderTarget> mSSRMipTemp;
+    // The post-deferred pass of renderDeferredLighting: alpha shaders bound there trace their own
+    // screen-space reflections
+    bool                    mInForwardAlphaPass = false;
+    // </FS:Trish>
 
     // <FS:Trish> Sun rays, bloom, colour grading and lens effects
     LLRenderTarget          mSunRayMap;
@@ -1597,10 +1621,12 @@ public:
     static F32 RenderAutoHideSurfaceAreaLimit;
     static bool RenderScreenSpaceReflections;
     static S32 RenderScreenSpaceReflectionIterations;
-    static F32 RenderScreenSpaceReflectionRayStep;
-    static F32 RenderScreenSpaceReflectionDistanceBias;
-    static F32 RenderScreenSpaceReflectionDepthRejectBias;
-    static F32 RenderScreenSpaceReflectionAdaptiveStepMultiplier;
+    // <FS:Trish> GCP
+    //static F32 RenderScreenSpaceReflectionRayStep;
+    //static F32 RenderScreenSpaceReflectionDistanceBias;
+    //static F32 RenderScreenSpaceReflectionDepthRejectBias;
+    //static F32 RenderScreenSpaceReflectionAdaptiveStepMultiplier;
+    // </FS:Trish>
     static S32 RenderScreenSpaceReflectionGlossySamples;
     static S32 RenderBufferVisualization;
     static bool RenderMirrors;

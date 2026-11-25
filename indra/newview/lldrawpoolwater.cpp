@@ -48,8 +48,6 @@
 #include "llenvironment.h"
 #include "llsettingssky.h"
 #include "llsettingswater.h"
-#include "fsssrhiz.h" // <FS:Trish/>
-#include "lldrawpoolalpha.h" // <FS:Trish/> water plane for the water SSR
 #include "fswaterripples.h" // <FS:Trish/> FSRenderWaterRipples
 
 bool LLDrawPoolWater::sSkipScreenCopy = false;
@@ -150,10 +148,10 @@ static bool fs_water_foam_enabled()
     return enabled && LLPipeline::sRenderTransparentWater;
 }
 
-// The opaque depth is wanted by the foam or by the water's screen-space reflections
+// The opaque depth is wanted by the foam
 static bool fs_water_opaque_depth_wanted()
 {
-    return fs_water_foam_enabled() || (LLPipeline::sRenderTransparentWater && LLPipeline::RenderScreenSpaceReflections);
+    return fs_water_foam_enabled();
 }
 
 // The opaque depth of this view when it was captured (main view), otherwise the water's own
@@ -162,6 +160,28 @@ static LLRenderTarget* fs_water_opaque_depth(LLRenderTarget& water_dis)
 {
     return (sFSFoamDepthValid && sFSFoamDepth) ? sFSFoamDepth : &water_dis;
 }
+
+// <FS:Trish> The waves' scroll for waterV.glsl: direction times time, in double precision and
+// wrapped to the normal maps' repeat. Done there in floats from the raw session time, it
+// stuttered and broke up into blocks after a few hours. For the water and its screen-space
+// reflections (renderSSR), which must see the same waves.
+static void fs_set_wave_scroll(LLGLSLShader& shader, const LLSettingsWater::ptr_t& pwater)
+{
+    static LLStaticHashedString s_wave_scroll("fs_wave_scroll");
+    static LLStaticHashedString s_wave_scroll2("fs_wave_scroll2");
+    const F64 wave_time = LLFrameTimer::getElapsedSeconds() * 0.5; // phase_time, unrounded
+    const LLVector2 dir1 = pwater->getWave1Dir();
+    const LLVector2 dir2 = pwater->getWave2Dir();
+    auto scroll = [wave_time](F32 dir, F64 rate)
+    {
+        const F64 v = (F64)dir * wave_time * rate;
+        return (F32)(v - floor(v));
+    };
+    shader.uniform4f(s_wave_scroll, scroll(dir1.mV[0], 0.055), scroll(dir1.mV[1], 0.055),
+                     scroll(dir2.mV[0], 0.13), scroll(dir2.mV[1], 0.13));
+    shader.uniform2f(s_wave_scroll2, scroll(dir1.mV[0], 0.1), scroll(dir1.mV[1], 0.1));
+}
+// </FS:Trish>
 
 // Whether this view will draw any water: the water pass runs and has faces queued
 static bool fs_water_will_draw()
@@ -185,11 +205,6 @@ void LLDrawPoolWater::fsCaptureFoamDepth(LLRenderTarget& src)
         return;
     }
     if (gCubeSnapshot || LLPipeline::sRenderingHUDs || !src.isComplete() || !fs_water_will_draw())
-    {
-        return;
-    }
-    // The water SSR only marches from above the surface: without foam there is no reader below it
-    if (!fs_water_foam_enabled() && LLViewerCamera::getInstance()->cameraUnderWater())
     {
         return;
     }
@@ -379,71 +394,8 @@ void LLDrawPoolWater::renderPostDeferred(S32 pass)
         FSWaterRipples::update(gPipeline.mScreenTriangleVB.get());
     }
     // </FS:Trish>
-    // <FS:Trish> Transparent water reflects the scene under it with this frame's camera: a hi-Z
-    // pyramid of that, built before the water shader is bound (the build binds its own programs)
-    const bool water_ssr = !underwater && !gCubeSnapshot && LLPipeline::sRenderTransparentWater &&
-                           LLPipeline::RenderScreenSpaceReflections;
-    const bool water_hiz = water_ssr && FSSSRHiZ::buildWater(water_dis, *fs_water_opaque_depth(water_dis), gPipeline.mScreenTriangleVB);
-    // </FS:Trish>
     gPipeline.bindDeferredShader(*shader, nullptr, &water_dis);
     // </FS:Trish>
-
-    if (water_ssr) // <FS:Trish/> same test as above
-    {
-        // The previous-frame scene map already contains water, allowing SSR to
-        // reflect its own output. Use the matching color/depth captured before
-        // this water pass, which are both in the current camera's coordinate frame.
-        S32 channel = shader->enableTexture(LLShaderMgr::SCENE_MAP);
-        if (channel > -1)
-        {
-            //gGL.getTexUnit(channel)->bind(&gPipeline.mWaterDis);
-            gGL.getTexUnit(channel)->bind(&water_dis); // <FS:Trish/>
-        }
-        channel = shader->enableTexture(LLShaderMgr::SCENE_DEPTH);
-        if (channel > -1)
-        {
-            //gGL.getTexUnit(channel)->bind(&gPipeline.mWaterDis, true);
-            // <FS:Trish> The opaque depth, so alpha layers in the water don't stop the rays
-            gGL.getTexUnit(channel)->bind(fs_water_opaque_depth(water_dis), true);
-            // </FS:Trish>
-        }
-
-        // <FS:Trish> Seen from above, the surface only reflects what is above it: hits below the
-        // water line (alpha drawn under the water, the sea floor seen through it) are misses and
-        // fall back to the probes. The plane is in view space with the camera on its positive
-        // side, lowered a little so what stands in the water still reflects down to the surface.
-        {
-            static LLStaticHashedString s_clip_plane("fs_ssr_clip_plane");
-            LLVector4 plane = LLDrawPoolAlpha::sWaterPlane;
-            // The camera is above water here, so it must be on the positive side. When it isn't
-            // the plane is stale or for another surface: flipping it would clip the wrong half,
-            // so a zero plane turns the clip off instead.
-            if (plane.mV[VW] < 0.f)
-            {
-                plane.set(0.f, 0.f, 0.f, 0.f);
-            }
-            else
-            {
-                plane.mV[VW] += 0.05f;
-            }
-            shader->uniform4f(s_clip_plane, plane.mV[VX], plane.mV[VY], plane.mV[VZ], plane.mV[VW]);
-        }
-        // </FS:Trish>
-
-        const glm::mat4 identity(1.0f);
-        shader->uniformMatrix4fv(LLShaderMgr::MODELVIEW_DELTA_MATRIX, 1, GL_FALSE, glm::value_ptr(identity));
-        shader->uniformMatrix4fv(LLShaderMgr::INVERSE_MODELVIEW_DELTA_MATRIX, 1, GL_FALSE, glm::value_ptr(identity));
-        // <FS:Trish> The main hi-Z pyramid is of mSceneMap, not this scene map: the water's own
-        if (water_hiz)
-        {
-            FSSSRHiZ::bindWater(*shader, water_dis);
-        }
-        else
-        {
-            FSSSRHiZ::disable(*shader);
-        }
-        // </FS:Trish>
-    }
 
     LLViewerTexture* tex_a = mWaterNormp[0];
     LLViewerTexture* tex_b = mWaterNormp[1];
@@ -497,25 +449,7 @@ void LLDrawPoolWater::renderPostDeferred(S32 pass)
     shader->uniform2fv(LLShaderMgr::WATER_WAVE_DIR1, 1, pwater->getWave1Dir().mV);
     shader->uniform2fv(LLShaderMgr::WATER_WAVE_DIR2, 1, pwater->getWave2Dir().mV);
 
-    // <FS:Trish> The waves' scroll for waterV.glsl: direction times time, in double precision and
-    // wrapped to the normal maps' repeat. Done there in floats from the raw session time, it
-    // stuttered and broke up into blocks after a few hours.
-    {
-        static LLStaticHashedString s_wave_scroll("fs_wave_scroll");
-        static LLStaticHashedString s_wave_scroll2("fs_wave_scroll2");
-        const F64 wave_time = LLFrameTimer::getElapsedSeconds() * 0.5; // phase_time, unrounded
-        const LLVector2 dir1 = pwater->getWave1Dir();
-        const LLVector2 dir2 = pwater->getWave2Dir();
-        auto scroll = [wave_time](F32 dir, F64 rate)
-        {
-            const F64 v = (F64)dir * wave_time * rate;
-            return (F32)(v - floor(v));
-        };
-        shader->uniform4f(s_wave_scroll, scroll(dir1.mV[0], 0.055), scroll(dir1.mV[1], 0.055),
-                          scroll(dir2.mV[0], 0.13), scroll(dir2.mV[1], 0.13));
-        shader->uniform2f(s_wave_scroll2, scroll(dir1.mV[0], 0.1), scroll(dir1.mV[1], 0.1));
-    }
-    // </FS:Trish>
+    fs_set_wave_scroll(*shader, pwater); // <FS:Trish/>
 
     shader->uniform3fv(LLShaderMgr::WATER_LIGHT_DIR, 1, light_dir.mV);
 
@@ -630,6 +564,79 @@ LLColor3 LLDrawPoolWater::getDebugColor() const
 {
     return LLColor3(0.f, 1.f, 1.f);
 }
+
+// <FS:Trish> GCP: the water's screen-space reflection, traced into the SSR buffer before the
+// lighting pass (LLPipeline::renderSSRWater); the water shader reads it back from there
+void LLDrawPoolWater::renderSSR()
+{
+    if (!gSSRWaterProgram.isComplete()) return;
+    if (mDrawFace.empty()) return;
+
+    LL_PROFILE_GPU_ZONE("SSR water");
+
+    LLEnvironment& environment = LLEnvironment::instance();
+    LLSettingsWater::ptr_t pwater = environment.getCurrentWater();
+    if (!pwater) return;
+
+    bool has_normal_mips = gSavedSettings.getBOOL("RenderWaterMipNormal");
+    LLTexUnit::eTextureFilterOptions filter_mode = has_normal_mips ? LLTexUnit::TFO_ANISOTROPIC : LLTexUnit::TFO_POINT;
+
+    F32 phase_time = (F32)LLFrameTimer::getElapsedSeconds() * 0.5f;
+    F32 blend_factor = (F32)pwater->getBlendFactor();
+
+    gPipeline.bindDeferredShader(gSSRWaterProgram);
+
+    LLViewerTexture* tex_a = mWaterNormp[0];
+    LLViewerTexture* tex_b = mWaterNormp[1];
+
+    if (tex_a && (!tex_b || (tex_a == tex_b)))
+    {
+        gSSRWaterProgram.bindTexture(LLViewerShaderMgr::BUMP_MAP, tex_a);
+        tex_a->setFilteringOption(filter_mode);
+        blend_factor = 0;
+    }
+    else if (tex_b && !tex_a)
+    {
+        gSSRWaterProgram.bindTexture(LLViewerShaderMgr::BUMP_MAP, tex_b);
+        tex_b->setFilteringOption(filter_mode);
+        blend_factor = 0;
+    }
+    else if (tex_b != tex_a)
+    {
+        gSSRWaterProgram.bindTexture(LLViewerShaderMgr::BUMP_MAP, tex_a);
+        tex_a->setFilteringOption(filter_mode);
+        gSSRWaterProgram.bindTexture(LLViewerShaderMgr::BUMP_MAP2, tex_b);
+        tex_b->setFilteringOption(filter_mode);
+    }
+
+    gSSRWaterProgram.uniform1f(LLShaderMgr::BLEND_FACTOR, blend_factor);
+
+    F32 water_height = environment.getWaterHeight();
+    F32 camera_height = LLViewerCamera::getInstance()->getOrigin().mV[2];
+    gSSRWaterProgram.uniform1f(LLShaderMgr::WATER_WATERHEIGHT, camera_height - water_height);
+    gSSRWaterProgram.uniform1f(LLShaderMgr::WATER_TIME, phase_time);
+    gSSRWaterProgram.uniform3fv(LLShaderMgr::WATER_EYEVEC, 1, LLViewerCamera::getInstance()->getOrigin().mV);
+    gSSRWaterProgram.uniform2fv(LLShaderMgr::WATER_WAVE_DIR1, 1, pwater->getWave1Dir().mV);
+    gSSRWaterProgram.uniform2fv(LLShaderMgr::WATER_WAVE_DIR2, 1, pwater->getWave2Dir().mV);
+    fs_set_wave_scroll(gSSRWaterProgram, pwater); // this viewer's waterV.glsl scrolls the waves from these
+
+    LLVector3 light_dir = environment.getLightDirection();
+    light_dir.normalize();
+    gSSRWaterProgram.uniform3fv(LLShaderMgr::WATER_LIGHT_DIR, 1, light_dir.mV);
+    gSSRWaterProgram.uniform3fv(LLShaderMgr::WATER_NORM_SCALE, 1, pwater->getNormalScale().mV);
+    gSSRWaterProgram.uniform1f(LLShaderMgr::WATER_BLUR_MULTIPLIER, fmaxf(0, pwater->getBlurMultiplier()) * 2);
+
+    LLVector4 rotated_light_direction = LLEnvironment::instance().getClampedLightNorm();
+    gSSRWaterProgram.uniform3fv(LLViewerShaderMgr::LIGHTNORM, 1, rotated_light_direction.mV);
+    gSSRWaterProgram.uniform3fv(LLShaderMgr::WL_CAMPOSLOCAL, 1, LLViewerCamera::getInstance()->getOrigin().mV);
+
+    LLGLDisable cullface(GL_CULL_FACE);
+
+    pushWaterPlanes(0);
+
+    gPipeline.unbindDeferredShader(gSSRWaterProgram);
+}
+// </FS:Trish>
 
 // <FS:Zi> Render speedup for water parameters
 void LLDrawPoolWater::onRenderWaterMipNormalChanged()

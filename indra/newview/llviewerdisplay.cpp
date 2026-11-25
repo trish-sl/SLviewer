@@ -1272,6 +1272,19 @@ void display(bool rebuild, F32 zoom_factor, int subfield, bool for_snapshot)
         if (LLPipeline::sRenderDeferred)
         {
             FS_RECORD_BLOCK_TIME(FTM_FS_RENDER_LIGHTING); // <FS:Trish/>
+            // <FS:Trish> GCP: the screen-space reflections, traced into the SSR buffer before the
+            // lighting pass reads them; the scene they trace is copied at the end of the frame
+            // (LLPipeline::renderFinalize)
+            gPipeline.renderSSRTrace();
+            // Not the care package's alpha pass: it wrote each transparent surface's reflection over
+            // the SSR buffer, which only the opaque lighting reads, so the wall behind a glass pane
+            // showed the glass's reflection (blurred to the wall's roughness, in the pane's dither
+            // pattern) under the glass's own, a dark doubled copy that moved with the camera.
+            // Transparent surfaces trace their own reflection in the forward alpha pass.
+            //gPipeline.renderSSRAlpha();
+            gPipeline.renderSSRWater();
+            gPipeline.filterSSRBuffer();
+            // </FS:Trish>
             gPipeline.renderDeferredLighting();
         }
 

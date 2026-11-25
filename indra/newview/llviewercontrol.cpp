@@ -1687,7 +1687,7 @@ void settings_setup_listeners()
     setting_setup_signal_listener(gSavedSettings, "RenderAppleUseMultGL", handleAppleUseMultGLChanged);
 #endif
     setting_setup_signal_listener(gSavedSettings, "RenderScreenSpaceReflections", handleReflectionProbeDetailChanged);
-    setting_setup_signal_listener(gSavedSettings, "FSRenderSSRHiZ", handleSetShaderChanged); // <FS:Trish/>
+    setting_setup_signal_listener(gSavedSettings, "RenderScreenSpaceReflectionsResolutionMultiplier", handleWindowResized); // <FS:Trish/> GCP
     setting_setup_signal_listener(gSavedSettings, "FSPerfRiggedPaletteBuffer", handleSetShaderChanged); // <FS:Trish/>
     setting_setup_signal_listener(gSavedSettings, "FSPerfGPUDrivenRigged", handleSetShaderChanged); // <FS:Trish/> builds the multi-draw rigged programs
     setting_setup_signal_listener(gSavedSettings, "FSRenderSkinOnce", handleSetShaderChanged); // <FS:Trish/> FS_SKIN_ONCE in the skinning code

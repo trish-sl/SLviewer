@@ -120,6 +120,13 @@ public:
     //share depth buffer with provided render target
     void shareDepthBuffer(LLRenderTarget& target);
 
+    // <FS:Trish> GCP: screen-space reflections
+    //blit depth from source render target into this target's depth buffer
+    //supports different resolutions (nearest-filter downsample/upsample)
+    //this target must have its own depth buffer allocated
+    void blitDepthFrom(LLRenderTarget& source);
+    // </FS:Trish>
+
     //free any allocated resources
     //safe to call redundantly
     // asserts that this target is not currently bound or present in the RT stack
@@ -153,6 +160,23 @@ public:
 
     U32 getDepth(void) const { return mDepth; }
     U32 getFSDepthFormat() const { return mFSDepthFormat; } // <FS:Trish/> mDepth's internal format, 0 without one
+    // <FS:Trish> GCP: screen-space reflections
+    U32 getMipLevels() const { return mMipLevels; }
+
+    // Rebind FBO depth attachment at a specific mip level and set viewport.
+    // Used for Hi-Z pyramid generation. Caller must call resetDepthMipLevel() when done.
+    void bindDepthMipLevel(S32 level);
+
+    // Restore FBO depth attachment to mip level 0 and full viewport.
+    void resetDepthMipLevel();
+
+    // Rebind FBO color attachment at a specific mip level and set viewport.
+    // Used for per-mip SSR filter. Caller must call resetColorMipLevel() when done.
+    void bindColorMipLevel(S32 level, U32 attachment = 0);
+
+    // Restore FBO color attachment to mip level 0 and full viewport.
+    void resetColorMipLevel(U32 attachment = 0);
+    // </FS:Trish>
 
     void bindTexture(U32 index, S32 channel, LLTexUnit::eTextureFilterOptions filter_options = LLTexUnit::TFO_BILINEAR);
 

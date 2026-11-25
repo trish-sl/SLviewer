@@ -139,145 +139,11 @@ uniform int cube_snapshot;
 
 uniform float sky_hdr_scale;
 
-#ifdef FS_SSR_BUFFER
-// Screen-space reflections traced beforehand into their own buffer (screenSpaceReflTraceF.glsl),
-// at RenderScreenSpaceReflectionResolutionMultiplier times the screen size, blended over frames
-// (screenSpaceReflResolveF.glsl) and blurred into mips (fsssrbuffer.cpp). The sharp term blends
-// the 2x2 texels around the pixel by distance, and by how well each traced pixel's depth and
-// normal match its own, so a reflection doesn't bleed across a silhouette or onto a differently
-// facing surface; rougher surfaces read the blur mips, as the graphics care package does.
-uniform sampler2D fs_ssr_map;
-uniform vec2 fs_ssr_full_res;
-uniform float ssrMipScale;      // the buffer's highest mip; 0 when the cone trace blurs instead
-
-bool isFarDepth(float d);
-vec3 ssrUncompress(vec3 c);
-// <FS:Trish> The glossiness below which the probe sampling ignores the screen-space reflection
-// (screenSpaceReflUtil.glsl), so the buffer is not read for it
-#if defined(SSR)
-float ssrMinGlossiness();
-#endif
-
-// True where sampleReflectionProbesFS / sampleReflectionProbesLegacyFS will blend in the
-// reflection read from the buffer: with screen-space reflections built in, outside probe captures,
-// and above their glossiness gate (fsDoProbeSample, fsSampleReflectionProbesLegacy). Elsewhere the
-// read (up to four depth, four normal and four reflection texels for the sharp term) was thrown away.
-bool fsSSRBufferWanted(float glossiness)
-{
-#if defined(SSR)
-    return cube_snapshot != 1 && glossiness > ssrMinGlossiness();
-#else
-    return false;
-#endif
-}
-// </FS:Trish>
-
-// The full-resolution pixel SSR texel t was traced from (screenSpaceReflTraceF.glsl)
-ivec2 fsSSRTracedPixel(ivec2 t, vec2 ratio)
-{
-    return min(ivec2((vec2(t) + 0.5) * ratio), ivec2(fs_ssr_full_res) - 1);
-}
-
-vec4 fsSSRSharp(vec3 pos, vec3 norm, vec2 ratio)
-{
-    ivec2 hi_max = textureSize(fs_ssr_map, 0) - 1;
-    if (ratio.x < 1.001 && ratio.y < 1.001)
-    {
-        return texelFetch(fs_ssr_map, min(ivec2(gl_FragCoord.xy), hi_max), 0); // traced here
-    }
-    vec2 c = gl_FragCoord.xy / ratio - 0.5;
-    vec2 base_f = floor(c);
-    vec2 f = c - base_f;
-    ivec2 base = ivec2(base_f);
-
-    float z = max(-pos.z, 1e-4);
-    float inv_tol = 1.0 / (0.01 + 0.02 * z);
-    vec3 n = normalize(norm);
-
-    vec4 sum = vec4(0);
-    float sum_w = 0.0;
-    vec4 best = vec4(0);
-    float best_score = 1e30;
-    float best_nd = 0.0; // <FS:Trish/> the closest normal among the texels, nd^8
-    for (int i = 0; i < 4; ++i)
-    {
-        ivec2 o = ivec2(i & 1, i >> 1);
-        ivec2 t = clamp(base + o, ivec2(0), hi_max);
-        vec2 stc = (vec2(fsSSRTracedPixel(t, ratio)) + 0.5) / fs_ssr_full_res;
-        float sd = getDepth(stc);
-        if (isFarDepth(sd))
-        {
-            continue;
-        }
-        float rel = abs(-getPositionWithDepth(stc, sd).z - z) * inv_tol;
-        float nd = max(dot(getNorm(stc).xyz, n), 0.0);
-        nd *= nd;
-        nd *= nd;
-        nd *= nd; // nd^8: reflections change fast with the normal
-        best_nd = max(best_nd, nd); // <FS:Trish/>
-
-        vec2 tent = mix(vec2(1.0) - f, f, vec2(o));
-        float w = tent.x * tent.y * nd / (1.0 + rel * rel);
-        vec4 s = texelFetch(fs_ssr_map, t, 0);
-        sum += w * s;
-        sum_w += w;
-
-        float score = rel + 4.0 * (1.0 - nd);
-        if (score < best_score)
-        {
-            best_score = score;
-            best = s;
-        }
-    }
-    // <FS:Trish> On the edge of an object (a plush seen against the wall behind it) all four
-    // texels can be traced from the background, facing another way: the weights only shared
-    // the wall's reflection out among them, and the edge pixel took it, a speckle of something
-    // else along the silhouette. With no texel facing within about 40 degrees of this pixel,
-    // nothing is read and the probes take over. (Depth alone can't tell: on a floor seen at a
-    // low angle the texels are far apart in depth and still the same surface.)
-    if (best_nd < 0.1)
-    {
-        return vec4(0);
-    }
-    // </FS:Trish>
-    return sum_w > 1e-4 ? sum / sum_w : best;
-}
-
-// lod: the blur mip for the surface's roughness. Returns the reflection colour and its blend
-// weight, decoded.
-vec4 fsSSRBufferSample(vec2 tc, vec3 pos, vec3 norm, float lod)
-{
-    if (cube_snapshot != 0)
-    {
-        return vec4(0); // probe captures don't use screen-space reflections
-    }
-    vec4 e;
-    if (lod >= 1.0)
-    {
-        e = textureLod(fs_ssr_map, tc, lod);
-    }
-    else
-    {
-        vec2 ratio = fs_ssr_full_res / vec2(textureSize(fs_ssr_map, 0));
-        e = fsSSRSharp(pos, norm, ratio);
-        if (lod > 0.0)
-        {
-            e = mix(e, textureLod(fs_ssr_map, tc, 1.0), lod); // only the mip 0 term is sharpened
-        }
-    }
-    if (e.a <= 0.001)
-    {
-        return vec4(0);
-    }
-    return vec4(ssrUncompress(e.rgb / e.a), min(e.a, 1.0));
-}
-#endif
-
-#if defined(FS_SSR_BUFFER) || defined(FS_INDIRECT)
+#ifdef FS_INDIRECT
 void sampleReflectionProbesFS(inout vec3 ambenv, inout vec3 glossenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, vec3 amblit, bool ssr_given, vec4 ssr);
+        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, vec3 amblit);
 void sampleReflectionProbesLegacyFS(inout vec3 ambenv, inout vec3 glossenv, inout vec3 legacyenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, float envIntensity, vec3 amblit, bool ssr_given, vec4 ssr);
+        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, float envIntensity, vec3 amblit);
 #endif
 
 #ifdef FS_INDIRECT
@@ -366,7 +232,11 @@ vec3 pbrBaseLight(vec3 diffuseColor,
                   float ao,
                   vec3 additive,
                   vec3 atten,
-                  float micro);
+                  // <FS:Trish> The reflection's own visibility (deferredUtil.glsl pbrIbl)
+                  //float micro);
+                  float micro,
+                  float specAo);
+                  // </FS:Trish>
 
 GBufferInfo getGBuffer(vec2 screenpos);
 float horizonOcclusion(vec3 r, vec3 geometricNormal);
@@ -567,17 +437,12 @@ void main()
 
     vec3  radiance  = vec3(0);
 
-    // Firestorm inputs to the ambient and reflection terms below: the SSR buffer, the
-    // bent normal the irradiance lobe looks along, and the bounced light
-    vec4 fs_ssr = vec4(0);
-    bool fs_ssr_given = false;
+    // Firestorm inputs to the ambient and reflection terms below: the bent normal the
+    // irradiance lobe looks along, and the bounced light
     vec3 fs_amb_norm = gb.normal;
     vec3 fs_gi = vec3(0);
     if (needs_atmos)
     {
-#ifdef FS_SSR_BUFFER
-        fs_ssr_given = true; // read below, once the roughness is known
-#endif
 #ifdef FS_INDIRECT
         vec3 fs_bend;
         fsIndirectUpsample(pos.xyz, fs_gi, fs_bend);
@@ -604,18 +469,8 @@ void main()
         // PBR IBL
         float gloss      = 1.0 - perceptualRoughness;
 
-#ifdef FS_SSR_BUFFER
-        // <FS:Trish> Only where the probe sampling below blends it in
-        //if (fs_ssr_given)
-        if (fs_ssr_given && fsSSRBufferWanted(gloss))
-        // </FS:Trish>
-        {
-            fs_ssr = fsSSRBufferSample(tc, pos.xyz, gb.normal, perceptualRoughness * ssrMipScale);
-        }
-#endif
-
-#if defined(FS_SSR_BUFFER) || defined(FS_INDIRECT)
-        sampleReflectionProbesFS(irradiance, radiance, tc, pos.xyz, gb.normal, fs_amb_norm, gloss, amblit_linear, fs_ssr_given, fs_ssr);
+#ifdef FS_INDIRECT
+        sampleReflectionProbesFS(irradiance, radiance, tc, pos.xyz, gb.normal, fs_amb_norm, gloss, amblit_linear);
 #else
         sampleReflectionProbes(irradiance, radiance, tc, pos.xyz, gb.normal, gloss, false, amblit_linear);
 #endif
@@ -650,7 +505,12 @@ void main()
         // Normal-map micro-shadows, 1 when off. The cone comes from the normal map's own
         // occlusion; SSAO measures larger scale geometry, not the bumps the normal map draws.
         float micro = fsMicroShadow(dot(gb.normal, light_dir), ao);
-        color = pbrBaseLight(diffuseColor, specularColor, metallic, v, gb.normal, perceptualRoughness, light_dir, sunlit_linear, scol, radiance, irradiance, colorEmissive, visibility, additive, atten, micro);
+        // <FS:Trish> The reflection takes the material's own occlusion alone: the screen-space and
+        // avatar terms are what the camera sees around this point, not what its reflection sees,
+        // and drew a shadow into reflections that moved with the camera
+        //color = pbrBaseLight(diffuseColor, specularColor, metallic, v, gb.normal, perceptualRoughness, light_dir, sunlit_linear, scol, radiance, irradiance, colorEmissive, visibility, additive, atten, micro);
+        color = pbrBaseLight(diffuseColor, specularColor, metallic, v, gb.normal, perceptualRoughness, light_dir, sunlit_linear, scol, radiance, irradiance, colorEmissive, visibility, additive, atten, micro, ao);
+        // </FS:Trish>
         // <FS:Trish> Skin: swap the sun's single lobe pbrBaseLight gave it for the sharp and broad
         // pair at skin's F0 (FSRenderSkinDualSpecular), at the sun disc's widened roughness as there
 #ifdef FS_SKIN_DUAL_SPEC
@@ -731,18 +591,8 @@ void main()
         vec3 glossenv = vec3(0);
         vec3 legacyenv = vec3(0);
 
-#ifdef FS_SSR_BUFFER
-        // <FS:Trish> Only where the probe sampling below blends it in
-        //if (fs_ssr_given)
-        if (fs_ssr_given && fsSSRBufferWanted(spec.a))
-        // </FS:Trish>
-        {
-            float r = 1.0 - spec.a;
-            fs_ssr = fsSSRBufferSample(tc, pos.xyz, gb.normal, clamp(log2(1.0 + r * r * ssrMipScale * 4.0), 0.0, ssrMipScale));
-        }
-#endif
-#if defined(FS_SSR_BUFFER) || defined(FS_INDIRECT)
-        sampleReflectionProbesLegacyFS(irradiance, glossenv, legacyenv, tc, pos.xyz, gb.normal, fs_amb_norm, spec.a, envIntensity, amblit_linear, fs_ssr_given, fs_ssr);
+#ifdef FS_INDIRECT
+        sampleReflectionProbesLegacyFS(irradiance, glossenv, legacyenv, tc, pos.xyz, gb.normal, fs_amb_norm, spec.a, envIntensity, amblit_linear);
 #else
         sampleReflectionProbesLegacy(irradiance, glossenv, legacyenv, tc, pos.xyz, gb.normal, spec.a, envIntensity, false, amblit_linear);
 #endif
@@ -769,23 +619,25 @@ void main()
         // </FS:Trish>
         irradiance += fs_gi; // light bounced from nearby surfaces (FSRenderSSGI)
 
-        // The environment lobes get the same ambient visibility the diffuse one does.
-        // adjustIrradiance spends the screen-space buffer on irradiance alone, so a legacy
-        // surface down in a crevice had its diffuse ambient occluded while its reflection
-        // carried on at full strength -- the brighter of the two terms, and the one the eye
-        // reads as contact. On the response curve the settings describe, not the raw buffer;
-        // see ssaoVisibility.
-        float envVisibility = ssaoVisibility(ambocc);
-        // <FS:Trish> Soft occlusion around avatars
-#ifdef FS_AVATAR_OCCLUSION
-        envVisibility = min(envVisibility, fs_cap);
-#endif
+        // <FS:Trish> Not on the reflections: the screen-space and avatar terms are what the camera
+        // sees around this point, not what its reflection sees, and drew a shadow into reflections
+        // that moved with the camera. The legacy branch has no material occlusion to put there.
+        //// The environment lobes get the same ambient visibility the diffuse one does.
+        //// adjustIrradiance spends the screen-space buffer on irradiance alone, so a legacy
+        //// surface down in a crevice had its diffuse ambient occluded while its reflection
+        //// carried on at full strength -- the brighter of the two terms, and the one the eye
+        //// reads as contact. On the response curve the settings describe, not the raw buffer;
+        //// see ssaoVisibility.
+        //float envVisibility = ssaoVisibility(ambocc);
+        //#ifdef FS_AVATAR_OCCLUSION
+        //envVisibility = min(envVisibility, fs_cap);
+        //#endif
+        //// Specular occlusion (see fsSpecularOcclusion): envVisibility itself when off. glossenv
+        //// is filtered by (1 - glossiness), legacyenv is the mirror lookup.
+        //float fs_nv = dot(gb.normal, -normalize(pos.xyz));
+        //glossenv *= fsSpecularOcclusion(envVisibility, fs_nv, 1.0 - spec.a);
+        //legacyenv *= fsSpecularOcclusion(envVisibility, fs_nv, 0.0);
         // </FS:Trish>
-        // Specular occlusion (see fsSpecularOcclusion): envVisibility itself when off. glossenv
-        // is filtered by (1 - glossiness), legacyenv is the mirror lookup.
-        float fs_nv = dot(gb.normal, -normalize(pos.xyz));
-        glossenv *= fsSpecularOcclusion(envVisibility, fs_nv, 1.0 - spec.a);
-        legacyenv *= fsSpecularOcclusion(envVisibility, fs_nv, 0.0);
 
         // No normal-map micro-shadows here: the cone needs the material's own occlusion, which
         // legacy materials do not have, and SSAO is the wrong scale for it.
@@ -905,6 +757,7 @@ void main()
     float final_scale = 1;
     if (classic_mode > 0)
         final_scale = 1.1;
+
 
     frag_color.rgb = clampHDRRange(color.rgb * final_scale); //output linear since local lights will be added to this shader's results
     frag_color.a = 0.0;

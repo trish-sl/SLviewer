@@ -63,8 +63,6 @@ extern U32 gFrameCount; // <FS:Trish/> FSRenderCreaseAO: the noise offset while 
 #include "fsskinpalettebuffer.h" // <FS:Trish/>
 #include "fsskinonce.h" // <FS:Trish/>
 #include "fsgpudrivenmaterials.h" // <FS:Trish/> fsGDDRiggedWanted
-#include "fsssrbuffer.h" // <FS:Trish/>
-#include "fsssrhiz.h" // <FS:Trish/>
 #include "fswaterripples.h" // <FS:Trish/> FSRenderWaterRipples
 #include "fsshadowdepthfit.h" // <FS:Trish/>
 #include "fsprobeblend.h" // <FS:Trish/> FSRenderProbeRefreshBlend
@@ -253,8 +251,13 @@ LLGLSLShader            gFSNISUpscaleProgram; // <FS:Trish/> NVIDIA Image Scalin
 // </FS:Trish>
 LLGLSLShader            gFSSkinSSSProgram; // <FS:Trish/>
 LLGLSLShader            gFSGTAOHalfProgram; // <FS:Trish/> Half-resolution GTAO
-LLGLSLShader            gScreenSpaceReflTraceProgram; // <FS:Trish/> SSR buffer (fsssrbuffer.cpp)
-LLGLSLShader            gSSRResolveProgram; // <FS:Trish/>
+// <FS:Trish> GCP: screen-space reflections
+LLGLSLShader            gScreenSpaceReflTraceProgram;
+LLGLSLShader            gSSRAlphaProgram;
+LLGLSLShader            gSkinnedSSRAlphaProgram;
+LLGLSLShader            gSSRWaterProgram;
+LLGLSLShader            gHiZReduceProgram;
+// </FS:Trish>
 LLGLSLShader            gFSIndirectHalfProgram; // <FS:Trish/> FSRenderBentNormals, FSRenderSSGI
 LLGLSLShader            gFSIndirectTemporalProgram; // <FS:Trish/>
 LLGLSLShader            gDeferredPostGammaCorrectProgram;
@@ -1505,13 +1508,6 @@ std::string LLViewerShaderMgr::loadBasicShaders()
     if (ssr)
     {
         attribs["SSR"] = "1";
-
-        // <FS:Trish> Hierarchical-Z screen-space reflections (fsssrhiz.cpp)
-        if (FSSSRHiZ::enabled())
-        {
-            attribs["FS_SSR_HIZ"] = "1";
-        }
-        // </FS:Trish>
     }
 
     if (has_reflection_probes)
@@ -2043,8 +2039,13 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         gDeferredMultiSpotLightProgram.unload();
         gDeferredSunProgram.unload();
         gFSGTAOHalfProgram.unload(); // <FS:Trish/> Half-resolution GTAO
-        gScreenSpaceReflTraceProgram.unload(); // <FS:Trish/> SSR buffer
-        gSSRResolveProgram.unload(); // <FS:Trish/>
+        // <FS:Trish> GCP: screen-space reflections
+        gScreenSpaceReflTraceProgram.unload();
+        gSSRAlphaProgram.unload();
+        gSkinnedSSRAlphaProgram.unload();
+        gSSRWaterProgram.unload();
+        gHiZReduceProgram.unload();
+        // </FS:Trish>
         gFSIndirectHalfProgram.unload(); // <FS:Trish/>
         gFSIndirectTemporalProgram.unload(); // <FS:Trish/>
         gDeferredBlurLightProgram.unload();
@@ -2126,8 +2127,13 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         // </FS:Trish>
         gFSSkinSSSProgram.unload(); // <FS:Trish/>
         gFSGTAOHalfProgram.unload(); // <FS:Trish/> Half-resolution GTAO
-        gScreenSpaceReflTraceProgram.unload(); // <FS:Trish/> SSR buffer
-        gSSRResolveProgram.unload(); // <FS:Trish/>
+        // <FS:Trish> GCP: screen-space reflections
+        gScreenSpaceReflTraceProgram.unload();
+        gSSRAlphaProgram.unload();
+        gSkinnedSSRAlphaProgram.unload();
+        gSSRWaterProgram.unload();
+        gHiZReduceProgram.unload();
+        // </FS:Trish>
         gFSIndirectHalfProgram.unload(); // <FS:Trish/>
         gFSIndirectTemporalProgram.unload(); // <FS:Trish/>
         // <FS:Trish> WBOIT
@@ -3510,49 +3516,6 @@ bool LLViewerShaderMgr::loadShadersDeferred()
         }
         // </FS:Trish>
 
-        // <FS:Trish> SSR buffer (fsssrbuffer.cpp): the opaque surfaces' reflections are traced into
-        // their own buffer beforehand (screenSpaceReflTraceF.glsl), blended with the last frames
-        // (screenSpaceReflResolveF.glsl) and blurred, and the soften pass reads them back instead of
-        // tracing per pixel. Built with the same features, so they decode the G-buffer the same way.
-        gScreenSpaceReflTraceProgram.unload();
-        gSSRResolveProgram.unload();
-        if (gSavedSettings.getBOOL("RenderScreenSpaceReflections") && gDeferredSoftenProgram.mFeatures.hasReflectionProbes)
-        {
-            gScreenSpaceReflTraceProgram.mName = "Screen Space Reflection Trace";
-            gScreenSpaceReflTraceProgram.mFeatures = gDeferredSoftenProgram.mFeatures;
-            gScreenSpaceReflTraceProgram.mShaderFiles.clear();
-            gScreenSpaceReflTraceProgram.clearPermutations();
-            add_common_permutations(&gScreenSpaceReflTraceProgram);
-            gScreenSpaceReflTraceProgram.mShaderFiles.push_back(make_pair("deferred/postDeferredNoTCV.glsl", GL_VERTEX_SHADER));
-            gScreenSpaceReflTraceProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflTraceF.glsl", GL_FRAGMENT_SHADER));
-            if (wet_shore)
-            {
-                gScreenSpaceReflTraceProgram.mShaderFiles.push_back(make_pair("deferred/fsWetShoreF.glsl", GL_FRAGMENT_SHADER));
-                gScreenSpaceReflTraceProgram.addPermutation("FS_WET_SHORE", "1");
-            }
-            gScreenSpaceReflTraceProgram.mShaderLevel = gDeferredSoftenProgram.mShaderLevel;
-
-            gSSRResolveProgram.mName = "Screen Space Reflection Resolve";
-            gSSRResolveProgram.mFeatures = gDeferredSoftenProgram.mFeatures;
-            gSSRResolveProgram.mShaderFiles.clear();
-            gSSRResolveProgram.clearPermutations();
-            add_common_permutations(&gSSRResolveProgram);
-            gSSRResolveProgram.mShaderFiles.push_back(make_pair("deferred/postDeferredNoTCV.glsl", GL_VERTEX_SHADER));
-            gSSRResolveProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflResolveF.glsl", GL_FRAGMENT_SHADER));
-            gSSRResolveProgram.mShaderLevel = gDeferredSoftenProgram.mShaderLevel;
-
-            if (gScreenSpaceReflTraceProgram.createShader() && gSSRResolveProgram.createShader())
-            {
-                gDeferredSoftenProgram.addPermutation("FS_SSR_BUFFER", "1");
-            }
-            else
-            {
-                LL_WARNS("ShaderLoading") << "SSR buffer programs failed to build, reflections are traced per pixel" << LL_ENDL;
-                gScreenSpaceReflTraceProgram.unload();
-                gSSRResolveProgram.unload();
-            }
-        }
-
         // <FS:Trish> Bent normals and screen-space indirect light: found at half resolution
         // beforehand (fsIndirectHalfF.glsl), blended with the last frames (fsIndirectTemporalF.glsl),
         // and upsampled by the soften pass (FS_INDIRECT)
@@ -4723,11 +4686,86 @@ bool LLViewerShaderMgr::loadShadersDeferred()
     //}
     // </FS:Trish>
 
-    // <FS:Trish> SSR hi-Z pyramid programs; optional, failure keeps the classic march
+    // <FS:Trish> GCP: the screen-space reflection programs. Built only with screen-space reflections
+    // on, which rebuilds the shaders when it changes. Not fatal: if one fails, the pipeline skips
+    // the passes that need it and the reflection probes show alone.
+    gScreenSpaceReflTraceProgram.unload();
+    gSSRAlphaProgram.unload();
+    gSkinnedSSRAlphaProgram.unload();
+    gSSRWaterProgram.unload();
+    gHiZReduceProgram.unload();
+    if (success && gSavedSettings.getBOOL("RenderScreenSpaceReflections"))
+    {
+        bool ssr_ok = true;
+        {
+            gScreenSpaceReflTraceProgram.mName = "Screen Space Reflection Trace";
+            gScreenSpaceReflTraceProgram.mShaderFiles.clear();
+            gScreenSpaceReflTraceProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflPostV.glsl", GL_VERTEX_SHADER));
+            gScreenSpaceReflTraceProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflTraceF.glsl", GL_FRAGMENT_SHADER));
+            gScreenSpaceReflTraceProgram.mFeatures.hasScreenSpaceReflections = true;
+            gScreenSpaceReflTraceProgram.mFeatures.isDeferred                = true;
+            gScreenSpaceReflTraceProgram.mFeatures.hasFullGBuffer            = true;
+            gScreenSpaceReflTraceProgram.mShaderLevel = 3;
+            ssr_ok = gScreenSpaceReflTraceProgram.createShader();
+        }
+
+        if (ssr_ok)
+        {
+            gSSRAlphaProgram.mName = "SSR Alpha";
+            gSSRAlphaProgram.mShaderFiles.clear();
+            gSSRAlphaProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflAlphaV.glsl", GL_VERTEX_SHADER));
+            gSSRAlphaProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflAlphaF.glsl", GL_FRAGMENT_SHADER));
+            gSSRAlphaProgram.mFeatures.hasScreenSpaceReflections = true;
+            gSSRAlphaProgram.mFeatures.isDeferred                = true;
+            gSSRAlphaProgram.mShaderLevel = 3;
+            ssr_ok = gSSRAlphaProgram.createShader();
+        }
+
+        if (ssr_ok)
+        {
+            ssr_ok = make_rigged_variant(gSSRAlphaProgram, gSkinnedSSRAlphaProgram);
+        }
+
+        if (ssr_ok)
+        {
+            gSSRWaterProgram.mName = "SSR Water";
+            gSSRWaterProgram.mShaderFiles.clear();
+            gSSRWaterProgram.mShaderFiles.push_back(make_pair("environment/waterV.glsl", GL_VERTEX_SHADER));
+            gSSRWaterProgram.mShaderFiles.push_back(make_pair("deferred/screenSpaceReflWaterF.glsl", GL_FRAGMENT_SHADER));
+            gSSRWaterProgram.mFeatures.calculatesAtmospherics  = true;
+            gSSRWaterProgram.mFeatures.hasAtmospherics         = true;
+            gSSRWaterProgram.mFeatures.hasScreenSpaceReflections = true;
+            gSSRWaterProgram.mFeatures.isDeferred              = true;
+            gSSRWaterProgram.mShaderLevel = 3;
+            gSSRWaterProgram.mShaderGroup = LLGLSLShader::SG_WATER;
+            ssr_ok = gSSRWaterProgram.createShader();
+        }
+
+        if (ssr_ok)
+        {
+            gHiZReduceProgram.mName = "Hi-Z Reduce Shader";
+            gHiZReduceProgram.mShaderFiles.clear();
+            gHiZReduceProgram.mShaderFiles.push_back(make_pair("interface/copyV.glsl", GL_VERTEX_SHADER));
+            gHiZReduceProgram.mShaderFiles.push_back(make_pair("deferred/hiZReduceF.glsl", GL_FRAGMENT_SHADER));
+            gHiZReduceProgram.mShaderLevel = mShaderLevel[SHADER_INTERFACE];
+            ssr_ok = gHiZReduceProgram.createShader();
+        }
+
+        if (!ssr_ok)
+        {
+            LL_WARNS("ShaderLoading") << "Screen-space reflection programs failed to build; screen-space reflections are off" << LL_ENDL;
+            gScreenSpaceReflTraceProgram.unload();
+            gSSRAlphaProgram.unload();
+            gSkinnedSSRAlphaProgram.unload();
+            gSSRWaterProgram.unload();
+            gHiZReduceProgram.unload();
+        }
+    }
+    // </FS:Trish>
+
+    // <FS:Trish> Optional programs, built on first use
     if (success)
     {
-        FSSSRHiZ::loadShaders(mShaderLevel[SHADER_DEFERRED]);
-        FSSSRBuffer::loadShaders(mShaderLevel[SHADER_DEFERRED]);
         FSShadowDepthFit::loadShaders(); // built on first use
         FSProbeBlend::loadShaders(); // built on first use (FSRenderProbeRefreshBlend)
     }

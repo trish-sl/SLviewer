@@ -72,6 +72,10 @@ public:
     void beginPostDeferredPass(S32 pass) override;
     void renderPostDeferred(S32 pass) override;
 
+    // <FS:Trish> GCP: the water's screen-space reflection into the SSR buffer (LLPipeline::renderSSRWater)
+    void renderSSR();
+    // </FS:Trish>
+
     void prerender() override;
 
     LLViewerTexture *getDebugTexture() override;

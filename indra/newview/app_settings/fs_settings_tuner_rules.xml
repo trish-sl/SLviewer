@@ -108,61 +108,35 @@
     <key>description</key><string>Halves the number of reflection probes kept. Fewer probes are updated and searched for each pixel of the lighting pass.</string>
   </map>
   <map>
-    <key>id</key><string>ssr_cone_trace</string>
-    <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:ssr trace</string></array>
-    <key>min_ms</key><real>0.3</real>
-    <key>fraction</key><real>0.35</real>
-    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>FSRenderSSRHiZ eq 1</string><string>FSRenderSSRConeTrace eq 0</string><string>RenderScreenSpaceReflectionGlossySamples gt 1</string></array>
-    <key>set</key><array>
-      <map><key>setting</key><string>FSRenderSSRConeTrace</string><key>value</key><string>1</string></map>
-    </array>
-    <key>looks</key><string>Glossy reflections a little smoother and softer</string>
-    <key>description</key><string>Glossy screen-space reflections trace one ray and read a blurred copy of the scene instead of several jittered rays.</string>
-  </map>
-  <map>
     <key>id</key><string>ssr_half_res</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:ssr trace</string><string>gpu:ssr resolve</string></array>
+    <key>zones</key><array><string>gpu:SSR trace</string><string>gpu:SSR alpha</string><string>gpu:SSR water</string><string>gpu:SSR mip chain</string></array>
     <key>min_ms</key><real>0.3</real>
     <key>fraction</key><real>0.55</real>
-    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionResolutionMultiplier gt 0.55</string></array>
+    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionsResolutionMultiplier gt 0.55</string></array>
     <key>set</key><array>
-      <map><key>setting</key><string>RenderScreenSpaceReflectionResolutionMultiplier</string><key>value</key><string>0.5</string></map>
+      <map><key>setting</key><string>RenderScreenSpaceReflectionsResolutionMultiplier</string><key>value</key><string>0.5</string></map>
     </array>
     <key>looks</key><string>Reflections slightly softer on fine normal-map detail</string>
-    <key>description</key><string>Screen-space reflections are traced at half resolution and filtered back up along edges.</string>
-  </map>
-  <map>
-    <key>id</key><string>ssr_hiz_steps</string>
-    <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:ssr trace</string></array>
-    <key>min_ms</key><real>0.4</real>
-    <key>fraction</key><real>0.25</real>
-    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>FSRenderSSRHiZ eq 1</string><string>FSRenderSSRHiZSteps gt 24</string></array>
-    <key>set</key><array>
-      <map><key>setting</key><string>FSRenderSSRHiZSteps</string><key>value</key><string>x0.5</string><key>min</key><real>16.0</real></map>
-    </array>
-    <key>looks</key><string>Very long reflections may end sooner</string>
-    <key>description</key><string>Halves the most steps a reflection ray may take through the depth pyramid.</string>
+    <key>description</key><string>Screen-space reflections are traced at half resolution and read back filtered.</string>
   </map>
   <map>
     <key>id</key><string>ssr_iterations</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:ssr trace</string></array>
+    <key>zones</key><array><string>gpu:SSR trace</string><string>gpu:SSR alpha</string><string>gpu:SSR water</string></array>
     <key>min_ms</key><real>0.4</real>
     <key>fraction</key><real>0.3</real>
-    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>FSRenderSSRHiZ eq 0</string><string>RenderScreenSpaceReflectionIterations gt 16</string></array>
+    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionIterations gt 16</string></array>
     <key>set</key><array>
       <map><key>setting</key><string>RenderScreenSpaceReflectionIterations</string><key>value</key><string>x0.5</string><key>min</key><real>12.0</real></map>
     </array>
     <key>looks</key><string>Reflections of far things may be missed</string>
-    <key>description</key><string>Halves the ray march iterations of screen-space reflections (the fixed-step march, without the depth pyramid).</string>
+    <key>description</key><string>Halves the most steps a screen-space reflection ray may take through the depth pyramid.</string>
   </map>
   <map>
     <key>id</key><string>ssr_off</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:ssr trace</string><string>gpu:ssr copy</string><string>gpu:ssr resolve</string><string>gpu:ssr hi-z</string><string>gpu:ssr hi-z water</string><string>gpu:ssr mips</string></array>
+    <key>zones</key><array><string>gpu:SSR trace</string><string>gpu:SSR alpha</string><string>gpu:SSR water</string><string>gpu:SSR mip chain</string><string>gpu:ssr copy</string><string>gpu:build Hi-Z</string><string>gpu:ssr stage</string></array>
     <key>min_ms</key><real>1.2</real>
     <key>fraction</key><real>0.9</real>
     <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string></array>
@@ -781,9 +755,9 @@
   <map>
     <key>id</key><string>headroom_ssr_full</string>
     <key>bound</key><string>capped</string>
-    <key>when</key><array><string>$headroom_ms ge 4</string><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionResolutionMultiplier lt 0.95</string></array>
+    <key>when</key><array><string>$headroom_ms ge 4</string><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionsResolutionMultiplier lt 0.95</string></array>
     <key>set</key><array>
-      <map><key>setting</key><string>RenderScreenSpaceReflectionResolutionMultiplier</string><key>value</key><string>1</string></map>
+      <map><key>setting</key><string>RenderScreenSpaceReflectionsResolutionMultiplier</string><key>value</key><string>1</string></map>
     </array>
     <key>effect</key><string>uses headroom</string>
     <key>looks</key><string>Crisper reflections</string>

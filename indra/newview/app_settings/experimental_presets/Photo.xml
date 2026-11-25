@@ -87,7 +87,7 @@
     <key>RenderAlphaBlendShadows</key>
     <boolean>1</boolean>
     <key>RenderScreenSpaceReflectionGlossySamples</key>
-    <integer>4</integer>
+    <integer>2</integer>
     <key>RenderScreenSpaceReflections</key>
     <boolean>1</boolean>
     <key>RenderShadowMinCasterTexels</key>

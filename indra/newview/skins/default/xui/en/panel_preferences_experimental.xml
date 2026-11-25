@@ -805,7 +805,7 @@
              bottom="-1">
                 <panel
                  follows="left|top"
-                 height="512"
+                 height="320"
                  layout="topleft"
                  left="0"
                  name="experimental_photo_settings"
@@ -834,7 +834,7 @@
                      width="120">
                         <button.commit_callback
                          function="FSExperimental.ResetSection"
-                         parameter="RenderResolutionMultiplier,FSSnapshotWaitForTextures,FSSnapshotTextureWaitTimeout,RenderScreenSpaceReflections,RenderScreenSpaceReflectionIterations,RenderScreenSpaceReflectionRayStep,RenderScreenSpaceReflectionGlossySamples,RenderScreenSpaceReflectionDistanceBias,RenderScreenSpaceReflectionDepthRejectBias,FSRenderSSRHiZ,FSRenderSSRConeTrace,RenderScreenSpaceReflectionTemporal,RenderScreenSpaceReflectionResolutionMultiplier,RenderScreenSpaceReflectionMaxRoughness,FSRenderSSRHiZSteps,FSRenderSSRThickness,FSRenderSSREdgeFade" />
+                         parameter="RenderResolutionMultiplier,FSSnapshotWaitForTextures,FSSnapshotTextureWaitTimeout,RenderScreenSpaceReflections,RenderScreenSpaceReflectionIterations,RenderScreenSpaceReflectionsResolutionMultiplier,RenderScreenSpaceReflectionMaxThickness,RenderScreenSpaceReflectionMaxRoughness,RenderScreenSpaceReflectionMaxDepth,RenderScreenSpaceReflectionsFilterScale" />
                     </button>
                     <text
                      follows="left|top"
@@ -915,8 +915,8 @@
                      layout="topleft"
                      left="35"
                      name="ssr_iterations_label"
-                     tool_tip="EXPERIMENTAL. How many steps each reflection ray takes looking for what it hits. More steps find more of the scene and further away. Default 25."
-                     top="138"
+                     tool_tip="EXPERIMENTAL. How many steps each reflection ray may take to find what it reflects. Too few and long reflections end early, falling back to the reflection probes. Default 48."
+                     top="140"
                      width="285">
                         Reflection ray steps
                     </text>
@@ -926,168 +926,28 @@
                      enabled_control="RenderScreenSpaceReflections"
                      follows="left|top"
                      height="20"
-                     increment="5"
+                     increment="8"
                      layout="topleft"
                      left="330"
-                     max_val="100"
-                     min_val="1"
+                     max_val="128"
+                     min_val="8"
                      name="ssr_iterations"
-                     tool_tip="EXPERIMENTAL. How many steps each reflection ray takes looking for what it hits. More steps find more of the scene and further away. Default 25."
-                     top="136"
+                     tool_tip="EXPERIMENTAL. How many steps each reflection ray may take to find what it reflects. Too few and long reflections end early, falling back to the reflection probes. Default 48."
+                     top="138"
                      width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="ssr_ray_step_label"
-                     tool_tip="EXPERIMENTAL. Length of the first reflection ray step. Smaller steps give more precise reflections close to the surface but reach less far for the same number of steps. Default 0.1."
-                     top="166"
-                     width="285">
-                        Reflection ray step length
-                    </text>
-                    <spinner
-                     control_name="RenderScreenSpaceReflectionRayStep"
-                     decimal_digits="3"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     increment="0.01"
-                     layout="topleft"
-                     left="330"
-                     max_val="1"
-                     min_val="0.01"
-                     name="ssr_ray_step"
-                     tool_tip="EXPERIMENTAL. Length of the first reflection ray step. Smaller steps give more precise reflections close to the surface but reach less far for the same number of steps. Default 0.1."
-                     top="164"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="ssr_glossy_samples_label"
-                     tool_tip="EXPERIMENTAL. Most rays traced per pixel for reflections on rough surfaces. More rays give smoother, less noisy glossy reflections; with blending over frames few are needed. Default 2."
-                     top="194"
-                     width="285">
-                        Glossy reflection samples
-                    </text>
-                    <spinner
-                     control_name="RenderScreenSpaceReflectionGlossySamples"
-                     decimal_digits="0"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     increment="1"
-                     layout="topleft"
-                     left="330"
-                     max_val="32"
-                     min_val="1"
-                     name="ssr_glossy_samples"
-                     tool_tip="EXPERIMENTAL. Most rays traced per pixel for reflections on rough surfaces. More rays give smoother, less noisy glossy reflections; with blending over frames few are needed. Default 2."
-                     top="192"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="ssr_distance_bias_label"
-                     tool_tip="EXPERIMENTAL. How close a ray has to come to a surface to count as hitting it. Larger values fill in gaps in reflections but can smear them. Default 0.015."
-                     top="222"
-                     width="285">
-                        Reflection hit tolerance
-                    </text>
-                    <spinner
-                     control_name="RenderScreenSpaceReflectionDistanceBias"
-                     decimal_digits="3"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     increment="0.005"
-                     layout="topleft"
-                     left="330"
-                     max_val="0.5"
-                     min_val="0"
-                     name="ssr_distance_bias"
-                     tool_tip="EXPERIMENTAL. How close a ray has to come to a surface to count as hitting it. Larger values fill in gaps in reflections but can smear them. Default 0.015."
-                     top="220"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="ssr_reject_bias_label"
-                     tool_tip="EXPERIMENTAL. Depth difference below which a reflection hit is thrown away as the surface reflecting itself. Raise it if reflections show speckles on flat surfaces. Default 0.001."
-                     top="250"
-                     width="285">
-                        Reflection self-hit rejection
-                    </text>
-                    <spinner
-                     control_name="RenderScreenSpaceReflectionDepthRejectBias"
-                     decimal_digits="4"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     increment="0.0005"
-                     layout="topleft"
-                     left="330"
-                     max_val="0.1"
-                     min_val="0"
-                     name="ssr_reject_bias"
-                     tool_tip="EXPERIMENTAL. Depth difference below which a reflection hit is thrown away as the surface reflecting itself. Raise it if reflections show speckles on flat surfaces. Default 0.001."
-                     top="248"
-                     width="100" />
-                    <check_box
-                     control_name="FSRenderSSRHiZ"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     label="Hierarchical screen space reflections"
-                     layout="topleft"
-                     left="15"
-                     name="fs_fsrenderssrhiz"
-                     tool_tip="EXPERIMENTAL. Traces screen space reflections through a depth pyramid: longer, more accurate reflections at similar or lower cost, no leaking through thin objects, and a smooth fade into the reflection probes where the screen has no information. Rebuilds shaders."
-                     top="280"
-                     width="475" />
-                    <check_box
-                     control_name="FSRenderSSRConeTrace"
-                     enabled_control="FSRenderSSRHiZ"
-                     follows="left|top"
-                     height="20"
-                     label="Cone-traced glossy reflections"
-                     layout="topleft"
-                     left="35"
-                     name="fs_fsrenderssrconetrace"
-                     tool_tip="EXPERIMENTAL. Glossy surfaces trace one reflection ray and blur its result by the surface's roughness, instead of averaging several scattered rays. Smoother and cheaper; needs hierarchical screen space reflections."
-                     top="306"
-                     width="455" />
-                    <check_box
-                     control_name="RenderScreenSpaceReflectionTemporal"
-                     enabled_control="RenderScreenSpaceReflections"
-                     follows="left|top"
-                     height="20"
-                     label="Blend reflections over frames"
-                     layout="topleft"
-                     left="15"
-                     name="ssr_temporal"
-                     tool_tip="EXPERIMENTAL. Blends the screen space reflections with the previous frames, following the camera, and changes the glossy rays every frame, so glossy reflections settle smooth instead of showing a fixed noise pattern."
-                     top="332"
-                     width="475" />
                     <text
                      follows="left|top"
                      height="18"
                      layout="topleft"
                      left="35"
                      name="ssr_resolution_label"
-                     tool_tip="EXPERIMENTAL. Size of the buffer opaque surfaces trace their screen space reflections into, as a share of the screen. 0.5 traces a quarter of the pixels and upsamples them with a depth and normal aware filter: much cheaper, slightly softer on fine normal map detail. Alpha and water trace every pixel. Default 1."
-                     top="360"
+                     tool_tip="EXPERIMENTAL. Resolution of the screen space reflections, as a multiple of the screen. Lower is faster and softer. Default 1."
+                     top="168"
                      width="285">
                         Reflection resolution
                     </text>
                     <spinner
-                     control_name="RenderScreenSpaceReflectionResolutionMultiplier"
+                     control_name="RenderScreenSpaceReflectionsResolutionMultiplier"
                      decimal_digits="2"
                      enabled_control="RenderScreenSpaceReflections"
                      follows="left|top"
@@ -1098,8 +958,34 @@
                      max_val="1"
                      min_val="0.25"
                      name="ssr_resolution"
-                     tool_tip="EXPERIMENTAL. Size of the buffer opaque surfaces trace their screen space reflections into, as a share of the screen. 0.5 traces a quarter of the pixels and upsamples them with a depth and normal aware filter: much cheaper, slightly softer on fine normal map detail. Alpha and water trace every pixel. Default 1."
-                     top="358"
+                     tool_tip="EXPERIMENTAL. Resolution of the screen space reflections, as a multiple of the screen. Lower is faster and softer. Default 1."
+                     top="166"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="35"
+                     name="ssr_thickness_label"
+                     tool_tip="EXPERIMENTAL. How deep the reflections assume everything on screen is: a ray passing behind a surface by less than this counts as hitting it. Lower stops thin things (avatars, railings) from smearing behind themselves; too low lets rays slip through walls. Default 1."
+                     top="196"
+                     width="285">
+                        Assumed surface thickness (m)
+                    </text>
+                    <spinner
+                     control_name="RenderScreenSpaceReflectionMaxThickness"
+                     decimal_digits="2"
+                     enabled_control="RenderScreenSpaceReflections"
+                     follows="left|top"
+                     height="20"
+                     increment="0.05"
+                     layout="topleft"
+                     left="330"
+                     max_val="4"
+                     min_val="0.05"
+                     name="ssr_thickness"
+                     tool_tip="EXPERIMENTAL. How deep the reflections assume everything on screen is: a ray passing behind a surface by less than this counts as hitting it. Lower stops thin things (avatars, railings) from smearing behind themselves; too low lets rays slip through walls. Default 1."
+                     top="194"
                      width="100" />
                     <text
                      follows="left|top"
@@ -1107,10 +993,10 @@
                      layout="topleft"
                      left="35"
                      name="ssr_max_roughness_label"
-                     tool_tip="EXPERIMENTAL. Roughest surface that still gets screen space reflections, from 0 (mirrors only) to 1; rougher surfaces use the reflection probes alone. Rough reflections are blurred to match. Default 0.7."
-                     top="388"
+                     tool_tip="EXPERIMENTAL. Surfaces rougher than this keep the reflection probes alone. Default 1 (all)."
+                     top="224"
                      width="285">
-                        Roughest reflecting surface
+                        Roughest surface reflecting
                     </text>
                     <spinner
                      control_name="RenderScreenSpaceReflectionMaxRoughness"
@@ -1122,88 +1008,62 @@
                      layout="topleft"
                      left="330"
                      max_val="1"
-                     min_val="0.1"
-                     name="ssr_max_roughness"
-                     tool_tip="EXPERIMENTAL. Roughest surface that still gets screen space reflections, from 0 (mirrors only) to 1; rougher surfaces use the reflection probes alone. Rough reflections are blurred to match. Default 0.7."
-                     top="386"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="fs_fsrenderssrhizsteps_label"
-                     tool_tip="EXPERIMENTAL. Most steps one hierarchical reflection ray may take. Each step skips a whole empty region, so 32 reaches across the screen; more finds reflections behind objects more often at higher cost."
-                     top="416"
-                     width="285">
-                        Hierarchical reflection steps
-                    </text>
-                    <spinner
-                     control_name="FSRenderSSRHiZSteps"
-                     decimal_digits="0"
-                     enabled_control="FSRenderSSRHiZ"
-                     follows="left|top"
-                     height="20"
-                     increment="4"
-                     layout="topleft"
-                     left="330"
-                     max_val="256"
-                     min_val="4"
-                     name="fs_fsrenderssrhizsteps"
-                     tool_tip="EXPERIMENTAL. Most steps one hierarchical reflection ray may take. Each step skips a whole empty region, so 32 reaches across the screen; more finds reflections behind objects more often at higher cost."
-                     top="414"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="fs_fsrenderssrthickness_label"
-                     tool_tip="EXPERIMENTAL. How far a reflection ray may pass behind a surface and still count as hitting it. Raise if reflections of solid objects have holes; lower if thin objects (posts, railings) smear into the reflection behind them."
-                     top="444"
-                     width="285">
-                        Reflection hit thickness (m)
-                    </text>
-                    <spinner
-                     control_name="FSRenderSSRThickness"
-                     decimal_digits="2"
-                     enabled_control="FSRenderSSRHiZ"
-                     follows="left|top"
-                     height="20"
-                     increment="0.05"
-                     layout="topleft"
-                     left="330"
-                     max_val="10"
-                     min_val="0.01"
-                     name="fs_fsrenderssrthickness"
-                     tool_tip="EXPERIMENTAL. How far a reflection ray may pass behind a surface and still count as hitting it. Raise if reflections of solid objects have holes; lower if thin objects (posts, railings) smear into the reflection behind them."
-                     top="442"
-                     width="100" />
-                    <text
-                     follows="left|top"
-                     height="18"
-                     layout="topleft"
-                     left="35"
-                     name="fs_fsrenderssredgefade_label"
-                     tool_tip="EXPERIMENTAL. Share of the screen over which reflections fade into the reflection probes as they near the screen edge. 0 turns the fade off."
-                     top="472"
-                     width="285">
-                        Reflection screen edge fade
-                    </text>
-                    <spinner
-                     control_name="FSRenderSSREdgeFade"
-                     decimal_digits="2"
-                     enabled_control="FSRenderSSRHiZ"
-                     follows="left|top"
-                     height="20"
-                     increment="0.01"
-                     layout="topleft"
-                     left="330"
-                     max_val="0.5"
                      min_val="0"
-                     name="fs_fsrenderssredgefade"
-                     tool_tip="EXPERIMENTAL. Share of the screen over which reflections fade into the reflection probes as they near the screen edge. 0 turns the fade off."
-                     top="470"
+                     name="ssr_max_roughness"
+                     tool_tip="EXPERIMENTAL. Surfaces rougher than this keep the reflection probes alone. Default 1 (all)."
+                     top="222"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="35"
+                     name="ssr_max_depth_label"
+                     tool_tip="EXPERIMENTAL. Surfaces farther from the camera than this keep the reflection probes alone, and reflections of things farther than this fade out. Default 256."
+                     top="252"
+                     width="285">
+                        Farthest surface reflecting (m)
+                    </text>
+                    <spinner
+                     control_name="RenderScreenSpaceReflectionMaxDepth"
+                     decimal_digits="0"
+                     enabled_control="RenderScreenSpaceReflections"
+                     follows="left|top"
+                     height="20"
+                     increment="16"
+                     layout="topleft"
+                     left="330"
+                     max_val="1024"
+                     min_val="16"
+                     name="ssr_max_depth"
+                     tool_tip="EXPERIMENTAL. Surfaces farther from the camera than this keep the reflection probes alone, and reflections of things farther than this fade out. Default 256."
+                     top="250"
+                     width="100" />
+                    <text
+                     follows="left|top"
+                     height="18"
+                     layout="topleft"
+                     left="35"
+                     name="ssr_filter_scale_label"
+                     tool_tip="EXPERIMENTAL. How widely the reflections are blurred for rough surfaces. 0 turns the blur off. Default 2."
+                     top="280"
+                     width="285">
+                        Rough surface blur
+                    </text>
+                    <spinner
+                     control_name="RenderScreenSpaceReflectionsFilterScale"
+                     decimal_digits="1"
+                     enabled_control="RenderScreenSpaceReflections"
+                     follows="left|top"
+                     height="20"
+                     increment="0.5"
+                     layout="topleft"
+                     left="330"
+                     max_val="8"
+                     min_val="0"
+                     name="ssr_filter_scale"
+                     tool_tip="EXPERIMENTAL. How widely the reflections are blurred for rough surfaces. 0 turns the blur off. Default 2."
+                     top="278"
                      width="100" />
                 </panel>
             </scroll_container>

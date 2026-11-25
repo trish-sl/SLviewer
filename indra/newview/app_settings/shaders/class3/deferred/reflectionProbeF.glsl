@@ -26,8 +26,9 @@
 #define FLT_MAX 3.402823466e+38
 
 #if defined(SSR)
-float tapScreenSpaceReflection(int totalSamples, vec2 tc, vec3 viewPos, vec3 n, vec3 rayDir, inout vec4 collectedColor, sampler2D source, float glossiness);
-float ssrMinGlossiness();
+// <FS:Trish> GCP: the care package's screen-space reflections
+float tapScreenSpaceReflection(int totalSamples, vec2 tc, vec3 viewPos, vec3 n, inout vec4 collectedColor, sampler2D source, float glossiness);
+// </FS:Trish>
 #endif
 
 uniform samplerCubeArray   reflectionProbes;
@@ -43,6 +44,10 @@ uniform int cube_snapshot;
 uniform float max_probe_lod;
 
 uniform bool transparent_surface;
+
+// <FS:Trish> GCP: the SSR buffer's highest mip; sceneMap is the SSR buffer where it is read
+uniform float ssrMipScale;
+// </FS:Trish>
 
 uniform int classic_mode;
 
@@ -1054,12 +1059,10 @@ void tapHeroProbe(inout vec3 glossenv, vec3 pos, vec3 norm, float glossiness)
 
 
 
-// fs_given: the screen-space reflection was traced beforehand into the SSR buffer
-// (fsssrbuffer.cpp) and arrives in fs_ssr, decoded, in place of tracing it here.
 // fs_amb_norm: the direction the irradiance lobe looks up, the normal itself unless the bent
 // normal (FSRenderBentNormals) leans it toward where the surface sees open sky
 void fsDoProbeSample(inout vec3 ambenv, inout vec3 glossenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 fs_amb_norm, float glossiness, bool transparent, vec3 amblit, bool fs_given, vec4 fs_ssr)
+        vec2 tc, vec3 pos, vec3 norm, vec3 fs_amb_norm, float glossiness, bool transparent, vec3 amblit)
 {
     // TODO - don't hard code lods
     float reflection_lods = max_probe_lod;
@@ -1086,31 +1089,57 @@ void fsDoProbeSample(inout vec3 ambenv, inout vec3 glossenv,
     }
 
 #if defined(SSR)
-    // Skip the march only where it would contribute nothing anyway. Asking the SSR unit for its
-    // own fade threshold keeps this from drifting away from it again.
-    if (cube_snapshot != 1 && glossiness > ssrMinGlossiness())
+    // <FS:Trish> GCP: opaque surfaces read the SSR buffer, traced before the lighting pass and
+    // blurred into mips by roughness; transparent ones trace here
+    //if (cube_snapshot != 1 && glossiness >= 0.9)
+    //{
+    //    vec4 ssr = vec4(0);
+    //    if (transparent)
+    //    {
+    //        tapScreenSpaceReflection(1, tc, pos, norm, ssr, sceneMap, 1);
+    //        ssr.a *= glossiness;
+    //    }
+    //    else
+    //    {
+    //        tapScreenSpaceReflection(1, tc, pos, norm, ssr, sceneMap, glossiness);
+    //    }
+    //
+    //
+    //    glossenv = mix(glossenv, ssr.rgb, ssr.a);
+    //}
+    if (cube_snapshot != 1)
     {
-        vec4 ssr = vec4(0);
-        // refnormpersp, not norm: the march takes the same dominant direction the probe tap
-        // above was bent to, so the two reflections being blended below agree about where they
-        // are looking.
-        if (fs_given)
+        float roughness = 1.0 - glossiness;
+        if (roughness < 0.7)
         {
-            ssr = fs_ssr;
-        }
-        else if (transparent)
-        {
-            tapScreenSpaceReflection(1, tc, pos, norm, refnormpersp, ssr, sceneMap, 1);
-            ssr.a *= glossiness;
-        }
-        else
-        {
-            tapScreenSpaceReflection(1, tc, pos, norm, refnormpersp, ssr, sceneMap, glossiness);
-        }
+            vec4 ssr = vec4(0.0);
 
+            if (transparent)
+            {
+                tapScreenSpaceReflection(1, tc, pos.xyz, norm, ssr, sceneMap, glossiness);
+            }
+            else
+            {
+                ssr = textureLod(sceneMap, tc, roughness * ssrMipScale);
+            }
 
-        glossenv = mix(glossenv, ssr.rgb, ssr.a);
+            if (ssr.a > 0.001)
+            {
+                ssr.rgb /= ssr.a;
+
+                float l = dot(ssr.rgb, vec3(0.2126, 0.7152, 0.0722));
+                ssr.rgb /= max(1.0 - l, 0.001);
+
+                ssr.a *= 1.0 - smoothstep(0.6, 0.7, roughness);
+
+                if (transparent)
+                    ssr.a *= glossiness;
+
+                glossenv = mix(glossenv, ssr.rgb, ssr.a);
+            }
+        }
     }
+    // </FS:Trish>
 #endif
 
     tapHeroProbe(glossenv, pos, norm, glossiness);
@@ -1119,17 +1148,16 @@ void fsDoProbeSample(inout vec3 ambenv, inout vec3 glossenv,
 void doProbeSample(inout vec3 ambenv, inout vec3 glossenv,
         vec2 tc, vec3 pos, vec3 norm, float glossiness, bool transparent, vec3 amblit)
 {
-    fsDoProbeSample(ambenv, glossenv, tc, pos, norm, norm, glossiness, transparent, amblit, false, vec4(0));
+    fsDoProbeSample(ambenv, glossenv, tc, pos, norm, norm, glossiness, transparent, amblit);
 }
 
-// sampleReflectionProbes for an opaque surface in the soften pass with the Firestorm inputs:
-// the irradiance lobe along amb_norm (the bent normal, FSRenderBentNormals), and the
-// screen-space reflection read from the SSR buffer when ssr_given (fsssrbuffer.cpp)
+// sampleReflectionProbes for an opaque surface in the soften pass with the Firestorm input:
+// the irradiance lobe along amb_norm (the bent normal, FSRenderBentNormals)
 void sampleReflectionProbesFS(inout vec3 ambenv, inout vec3 glossenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, vec3 amblit, bool ssr_given, vec4 ssr)
+        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, vec3 amblit)
 {
     preProbeSample(pos);
-    fsDoProbeSample(ambenv, glossenv, tc, pos, norm, amb_norm, glossiness, false, amblit, ssr_given, ssr);
+    fsDoProbeSample(ambenv, glossenv, tc, pos, norm, amb_norm, glossiness, false, amblit);
 }
 
 void sampleReflectionProbes(inout vec3 ambenv, inout vec3 glossenv,
@@ -1204,7 +1232,7 @@ vec4 sampleReflectionProbesDebug(vec3 pos)
 }
 
 void fsSampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inout vec3 legacyenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 fs_amb_norm, float glossiness, float envIntensity, bool transparent, vec3 amblit, bool fs_given, vec4 fs_ssr)
+        vec2 tc, vec3 pos, vec3 norm, vec3 fs_amb_norm, float glossiness, float envIntensity, bool transparent, vec3 amblit)
 {
     float reflection_lods = max_probe_lod;
     preProbeSample(pos);
@@ -1250,34 +1278,58 @@ void fsSampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inou
     }
 
 #if defined(SSR)
-    // Gated the same way the PBR path is. Both consumers below blend by ssr.a, and ssr.a is
-    // already zero at these glossiness values -- the march's own fade reaches zero at
-    // ssrMinGlossiness(), and the transparent branch scales by glossiness directly. alphaF
-    // calls this with glossiness 0, so every legacy alpha fragment in the scene was paying for
-    // a full ray march whose result was then multiplied by nothing.
-    if (cube_snapshot != 1 && (transparent ? glossiness > 0.0 : glossiness > ssrMinGlossiness()))
+    // <FS:Trish> GCP: as in fsDoProbeSample
+    //if (cube_snapshot != 1)
+    //{
+    //    vec4 ssr = vec4(0);
+    //
+    //    if (transparent)
+    //    {
+    //        tapScreenSpaceReflection(1, tc, pos, norm, ssr, sceneMap, 1);
+    //        ssr.a *= glossiness;
+    //    }
+    //    else
+    //    {
+    //        tapScreenSpaceReflection(1, tc, pos, norm, ssr, sceneMap, glossiness);
+    //    }
+    //
+    //    glossenv = mix(glossenv, ssr.rgb, ssr.a);
+    //    legacyenv = mix(legacyenv, ssr.rgb, ssr.a);
+    //}
+    if (cube_snapshot != 1)
     {
-        vec4 ssr = vec4(0);
-
-        vec3 ssrDir = normalize(refnormpersp);
-
-        if (fs_given)
+        float roughness = 1.0 - glossiness;
+        if (roughness < 0.7)
         {
-            ssr = fs_ssr; // traced beforehand along the same mirror direction
-        }
-        else if (transparent)
-        {
-            tapScreenSpaceReflection(1, tc, pos, norm, ssrDir, ssr, sceneMap, 1);
-            ssr.a *= glossiness;
-        }
-        else
-        {
-            tapScreenSpaceReflection(1, tc, pos, norm, ssrDir, ssr, sceneMap, glossiness);
-        }
+            vec4 ssr = vec4(0.0);
 
-        glossenv = mix(glossenv, ssr.rgb, ssr.a);
-        legacyenv = mix(legacyenv, ssr.rgb, ssr.a);
+            if (transparent)
+            {
+                tapScreenSpaceReflection(1, tc, pos.xyz, norm, ssr, sceneMap, glossiness);
+            }
+            else
+            {
+                float ssrLod = clamp(log2(1.0 + roughness * roughness * ssrMipScale * 4.0), 0.0, ssrMipScale);
+                ssr = textureLod(sceneMap, tc, ssrLod);
+            }
+
+            if (ssr.a > 0.001)
+            {
+                ssr.rgb /= ssr.a;
+                float l = dot(ssr.rgb, vec3(0.2126, 0.7152, 0.0722));
+                ssr.rgb /= max(1.0 - l, 0.001);
+
+                ssr.a *= 1.0 - smoothstep(0.6, 0.7, roughness);
+
+                if (transparent)
+                    ssr.a *= glossiness;
+
+                glossenv = mix(glossenv, ssr.rgb, ssr.a);
+                legacyenv = mix(legacyenv, ssr.rgb, ssr.a);
+            }
+        }
     }
+    // </FS:Trish>
 #endif
 
     tapHeroProbe(glossenv, pos, norm, glossiness);
@@ -1287,15 +1339,15 @@ void fsSampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inou
 void sampleReflectionProbesLegacy(inout vec3 ambenv, inout vec3 glossenv, inout vec3 legacyenv,
         vec2 tc, vec3 pos, vec3 norm, float glossiness, float envIntensity, bool transparent, vec3 amblit)
 {
-    fsSampleReflectionProbesLegacy(ambenv, glossenv, legacyenv, tc, pos, norm, norm, glossiness, envIntensity, transparent, amblit, false, vec4(0));
+    fsSampleReflectionProbesLegacy(ambenv, glossenv, legacyenv, tc, pos, norm, norm, glossiness, envIntensity, transparent, amblit);
 }
 
 // sampleReflectionProbesLegacy for an opaque surface in the soften pass with the Firestorm
 // inputs; see sampleReflectionProbesFS
 void sampleReflectionProbesLegacyFS(inout vec3 ambenv, inout vec3 glossenv, inout vec3 legacyenv,
-        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, float envIntensity, vec3 amblit, bool ssr_given, vec4 ssr)
+        vec2 tc, vec3 pos, vec3 norm, vec3 amb_norm, float glossiness, float envIntensity, vec3 amblit)
 {
-    fsSampleReflectionProbesLegacy(ambenv, glossenv, legacyenv, tc, pos, norm, amb_norm, glossiness, envIntensity, false, amblit, ssr_given, ssr);
+    fsSampleReflectionProbesLegacy(ambenv, glossenv, legacyenv, tc, pos, norm, amb_norm, glossiness, envIntensity, false, amblit);
 }
 
 void applyGlossEnv(inout vec3 color, vec3 glossenv, vec4 spec, vec3 pos, vec3 norm)

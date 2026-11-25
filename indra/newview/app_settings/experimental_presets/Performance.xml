@@ -242,8 +242,6 @@
     <integer>1</integer>
     <key>FSRenderSpotVolumetricTemporal</key>
     <boolean>1</boolean>
-    <key>FSRenderSSRConeTrace</key>
-    <boolean>1</boolean>
     <key>FSRenderThread</key>
     <boolean>1</boolean>
     <key>FSRenderUICap</key>

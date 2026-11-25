@@ -262,8 +262,6 @@ set(viewer_SOURCE_FILES
     fsskinonce.cpp
     fsskinpalettebuffer.cpp
     fssoftparticles.cpp
-    fsssrbuffer.cpp
-    fsssrhiz.cpp
     fsspotlightbatch.cpp
     fstaa.cpp
     fstexturerelease.cpp
@@ -1229,8 +1227,6 @@ set(viewer_HEADER_FILES
     fsskinonce.h
     fsskinpalettebuffer.h
     fssoftparticles.h
-    fsssrbuffer.h
-    fsssrhiz.h
     fsspotlightbatch.h
     fstaa.h
     fstexturerelease.h

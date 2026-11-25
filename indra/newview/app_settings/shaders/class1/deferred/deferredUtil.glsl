@@ -752,6 +752,12 @@ void pbrIbl(vec3 diffuseColor,
             float ao,       // ambient visibility: the material's own occlusion combined with
                             // whatever screen-space term the caller has, already on that
                             // caller's strength curve. One number, spent once per lobe.
+            // <FS:Trish> The reflection's own visibility
+            float specAo,   // the material's own occlusion alone: screen-space occlusion is
+                            // what the camera sees around the surface, not what its reflection
+                            // sees, and darkened the reflection in shapes that moved with the
+                            // camera (a shadow in the reflection, with or without SSR)
+            // </FS:Trish>
             float nv,       // normal dot view vector
             float perceptualRough,
             out vec3 diffuseOut,
@@ -769,9 +775,20 @@ void pbrIbl(vec3 diffuseColor,
 #endif
     // Multi-bounce (see gtaoMultiBounce), as the classic branch of pbrBaseLight applies it
     diffuseOut = irradiance * diffuseColor * (gtaoMultiBounce(ao, diffuseColor) * kd);
-    specularOut = (radiance * FssEss + ms) * fsSpecularOcclusion(ao, nv, perceptualRough);
+    // <FS:Trish> The reflection's own visibility
+    //specularOut = (radiance * FssEss + ms) * fsSpecularOcclusion(ao, nv, perceptualRough);
+    specularOut = (radiance * FssEss + ms) * fsSpecularOcclusion(specAo, nv, perceptualRough);
+    // </FS:Trish>
     // </FS:Trish>
 }
+
+// <FS:Trish> One visibility for both lobes, as before
+void pbrIbl(vec3 diffuseColor, vec3 specularColor, vec3 radiance, vec3 irradiance, float ao, float nv,
+            float perceptualRough, out vec3 diffuseOut, out vec3 specularOut)
+{
+    pbrIbl(diffuseColor, specularColor, radiance, irradiance, ao, ao, nv, perceptualRough, diffuseOut, specularOut);
+}
+// </FS:Trish>
 
 
 // Encapsulate the various inputs used by the various functions in the shading equation
@@ -1256,7 +1273,10 @@ void fsSunDiscPunctual(vec3 diffuseColor, vec3 specularColor, float perceptualRo
 
 // micro: normal-map micro-shadow factor for the sun (fsMicroShadow), kept apart from scol
 // because the classic branch spends scol twice and the micro-shadow must apply once.
-vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v, vec3 norm, float perceptualRoughness, vec3 light_dir, vec3 sunlit, float scol, vec3 radiance, vec3 irradiance, vec3 colorEmissive, float ao, vec3 additive, vec3 atten, float micro)
+// <FS:Trish> specAo: the reflection's own visibility (see pbrIbl)
+//vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v, vec3 norm, float perceptualRoughness, vec3 light_dir, vec3 sunlit, float scol, vec3 radiance, vec3 irradiance, vec3 colorEmissive, float ao, vec3 additive, vec3 atten, float micro)
+vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v, vec3 norm, float perceptualRoughness, vec3 light_dir, vec3 sunlit, float scol, vec3 radiance, vec3 irradiance, vec3 colorEmissive, float ao, vec3 additive, vec3 atten, float micro, float specAo)
+// </FS:Trish>
 {
     perceptualRoughness = max(perceptualRoughness, MIN_PBR_ROUGHNESS);
     vec3 color = vec3(0);
@@ -1264,7 +1284,10 @@ vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v,
     float NdotV = clamp(abs(dot(norm, v)), 0.001, 1.0);
     vec3 iblDiff = vec3(0);
     vec3 iblSpec = vec3(0);
-    pbrIbl(diffuseColor, specularColor, radiance, irradiance, ao, NdotV, perceptualRoughness, iblDiff, iblSpec);
+    // <FS:Trish> The reflection's own visibility
+    //pbrIbl(diffuseColor, specularColor, radiance, irradiance, ao, NdotV, perceptualRoughness, iblDiff, iblSpec);
+    pbrIbl(diffuseColor, specularColor, radiance, irradiance, ao, specAo, NdotV, perceptualRoughness, iblDiff, iblSpec);
+    // </FS:Trish>
 
     color += iblDiff;
 
@@ -1328,6 +1351,13 @@ vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v,
 
     return color;
 }
+
+// <FS:Trish> One visibility for both lobes, as before
+vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v, vec3 norm, float perceptualRoughness, vec3 light_dir, vec3 sunlit, float scol, vec3 radiance, vec3 irradiance, vec3 colorEmissive, float ao, vec3 additive, vec3 atten, float micro)
+{
+    return pbrBaseLight(diffuseColor, specularColor, metallic, v, norm, perceptualRoughness, light_dir, sunlit, scol, radiance, irradiance, colorEmissive, ao, additive, atten, micro, ao);
+}
+// </FS:Trish>
 
 // Without micro-shadows: the forward PBR passes
 vec3 pbrBaseLight(vec3 diffuseColor, vec3 specularColor, float metallic, vec3 v, vec3 norm, float perceptualRoughness, vec3 light_dir, vec3 sunlit, float scol, vec3 radiance, vec3 irradiance, vec3 colorEmissive, float ao, vec3 additive, vec3 atten)

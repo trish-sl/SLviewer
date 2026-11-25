@@ -1917,12 +1917,20 @@ void LLShaderMgr::initAttribsAndUniforms()
     llassert(mReservedUniforms.size() == LLShaderMgr::DEFERRED_SHADOW_LIGHT_SIZE + 1);
 
     mReservedUniforms.push_back("iterationCount");
-    mReservedUniforms.push_back("rayStep");
-    mReservedUniforms.push_back("distanceBias");
-    mReservedUniforms.push_back("depthRejectBias");
+    // <FS:Trish> GCP
+    //mReservedUniforms.push_back("rayStep");
+    //mReservedUniforms.push_back("distanceBias");
+    //mReservedUniforms.push_back("depthRejectBias");
+    mReservedUniforms.push_back("maxThickness");
+    mReservedUniforms.push_back("depthBias");
+    // </FS:Trish>
     mReservedUniforms.push_back("glossySampleCount");
     mReservedUniforms.push_back("noiseSine");
-    mReservedUniforms.push_back("adaptiveStepMultiplier");
+    // <FS:Trish> GCP
+    //mReservedUniforms.push_back("adaptiveStepMultiplier");
+    mReservedUniforms.push_back("maxZDepth");
+    mReservedUniforms.push_back("maxRoughness");
+    // </FS:Trish>
 
     mReservedUniforms.push_back("modelview_delta");
     mReservedUniforms.push_back("inv_modelview_delta");
@@ -2105,17 +2113,11 @@ void LLShaderMgr::initAttribsAndUniforms()
     mReservedUniforms.push_back("coloredShadowMap0");
     mReservedUniforms.push_back("coloredShadowMap1");
     // </FS:Trish>
-    mReservedUniforms.push_back("ssrHiZMap"); // <FS:Trish/>
     // <FS:Trish> Water fog variation
     mReservedUniforms.push_back("fs_water_fog_noise");
     mReservedUniforms.push_back("fs_water_fog_vtw0");
     mReservedUniforms.push_back("fs_water_fog_vtw1");
     mReservedUniforms.push_back("fs_water_fog_vtw2");
-    // </FS:Trish>
-    // <FS:Trish> Screen-space reflection buffers
-    mReservedUniforms.push_back("fs_ssr_map");
-    mReservedUniforms.push_back("fs_ssr_trace");
-    mReservedUniforms.push_back("fs_ssr_history");
     // </FS:Trish>
     // <FS:Trish> Bent normals and screen-space indirect light
     mReservedUniforms.push_back("fs_indirect_gi");

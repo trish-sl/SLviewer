@@ -68,11 +68,13 @@
 		<string>RenderReflectionProbeVolumes</string>
 		<string>RenderScreenSpaceReflections</string>
 		<string>RenderScreenSpaceReflectionIterations</string>
-		<string>RenderScreenSpaceReflectionRayStep</string>
-		<string>RenderScreenSpaceReflectionDistanceBias</string>
-		<string>RenderScreenSpaceReflectionDepthRejectBias</string>
-		<string>RenderScreenSpaceReflectionAdaptiveStepMultiplier</string>
+		<string>RenderScreenSpaceReflectionMaxThickness</string>
+		<string>RenderScreenSpaceReflectionDepthBias</string>
 		<string>RenderScreenSpaceReflectionGlossySamples</string>
+		<string>RenderScreenSpaceReflectionMaxDepth</string>
+		<string>RenderScreenSpaceReflectionMaxRoughness</string>
+		<string>RenderScreenSpaceReflectionsFilterScale</string>
+		<string>RenderScreenSpaceReflectionsResolutionMultiplier</string>
 		<string>RenderShaderLightingMaxLevel</string>
 		<string>RenderShadowDetail</string>
 		<string>RenderShadowPCSS</string>

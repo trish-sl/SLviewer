@@ -532,8 +532,6 @@
     <integer>2</integer>
     <key>FSRenderSpotShadowUpdateInterval</key>
     <integer>1</integer>
-    <key>FSRenderSSRHiZ</key>
-    <boolean>0</boolean>
     <key>FSRenderStarExtinction</key>
     <boolean>1</boolean>
     <key>FSRenderSunDiscDetail</key>

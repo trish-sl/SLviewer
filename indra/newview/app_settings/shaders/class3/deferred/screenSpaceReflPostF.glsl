@@ -50,7 +50,9 @@ vec4 getPosition(vec2 pos_screen);
 
 float random (vec2 uv);
 
-float tapScreenSpaceReflection(int totalSamples, vec2 tc, vec3 viewPos, vec3 n, vec3 rayDir, inout vec4 collectedColor, sampler2D source, float glossiness);
+// <FS:Trish> GCP: the care package's signature (not built: gPostScreenSpaceReflectionProgram is never bound)
+float tapScreenSpaceReflection(int totalSamples, vec2 tc, vec3 viewPos, vec3 n, inout vec4 collectedColor, sampler2D source, float glossiness);
+// </FS:Trish>
 
 void main()
 {
@@ -81,8 +83,10 @@ void main()
 
     vec4 collectedColor = vec4(0);
 
-    vec3 rayDir = reflect(normalize(pos), norm.xyz);
-    float w = tapScreenSpaceReflection(4, tc, pos, norm.xyz, rayDir, collectedColor, diffuseMap, 0.f);
+    // <FS:Trish> GCP
+    //vec3 rayDir = reflect(normalize(pos), norm.xyz);
+    float w = tapScreenSpaceReflection(4, tc, pos, norm.xyz, collectedColor, diffuseMap, 0.f);
+    // </FS:Trish>
 
     collectedColor.rgb *= specCol.rgb;
 

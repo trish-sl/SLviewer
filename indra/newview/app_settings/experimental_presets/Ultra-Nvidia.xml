@@ -590,16 +590,6 @@
     <real>2.0</real>
     <key>FSRenderSSGIStrength</key>
     <real>1.5</real>
-    <key>FSRenderSSRConeTrace</key>
-    <boolean>1</boolean>
-    <key>FSRenderSSREdgeFade</key>
-    <real>0.1</real>
-    <key>FSRenderSSRHiZ</key>
-    <boolean>1</boolean>
-    <key>FSRenderSSRHiZSteps</key>
-    <integer>96</integer>
-    <key>FSRenderSSRThickness</key>
-    <real>0.2</real>
     <key>FSRenderStarExtinction</key>
     <boolean>1</boolean>
     <key>FSRenderSunDiscDetail</key>
@@ -780,24 +770,16 @@
     <boolean>1</boolean>
     <key>RenderRiggedPreciseMath</key>
     <boolean>1</boolean>
-    <key>RenderScreenSpaceReflectionDepthRejectBias</key>
-    <real>0.001</real>
-    <key>RenderScreenSpaceReflectionDistanceBias</key>
-    <real>0.3</real>
     <key>RenderScreenSpaceReflectionGlossySamples</key>
-    <integer>3</integer>
+    <integer>2</integer>
     <key>RenderScreenSpaceReflectionIterations</key>
-    <integer>16</integer>
+    <integer>48</integer>
     <key>RenderScreenSpaceReflectionMaxRoughness</key>
-    <real>0.7</real>
-    <key>RenderScreenSpaceReflectionRayStep</key>
-    <real>0.02</real>
-    <key>RenderScreenSpaceReflectionResolutionMultiplier</key>
-    <real>0.5</real>
+    <real>1.0</real>
     <key>RenderScreenSpaceReflections</key>
     <boolean>1</boolean>
-    <key>RenderScreenSpaceReflectionTemporal</key>
-    <boolean>1</boolean>
+    <key>RenderScreenSpaceReflectionsResolutionMultiplier</key>
+    <real>1.0</real>
     <key>RenderShadowCullMode</key>
     <integer>1</integer>
     <key>RenderShadowDetail</key>

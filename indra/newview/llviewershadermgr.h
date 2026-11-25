@@ -291,8 +291,13 @@ extern LLGLSLShader         gFSNISUpscaleProgram; // <FS:Trish/> NVIDIA Image Sc
 // </FS:Trish>
 extern LLGLSLShader         gFSSkinSSSProgram; // <FS:Trish/>
 extern LLGLSLShader         gFSGTAOHalfProgram; // <FS:Trish/> Half-resolution GTAO
-extern LLGLSLShader         gScreenSpaceReflTraceProgram; // <FS:Trish/> SSR buffer (fsssrbuffer.cpp)
-extern LLGLSLShader         gSSRResolveProgram; // <FS:Trish/>
+// <FS:Trish> GCP: screen-space reflections
+extern LLGLSLShader         gScreenSpaceReflTraceProgram;
+extern LLGLSLShader         gSSRAlphaProgram;
+extern LLGLSLShader         gSkinnedSSRAlphaProgram;
+extern LLGLSLShader         gSSRWaterProgram;
+extern LLGLSLShader         gHiZReduceProgram;
+// </FS:Trish>
 extern LLGLSLShader         gFSIndirectHalfProgram; // <FS:Trish/> FSRenderBentNormals, FSRenderSSGI
 extern LLGLSLShader         gFSIndirectTemporalProgram; // <FS:Trish/>
 extern LLGLSLShader         gExposureProgram;

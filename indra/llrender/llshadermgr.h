@@ -190,12 +190,20 @@ public:
         DEFERRED_SHADOW_LIGHT_SIZE,         //  "shadow_light_size" <Vulkanstorm/> PCSS
 
         DEFERRED_SSR_ITR_COUNT,             //  "iterationCount"
-        DEFERRED_SSR_RAY_STEP,              //  "rayStep"
-        DEFERRED_SSR_DIST_BIAS,             //  "distanceBias"
-        DEFERRED_SSR_REJECT_BIAS,           //  "depthRejectBias"
+        // <FS:Trish> GCP: the care package's screen-space reflection uniforms
+        //DEFERRED_SSR_RAY_STEP,              //  "rayStep"
+        //DEFERRED_SSR_DIST_BIAS,             //  "distanceBias"
+        //DEFERRED_SSR_REJECT_BIAS,           //  "depthRejectBias"
+        DEFERRED_SSR_MAX_THICKNESS,         //  "maxThickness"
+        DEFERRED_SSR_DEPTH_BIAS,            //  "depthBias"
+        // </FS:Trish>
         DEFERRED_SSR_GLOSSY_SAMPLES,        //  "glossySampleCount"
         DEFERRED_SSR_NOISE_SINE,            //  "noiseSine"
-        DEFERRED_SSR_ADAPTIVE_STEP_MULT,    //  "adaptiveStepMultiplier"
+        // <FS:Trish> GCP
+        //DEFERRED_SSR_ADAPTIVE_STEP_MULT,    //  "adaptiveStepMultiplier"
+        DEFERRED_SSR_MAX_Z,                 //  "maxZDepth"
+        DEFERRED_SSR_MAX_ROUGHNESS,         //  "maxRoughness"
+        // </FS:Trish>
 
         MODELVIEW_DELTA_MATRIX,             //  "modelview_delta"
         INVERSE_MODELVIEW_DELTA_MATRIX,     //  "inv_modelview_delta"
@@ -377,17 +385,11 @@ public:
         FS_COLORED_SHADOW_MAP0,             // "coloredShadowMap0"
         FS_COLORED_SHADOW_MAP1,             // "coloredShadowMap1"
         // </FS:Trish>
-        FS_SSR_HIZ_MAP,                     // "ssrHiZMap" <FS:Trish/>
         // <FS:Trish> Water fog variation (waterFogF.glsl)
         FS_WATER_FOG_NOISE,                 // "fs_water_fog_noise"
         FS_WATER_FOG_VIEW_TO_WORLD0,        // "fs_water_fog_vtw0": rows of eye space to agent space
         FS_WATER_FOG_VIEW_TO_WORLD1,        // "fs_water_fog_vtw1"
         FS_WATER_FOG_VIEW_TO_WORLD2,        // "fs_water_fog_vtw2"
-        // </FS:Trish>
-        // <FS:Trish> Screen-space reflection buffers (fsssrbuffer.cpp)
-        FS_SSR_MAP,                         // "fs_ssr_map": the resolved reflections the soften pass reads
-        FS_SSR_TRACE_MAP,                   // "fs_ssr_trace": this frame's trace, for the resolve
-        FS_SSR_HISTORY_MAP,                 // "fs_ssr_history": last frame's resolve, for the resolve
         // </FS:Trish>
         // <FS:Trish> Bent normals and screen-space indirect light (FSRenderBentNormals, FSRenderSSGI)
         FS_INDIRECT_GI_MAP,                 // "fs_indirect_gi"
