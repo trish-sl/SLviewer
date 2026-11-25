@@ -10,7 +10,8 @@
                  (cpu zones) and the GPU part (gpu zones) each cut their side, and the slower side
                  sets the frame. Rules with the same changes are shown as one row.
     zones        measured times summed, ms a frame: "gpu:<GPU zone>" (LL_PROFILE_GPU_ZONE names),
-                 "cpu:<block timer>" (own time) or "cpui:<block timer>" (with children)
+                 "cpu:<block timer>" (own time) or "cpui:<block timer>" (with children); a "-" in front
+                 subtracts the zone (one nested inside another that the rule does not change)
     min_ms       the sum must reach this (rules without zones skip the test)
     min_share    and this share of the frame time (optional)
     fraction     estimated saving = the sum times this
@@ -266,7 +267,7 @@
   <map>
     <key>id</key><string>shadow_far_interval</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:generateSunShadow</string></array>
+    <key>zones</key><array><string>gpu:generateSunShadow</string><string>-gpu:local light shadows</string></array>
     <key>min_ms</key><real>0.8</real>
     <key>fraction</key><real>0.2</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderShadowFarCascadeInterval eq 1</string></array>
@@ -279,7 +280,7 @@
   <map>
     <key>id</key><string>shadow_far_resolution</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:generateSunShadow</string></array>
+    <key>zones</key><array><string>gpu:generateSunShadow</string><string>-gpu:local light shadows</string></array>
     <key>min_ms</key><real>0.8</real>
     <key>fraction</key><real>0.1</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderShadowFarCascadeResolution gt 0.55</string></array>
@@ -292,7 +293,7 @@
   <map>
     <key>id</key><string>shadow_static_cache</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:generateSunShadow</string></array>
+    <key>zones</key><array><string>gpu:generateSunShadow</string><string>-gpu:local light shadows</string></array>
     <key>min_ms</key><real>0.8</real>
     <key>fraction</key><real>0.25</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSPerfShadowStaticCache eq 0</string></array>
@@ -305,7 +306,7 @@
   <map>
     <key>id</key><string>shadow_static_cache_cpu</string>
     <key>bound</key><string>cpu</string>
-    <key>zones</key><array><string>cpui:FS Render Shadows</string></array>
+    <key>zones</key><array><string>cpu:FS Shadow Union Cull</string><string>cpu:FS Shadow Shared Sort</string><string>cpui:FS Shadow Sun Cascade</string><string>cpui:FS Shadow Deferred Cascades</string></array>
     <key>min_ms</key><real>1.5</real>
     <key>fraction</key><real>0.2</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSPerfShadowStaticCache eq 0</string></array>
@@ -318,7 +319,7 @@
   <map>
     <key>id</key><string>shadow_resolution</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:generateSunShadow</string><string>gpu:soften shadow</string></array>
+    <key>zones</key><array><string>gpu:generateSunShadow</string><string>-gpu:local light shadows</string><string>gpu:soften shadow</string></array>
     <key>min_ms</key><real>1.0</real>
     <key>fraction</key><real>0.2</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>RenderShadowResolutionScale gt 0.6</string></array>
@@ -331,7 +332,7 @@
   <map>
     <key>id</key><string>shadow_projector_interval</string>
     <key>bound</key><string>gpu</string>
-    <key>zones</key><array><string>gpu:generateSunShadow</string></array>
+    <key>zones</key><array><string>gpu:generateSunShadow</string><string>-gpu:local light shadows</string></array>
     <key>min_ms</key><real>1.0</real>
     <key>fraction</key><real>0.1</real>
     <key>when</key><array><string>RenderShadowDetail eq 2</string><string>FSRenderSpotShadowUpdateInterval eq 1</string></array>
@@ -357,15 +358,273 @@
   <map>
     <key>id</key><string>shadow_distance_cpu</string>
     <key>bound</key><string>cpu</string>
-    <key>zones</key><array><string>cpu:FS Shadow Union Cull</string><string>cpu:FS Shadow Cull and Sort</string><string>cpu:FS Shadow Shared Sort</string></array>
-    <key>min_ms</key><real>1.0</real>
-    <key>fraction</key><real>0.3</real>
+    <key>zones</key><array><string>cpu:FS Shadow Union Cull</string><string>cpu:FS Shadow Shared Sort</string><string>cpui:FS Shadow Sun Cascade</string><string>cpui:FS Shadow Deferred Cascades</string></array>
+    <key>min_ms</key><real>1.5</real>
+    <key>fraction</key><real>0.25</real>
     <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderShadowMaxDistance gt 160</string></array>
     <key>set</key><array>
       <map><key>setting</key><string>FSRenderShadowMaxDistance</string><key>value</key><string>x0.5</string><key>min</key><real>128.0</real></map>
     </array>
     <key>looks</key><string>No sun shadows beyond the shorter distance; nearer shadows get sharper</string>
     <key>description</key><string>Sun and moon shadows reach half as far, so fewer objects are culled and sorted for the shadow maps.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_faces_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpui:FS Local Light Shadows</string></array>
+    <key>min_ms</key><real>1.0</real>
+    <key>fraction</key><real>0.4</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowFacesPerFrame gt 6</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowFacesPerFrame</string><key>value</key><string>x0.5</string><key>min</key><real>6.0</real></map>
+    </array>
+    <key>looks</key><string>Shadows of moving avatars near lights lag a little</string>
+    <key>description</key><string>Local light shadow maps redraw half as many cube faces a frame. Faces whose casters moved wait their turn, so their culling, sorting and drawing is spread over more frames.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_faces_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local light shadows</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.4</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowFacesPerFrame gt 6</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowFacesPerFrame</string><key>value</key><string>x0.5</string><key>min</key><real>6.0</real></map>
+    </array>
+    <key>looks</key><string>Shadows of moving avatars near lights lag a little</string>
+    <key>description</key><string>Local light shadow maps redraw half as many cube faces a frame. Faces whose casters moved wait their turn, so their culling, sorting and drawing is spread over more frames.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_count_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpui:FS Local Light Shadows</string></array>
+    <key>min_ms</key><real>1.5</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 2</string><string>RenderShadowDetail ge 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadows</string><key>value</key><string>x0.5</string><key>min</key><real>2.0</real></map>
+    </array>
+    <key>looks</key><string>Fewer local lights cast shadows; the others shine through walls again</string>
+    <key>description</key><string>Halves the number of local point lights with a shadow map. The lights that matter most on screen keep theirs; each one dropped saves six faces to cull and draw.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_count_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local light shadows</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 2</string><string>RenderShadowDetail ge 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadows</string><key>value</key><string>x0.5</string><key>min</key><real>2.0</real></map>
+    </array>
+    <key>looks</key><string>Fewer local lights cast shadows; the others shine through walls again</string>
+    <key>description</key><string>Halves the number of local point lights with a shadow map. The lights that matter most on screen keep theirs; each one dropped saves six faces to cull and draw.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_resolution</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local light shadows</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowResolution gt 1024</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowResolution</string><key>value</key><string>1024</string></map>
+    </array>
+    <key>looks</key><string>Local light shadow edges a little softer</string>
+    <key>description</key><string>Local light shadow map faces go to 1024 texels across: each face redrawn fills a quarter of the texels, and the maps take a quarter of the memory (48 MB a light instead of 192 MB).</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_resolution_memory</string>
+    <key>bound</key><string>memory</string>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowResolution gt 1024</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowResolution</string><key>value</key><string>1024</string></map>
+    </array>
+    <key>effect</key><string>less video memory</string>
+    <key>looks</key><string>Local light shadow edges a little softer</string>
+    <key>description</key><string>Local light shadow map faces go to 1024 texels across: each face redrawn fills a quarter of the texels, and the maps take a quarter of the memory (48 MB a light instead of 192 MB).</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_avatar_distance_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpui:FS Local Light Shadows</string></array>
+    <key>min_ms</key><real>1.0</real>
+    <key>fraction</key><real>0.3</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowAvatarDistance eq 0</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowAvatarDistance</string><key>value</key><string>6</string></map>
+    </array>
+    <key>looks</key><string>Avatars far from a light cast no shadow from it</string>
+    <key>description</key><string>Other avatars more than 6 m from a local light cast no shadow into its maps; yours always does. In a crowd the avatars are most of what the local light shadows draw.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_avatar_distance_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local light shadows</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.3</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowAvatarDistance eq 0</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowAvatarDistance</string><key>value</key><string>6</string></map>
+    </array>
+    <key>looks</key><string>Avatars far from a light cast no shadow from it</string>
+    <key>description</key><string>Other avatars more than 6 m from a local light cast no shadow into its maps; yours always does. In a crowd the avatars are most of what the local light shadows draw.</string>
+  </map>
+  <map>
+    <key>id</key><string>local_shadow_rigged_lod_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local light shadows</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>FSRenderLocalLightShadows gt 0</string><string>RenderShadowDetail ge 1</string><string>FSRenderLocalLightShadowRiggedLOD eq 1</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderLocalLightShadowRiggedLOD</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Avatar shadows from local lights may change shape as the camera moves away</string>
+    <key>description</key><string>Rigged meshes near a light with a shadow map no longer keep the detail seen from the light, so distant avatars near lights are drawn with fewer triangles.</string>
+  </map>
+  <map>
+    <key>id</key><string>avatar_shadow_cascades_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:shadow rigged</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderAvatarShadowCascades gt 2</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAvatarShadowCascades</string><key>value</key><string>2</string></map>
+    </array>
+    <key>looks</key><string>Distant avatars cast no sun shadow</string>
+    <key>description</key><string>Other avatars and animesh cast into the two nearest sun shadow maps only. The far maps stop drawing every rigged mesh again for shadows a few texels across. Your own avatar always casts.</string>
+  </map>
+  <map>
+    <key>id</key><string>avatar_shadow_cascades_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpu:FS Shadow Union Cull</string><string>cpu:FS Shadow Shared Sort</string><string>cpui:FS Shadow Sun Cascade</string><string>cpui:FS Shadow Deferred Cascades</string></array>
+    <key>min_ms</key><real>1.5</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderAvatarShadowCascades gt 2</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAvatarShadowCascades</string><key>value</key><string>2</string></map>
+    </array>
+    <key>looks</key><string>Distant avatars cast no sun shadow</string>
+    <key>description</key><string>Other avatars and animesh cast into the two nearest sun shadow maps only. The far maps stop drawing every rigged mesh again for shadows a few texels across. Your own avatar always casts.</string>
+  </map>
+  <map>
+    <key>id</key><string>avatar_shadow_distance_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:shadow rigged</string></array>
+    <key>min_ms</key><real>0.6</real>
+    <key>fraction</key><real>0.2</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderAvatarShadowDistance eq 0</string><string>$full_avatars ge 8</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAvatarShadowDistance</string><key>value</key><string>48</string></map>
+    </array>
+    <key>looks</key><string>Avatars past 48 m cast no shadow</string>
+    <key>description</key><string>Avatars and animesh more than 48 m from the camera, with their attachments, cast no shadow. Your own avatar always casts.</string>
+  </map>
+  <map>
+    <key>id</key><string>avatar_shadow_distance_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpu:FS Shadow Union Cull</string><string>cpu:FS Shadow Shared Sort</string><string>cpui:FS Shadow Sun Cascade</string><string>cpui:FS Shadow Deferred Cascades</string></array>
+    <key>min_ms</key><real>1.5</real>
+    <key>fraction</key><real>0.1</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderAvatarShadowDistance eq 0</string><string>$full_avatars ge 8</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAvatarShadowDistance</string><key>value</key><string>48</string></map>
+    </array>
+    <key>looks</key><string>Avatars past 48 m cast no shadow</string>
+    <key>description</key><string>Avatars and animesh more than 48 m from the camera, with their attachments, cast no shadow. Your own avatar always casts.</string>
+  </map>
+  <map>
+    <key>id</key><string>shadow_alpha_cascades_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:shadow alpha</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderShadowAlphaCascades gt 2</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderShadowAlphaCascades</string><key>value</key><string>2</string></map>
+    </array>
+    <key>looks</key><string>Distant leaves, grass and fences cast plain or no sun shadow</string>
+    <key>description</key><string>Only the two nearest sun shadow maps draw alpha tested casters (leaves, grass, fences). In the far maps their shadows are a few texels across and cost a large share of the shadow pass.</string>
+  </map>
+  <map>
+    <key>id</key><string>shadow_alpha_cascades_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpui:FS Shadow Alpha</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.3</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderShadowAlphaCascades gt 2</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderShadowAlphaCascades</string><key>value</key><string>2</string></map>
+    </array>
+    <key>looks</key><string>Distant leaves, grass and fences cast plain or no sun shadow</string>
+    <key>description</key><string>Only the two nearest sun shadow maps draw alpha tested casters (leaves, grass, fences). In the far maps their shadows are a few texels across and cost a large share of the shadow pass.</string>
+  </map>
+  <map>
+    <key>id</key><string>shadow_fast_filter</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun program</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>RenderShadowPCSS eq 0</string><string>FSRenderShadowFastFilter eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderShadowFastFilter</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>None expected</string>
+    <key>description</key><string>Sun shadows take 3 lookups instead of 5 where an area is clearly fully lit or fully shadowed, and all 5 only near shadow edges.</string>
+  </map>
+  <map>
+    <key>id</key><string>shadow_pcss_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun program</string><string>gpu:soften shadow</string></array>
+    <key>min_ms</key><real>1.2</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>RenderShadowPCSS eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>RenderShadowPCSS</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Shadows lose their soft edges that widen away from the caster</string>
+    <key>description</key><string>Soft shadows (PCSS) off: the sun and projector shadows are filtered with the plain kernel instead of the blocker search and the wide filter.</string>
+  </map>
+  <map>
+    <key>id</key><string>colored_shadows_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:shadow colored casters</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.8</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderColoredShadows eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderColoredShadows</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Sunlight through stained or tinted glass is no longer coloured</string>
+    <key>description</key><string>Coloured sun shadows off: the two nearest sun shadow maps no longer draw the alpha blended objects again into a colour map.</string>
+  </map>
+  <map>
+    <key>id</key><string>alpha_blend_shadows_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:shadow alpha blend</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.9</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>RenderAlphaBlendShadows eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>RenderAlphaBlendShadows</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Alpha blended objects cast no shadow</string>
+    <key>description</key><string>Alpha blended objects (glass, animated transparent effects) are no longer drawn into the shadow maps.</string>
+  </map>
+  <map>
+    <key>id</key><string>contact_shadows_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:soften shadow</string></array>
+    <key>min_ms</key><real>0.6</real>
+    <key>fraction</key><real>0.3</real>
+    <key>when</key><array><string>RenderShadowDetail ge 1</string><string>FSRenderContactShadows eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderContactShadows</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Small contact shadows (feet, folds, small props) fainter</string>
+    <key>description</key><string>Screen-space contact shadows off: no short ray march towards the sun on every pixel after the shadow blur.</string>
   </map>
   <map>
     <key>id</key><string>glow_iterations</string>
@@ -641,6 +900,292 @@
     </array>
     <key>looks</key><string>No soft ambient shadow around avatars</string>
     <key>description</key><string>Turns the soft occlusion around avatars off, which the full-screen lighting pass computes for every pixel.</string>
+  </map>
+  <map>
+    <key>id</key><string>clustered_lights_gpu</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:local lights</string><string>gpu:fullscreen lights</string></array>
+    <key>min_ms</key><real>1.0</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderClusteredLights eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderClusteredLights</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>None expected</string>
+    <key>description</key><string>Local point lights are shaded in one full screen pass, each pixel lit only by the lights of its own screen tile, instead of one light volume draw per light.</string>
+  </map>
+  <map>
+    <key>id</key><string>clustered_lights_cpu</string>
+    <key>bound</key><string>cpu</string>
+    <key>zones</key><array><string>cpui:FS Light Local Lights</string><string>cpui:FS Light Fullscreen Lights</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.5</real>
+    <key>when</key><array><string>FSRenderClusteredLights eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderClusteredLights</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>None expected</string>
+    <key>description</key><string>Local point lights are shaded in one full screen pass, each pixel lit only by the lights of its own screen tile, instead of one light volume draw per light.</string>
+  </map>
+  <map>
+    <key>id</key><string>point_scatter_lights</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:point light scatter</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderPointLightScatter eq 1</string><string>FSRenderPointLightScatterMaxLights gt 8</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderPointLightScatterMaxLights</string><key>value</key><string>x0.5</string><key>min</key><real>8.0</real></map>
+    </array>
+    <key>looks</key><string>Fewer local lights glow in the air</string>
+    <key>description</key><string>Halves the number of point lights whose light glows in the air; the ones that weigh most on screen keep it.</string>
+  </map>
+  <map>
+    <key>id</key><string>point_scatter_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:point light scatter</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.95</real>
+    <key>when</key><array><string>FSRenderPointLightScatter eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderPointLightScatter</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>No glow in the air around local lights</string>
+    <key>description</key><string>The glow of local point lights in the air is no longer drawn.</string>
+  </map>
+  <map>
+    <key>id</key><string>bent_normals_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:indirect half</string></array>
+    <key>min_ms</key><real>0.4</real>
+    <key>fraction</key><real>0.9</real>
+    <key>when</key><array><string>FSRenderBentNormals eq 1</string><string>FSRenderSSGI eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderBentNormals</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Ambient light leaks a little more into creases and corners</string>
+    <key>description</key><string>Bent normals off: the half resolution pass that finds the most open direction of each point no longer runs.</string>
+  </map>
+  <map>
+    <key>id</key><string>crease_ao_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun program</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.2</real>
+    <key>when</key><array><string>FSRenderCreaseAO eq 1</string><string>RenderDeferredSSAO eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderCreaseAO</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Inside corners, creases and seams less dark</string>
+    <key>description</key><string>Crease occlusion off: about 20 fewer depth reads per pixel in the sun light pass.</string>
+  </map>
+  <map>
+    <key>id</key><string>skin_sss_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:skin sss</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.9</real>
+    <key>when</key><array><string>FSRenderSkinSSS eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderSkinSSS</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Avatar skin loses its soft light bleed past shadow edges</string>
+    <key>description</key><string>Skin subsurface scattering off: the screen-space pass that diffuses the light on avatar skin no longer runs.</string>
+  </map>
+  <map>
+    <key>id</key><string>sun_rays_steps</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun rays</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderSunRays eq 1</string><string>FSRenderSunRaysSteps gt 16</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderSunRaysSteps</string><key>value</key><string>x0.5</string><key>min</key><real>12.0</real></map>
+    </array>
+    <key>looks</key><string>Sun ray shafts slightly noisier</string>
+    <key>description</key><string>Halves the samples along each sun ray.</string>
+  </map>
+  <map>
+    <key>id</key><string>sun_rays_resolution</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun rays</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.5</real>
+    <key>when</key><array><string>FSRenderSunRays eq 1</string><string>FSRenderSunRaysResolution gt 0.55</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderSunRaysResolution</string><key>value</key><string>0.5</string></map>
+    </array>
+    <key>looks</key><string>Sun ray shafts slightly softer</string>
+    <key>description</key><string>Sun rays are computed at half the screen resolution.</string>
+  </map>
+  <map>
+    <key>id</key><string>sun_rays_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:sun rays</string></array>
+    <key>min_ms</key><real>0.8</real>
+    <key>fraction</key><real>0.95</real>
+    <key>when</key><array><string>FSRenderSunRays eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderSunRays</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>No sun ray shafts in the air</string>
+    <key>description</key><string>Sun rays off: the light scattered in the air is no longer ray marched.</string>
+  </map>
+  <map>
+    <key>id</key><string>underwater_rays_steps</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:underwater rays</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>FSRenderUnderwaterRays eq 1</string><string>FSRenderUnderwaterRaysSteps gt 16</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderUnderwaterRaysSteps</string><key>value</key><string>x0.5</string><key>min</key><real>12.0</real></map>
+    </array>
+    <key>looks</key><string>Underwater light shafts slightly noisier</string>
+    <key>description</key><string>Halves the samples along each view ray for the underwater light rays.</string>
+  </map>
+  <map>
+    <key>id</key><string>dust_motes_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:dust motes</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.95</real>
+    <key>when</key><array><string>FSRenderDustMotes eq 1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderDustMotes</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>No dust specks in sun rays and projector light</string>
+    <key>description</key><string>Dust motes off: the drifting specks in lit air are no longer drawn.</string>
+  </map>
+  <map>
+    <key>id</key><string>rigged_alpha_no_discard</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>FSRenderAlphaRiggedNoDiscard eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAlphaRiggedNoDiscard</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>None expected</string>
+    <key>description</key><string>Rigged alpha faces that can never fail the alpha test are drawn without it, so the graphics card can skip the hidden hair and clothing layers behind them early.</string>
+  </map>
+  <map>
+    <key>id</key><string>vrs_rigged_alpha</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.35</real>
+    <key>when</key><array><string>$nvidia eq 1</string><string>FSRenderVRSRiggedAlpha eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderVRSRiggedAlpha</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>Blended hair and sheer clothing a little blockier up close</string>
+    <key>description</key><string>NVIDIA RTX and GTX 16xx only: the avatar alpha pass shades once per 2x2 pixels, a quarter of the lighting work. Edges stay sharp.</string>
+  </map>
+  <map>
+    <key>id</key><string>auto_mask_rigged_alpha</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.6</real>
+    <key>fraction</key><real>0.25</real>
+    <key>when</key><array><string>FSRenderAutoMaskRiggedAlpha eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAutoMaskRiggedAlpha</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>Some rigged faces lose their soft alpha fringe</string>
+    <key>description</key><string>Rigged faces whose alpha is all on or off are drawn as cutouts with the opaque surfaces instead of blended in the alpha pass. Rebuilds every object once.</string>
+  </map>
+  <map>
+    <key>id</key><string>cheap_avatar_alpha_crowd</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.5</real>
+    <key>fraction</key><real>0.25</real>
+    <key>when</key><array><string>FSRenderCheapAvatarAlpha eq 1</string><string>FSRenderCheapAvatarAlphaCrowd eq 0</string><string>$full_avatars ge 8</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderCheapAvatarAlphaCrowd</string><key>value</key><string>8</string></map>
+    </array>
+    <key>looks</key><string>In a crowd, nearby hair and sheer clothing lit more simply</string>
+    <key>description</key><string>With 8 or more avatars drawn in full, the transparent parts of every other avatar are lit cheaply, whatever their distance.</string>
+  </map>
+  <map>
+    <key>id</key><string>cheap_avatar_alpha_coverage</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>FSRenderCheapAvatarAlpha eq 1</string><string>FSRenderCheapAvatarAlphaCoverage eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderCheapAvatarAlphaCoverage</string><key>value</key><string>0.02</string></map>
+    </array>
+    <key>looks</key><string>None expected on small avatars</string>
+    <key>description</key><string>Avatars that cover less than 2 percent of the view have their transparent parts lit cheaply, whatever their distance.</string>
+  </map>
+  <map>
+    <key>id</key><string>avatar_triangle_budget</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:gbuffer rigged</string><string>gpu:alpha avatars</string><string>gpu:shadow rigged</string></array>
+    <key>min_ms</key><real>1.5</real>
+    <key>fraction</key><real>0.15</real>
+    <key>when</key><array><string>FSRenderAvatarTriangleBudget eq 0</string><string>$full_avatars ge 4</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderAvatarTriangleBudget</string><key>value</key><string>300000</string></map>
+    </array>
+    <key>looks</key><string>The heaviest bodies, hair and clothing of nearby avatars show less detail</string>
+    <key>description</key><string>Each other avatar gets about 300000 triangles: while over, its heaviest rigged mesh drops one level of detail.</string>
+  </map>
+  <map>
+    <key>id</key><string>hair_two_pass_off</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:alpha avatars</string></array>
+    <key>min_ms</key><real>0.6</real>
+    <key>fraction</key><real>0.3</real>
+    <key>when</key><array><string>FSRenderHairTwoPass eq 1</string><string>FSRenderAlphaHybridOIT eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderHairTwoPass</string><key>value</key><string>0</string></map>
+    </array>
+    <key>looks</key><string>Inner hair layers may draw over outer ones again</string>
+    <key>description</key><string>Rigged alpha mesh is drawn in one pass instead of a solid core, a blended fringe and a depth pass.</string>
+  </map>
+  <map>
+    <key>id</key><string>ssr_max_roughness</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:SSR trace</string><string>gpu:SSR alpha</string><string>gpu:SSR water</string></array>
+    <key>min_ms</key><real>0.4</real>
+    <key>fraction</key><real>0.25</real>
+    <key>when</key><array><string>RenderScreenSpaceReflections eq 1</string><string>RenderScreenSpaceReflectionMaxRoughness gt 0.75</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>RenderScreenSpaceReflectionMaxRoughness</string><key>value</key><string>0.6</string></map>
+    </array>
+    <key>looks</key><string>Rough surfaces show probe reflections instead of screen-space ones</string>
+    <key>description</key><string>Screen-space reflections are traced only on surfaces smoother than 0.6 roughness; rougher ones, where the reflection is a blur anyway, keep the reflection probes.</string>
+  </map>
+  <map>
+    <key>id</key><string>probe_filter_quality</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:probe radiance gen</string></array>
+    <key>min_ms</key><real>0.3</real>
+    <key>fraction</key><real>0.4</real>
+    <key>when</key><array><string>FSRenderProbeFilterQuality gt 1.1</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderProbeFilterQuality</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>Medium-rough reflections may show faint copies of bright objects</string>
+    <key>description</key><string>Reflection probes are prefiltered with the stock number of samples.</string>
+  </map>
+  <map>
+    <key>id</key><string>vrs_opaque</string>
+    <key>bound</key><string>gpu</string>
+    <key>zones</key><array><string>gpu:renderGeomDeferred</string></array>
+    <key>min_ms</key><real>3.0</real>
+    <key>fraction</key><real>0.1</real>
+    <key>when</key><array><string>$nvidia eq 1</string><string>FSRenderVRS eq 0</string></array>
+    <key>set</key><array>
+      <map><key>setting</key><string>FSRenderVRS</string><key>value</key><string>1</string></map>
+    </array>
+    <key>looks</key><string>Flat, low contrast areas very slightly softer</string>
+    <key>description</key><string>NVIDIA RTX and GTX 16xx only: tiles of the opaque pass that were low in contrast, the sky and blurred areas shade once per few pixels. Edges stay at full rate.</string>
   </map>
   <map>
     <key>id</key><string>occluded_discard</string>

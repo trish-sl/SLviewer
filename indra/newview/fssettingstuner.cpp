@@ -556,7 +556,7 @@ namespace
     {
         std::string mId;
         std::set<std::string> mBounds;
-        std::vector<std::string> mZones;   // "gpu:zone", "cpu:timer" (own time) or "cpui:timer" (inclusive)
+        std::vector<std::string> mZones;   // "gpu:zone", "cpu:timer" (own time) or "cpui:timer" (inclusive), "-" before one subtracts it
         F64 mMinMs = 0.0;
         F64 mMinShare = 0.0;    // the zones' share of the frame must reach this too
         F64 mFraction = 0.0;
@@ -675,21 +675,27 @@ namespace
     void zoneSums(const Rule& rule, const Measurement& m, F64& cpu_ms, F64& gpu_ms)
     {
         cpu_ms = gpu_ms = 0.0;
-        for (const std::string& zone : rule.mZones)
+        for (const std::string& entry : rule.mZones)
         {
+            // A leading '-' takes the zone off: a zone nested in another that the rule doesn't change
+            const bool minus = !entry.empty() && entry[0] == '-';
+            const std::string zone = minus ? entry.substr(1) : entry;
+            const F64 sign = minus ? -1.0 : 1.0;
             if (zone.compare(0, 4, "gpu:") == 0)
             {
-                gpu_ms += gpuMs(m, zone.substr(4));
+                gpu_ms += sign * gpuMs(m, zone.substr(4));
             }
             else if (zone.compare(0, 5, "cpui:") == 0)
             {
-                cpu_ms += cpuTotalMs(m, zone.substr(5));
+                cpu_ms += sign * cpuTotalMs(m, zone.substr(5));
             }
             else if (zone.compare(0, 4, "cpu:") == 0)
             {
-                cpu_ms += cpuOwnMs(m, zone.substr(4));
+                cpu_ms += sign * cpuOwnMs(m, zone.substr(4));
             }
         }
+        cpu_ms = llmax(cpu_ms, 0.0);
+        gpu_ms = llmax(gpu_ms, 0.0);
     }
 
     bool sameChanges(const std::vector<std::pair<std::string, LLSD>>& a, const std::vector<std::pair<std::string, LLSD>>& b)
